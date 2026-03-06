@@ -1,0 +1,27 @@
+<script>
+  import Nav from '$lib/components/Nav.svelte';
+</script>
+
+<div class="app-container">
+  <Nav />
+
+  <main class="page-content">
+    <slot />
+  </main>
+</div>
+
+<style>
+  .app-container {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .page-content {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+  }
+</style>
