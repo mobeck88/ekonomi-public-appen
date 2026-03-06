@@ -13,10 +13,17 @@
 <style>
   .app-container {
     display: flex;
-    flex-direction: row;
+    flex-direction: column; /* MOBIL: Nav överst */
     width: 100%;
     height: 100vh;
     overflow: hidden;
+  }
+
+  /* DESKTOP */
+  @media (min-width: 768px) {
+    .app-container {
+      flex-direction: row; /* DESKTOP: Nav till vänster */
+    }
   }
 
   .page-content {
