@@ -4,7 +4,6 @@
     let isMember = data.isMemberOfChurch;
     let message = data.message ?? "";
 
-    // Accordion states
     let showChurch = false;
     let showPassword = false;
     let showLogout = false;
@@ -12,7 +11,6 @@
 
 <h1>Inställningar</h1>
 
-<!-- ⭐ Sektion: Kyrkotillhörighet -->
 <div class="section">
     <button class="section-header" on:click={() => showChurch = !showChurch}>
         <span>Kyrkotillhörighet</span>
@@ -33,7 +31,6 @@
     {/if}
 </div>
 
-<!-- ⭐ Sektion: Byt lösenord -->
 <div class="section">
     <button class="section-header" on:click={() => showPassword = !showPassword}>
         <span>Byt lösenord</span>
@@ -52,7 +49,6 @@
     {/if}
 </div>
 
-<!-- ⭐ Sektion: Logga ut -->
 <div class="section">
     <button class="section-header" on:click={() => showLogout = !showLogout}>
         <span>Logga ut</span>
@@ -79,15 +75,10 @@
         font-weight: 700;
     }
 
-    /* Sektioner */
     .section {
         margin-bottom: 1.5rem;
         border: 1px solid #e5e7eb;
         border-radius: 12px;
-
-        /* ⭐ FIX: denna rad togs bort eftersom den bröt mobilmenyn */
-        /* overflow: hidden; */
-
         background: #ffffff;
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
@@ -109,7 +100,6 @@
         background: #e5e7eb;
     }
 
-    /* Formulär */
     .form {
         display: grid;
         gap: 0.9rem;
@@ -117,24 +107,13 @@
         max-width: 420px;
     }
 
-    label {
-        font-weight: 600;
-        color: #374151;
-    }
-
     .checkbox-row {
         display: flex;
         align-items: center;
         gap: 0.6rem;
-        font-weight: 500;
     }
 
-    input[type="password"],
-    input[type="text"],
-    input[type="date"],
-    input[type="number"],
-    input[type="month"],
-    textarea {
+    input, textarea {
         padding: 0.65rem;
         border: 1px solid #d1d5db;
         border-radius: 8px;
@@ -158,24 +137,18 @@
         cursor: pointer;
         font-size: 0.95rem;
         font-weight: 600;
-        transition: background 0.15s;
     }
 
     button:hover {
         background: #1d4ed8;
     }
 
-    button.danger {
+    .danger {
         background: #dc2626;
     }
 
-    button.danger:hover {
+    .danger:hover {
         background: #b91c1c;
-    }
-
-    .logout-text {
-        color: #374151;
-        margin-bottom: 0.5rem;
     }
 
     .feedback {
