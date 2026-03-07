@@ -18,11 +18,12 @@
         { label: "Skatt", path: "/skatt" },
         { label: "Lån", path: "/loans" },
 
-        /* ⭐ FIX: ASCII-säker */
-        { label: "Inställningar", path: "/settings" }
+        /* ⭐ FIX: ASCII-säker label */
+        { label: "Settings", path: "/settings" }
     ];
 </script>
 
+<!-- MOBIL TOPPBAR -->
 <div class="mobile-nav">
     <button class="hamburger" type="button" on:click={() => (open = !open)}>
         ☰
@@ -30,6 +31,7 @@
     <span class="title">Ekonomi</span>
 </div>
 
+<!-- MOBILMENY (Safari-säker) -->
 <nav class="mobile-menu {open ? 'open' : ''}">
     {#each links as link}
         <a
@@ -42,6 +44,7 @@
     {/each}
 </nav>
 
+<!-- DESKTOPMENY -->
 <nav class="desktop-nav">
     {#each links as link}
         <a
@@ -78,6 +81,7 @@
         margin-left: 12px;
     }
 
+    /* SAFARI-SÄKER MOBILMENY */
     .mobile-menu {
         display: none;
         flex-direction: column;
