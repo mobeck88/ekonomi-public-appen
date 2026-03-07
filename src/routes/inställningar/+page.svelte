@@ -84,7 +84,10 @@
         margin-bottom: 1.5rem;
         border: 1px solid #e5e7eb;
         border-radius: 12px;
-        overflow: hidden;
+
+        /* ⭐ FIX: denna rad togs bort eftersom den bröt mobilmenyn */
+        /* overflow: hidden; */
+
         background: #ffffff;
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
