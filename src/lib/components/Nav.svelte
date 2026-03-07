@@ -14,12 +14,9 @@
         { label: "Oförutsägbart", path: "/unexpected_expenses" },
         { label: "Extra inkomster", path: "/extra_income" },
         { label: "Budget", path: "/budget" },
-
-        // ENDA NYA RADEN I LOGIKEN:
-        { label: "Skattetabell", path: "/skattetabell" },
-
         { label: "Skatt", path: "/skatt" },
         { label: "Lån", path: "/loans" },
+        { label: "Skattetabell", path: "/skattetabell" },
         { label: "Inställningar", path: "/inställningar" }
     ];
 </script>
