@@ -17,9 +17,8 @@
     width: 100%;
     height: 100vh;
 
-    /* ⭐ FIX: tillåt mobilmenyn att synas */
-    overflow-x: hidden;
-    overflow-y: auto;
+    /* ⭐ RÄTT: ingen scroll här */
+    overflow: hidden;
   }
 
   /* DESKTOP */
@@ -32,6 +31,8 @@
   .page-content {
     flex: 1;
     padding: 20px;
+
+    /* ⭐ Scroll här istället */
     overflow-y: auto;
   }
 </style>
