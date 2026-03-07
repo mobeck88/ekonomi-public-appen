@@ -14,17 +14,15 @@
         { label: "Oförutsägbart", path: "/unexpected_expenses" },
         { label: "Extra inkomster", path: "/extra_income" },
         { label: "Budget", path: "/budget" },
-
-        /* ENDA NYA MENYVALET */
         { label: "Skattetabell", path: "/skattetabell" },
-
         { label: "Skatt", path: "/skatt" },
         { label: "Lån", path: "/loans" },
-        { label: "Inställningar", path: "/inställningar" }
+
+        /* ⭐ FIX: ASCII-säker */
+        { label: "Inställningar", path: "/settings" }
     ];
 </script>
 
-<!-- MOBIL TOPPBAR -->
 <div class="mobile-nav">
     <button class="hamburger" type="button" on:click={() => (open = !open)}>
         ☰
@@ -32,9 +30,7 @@
     <span class="title">Ekonomi</span>
 </div>
 
-<!-- MOBILMENY -->
-{#if open}
-<nav class="mobile-menu">
+<nav class="mobile-menu {open ? 'open' : ''}">
     {#each links as link}
         <a
             href={link.path}
@@ -45,9 +41,7 @@
         </a>
     {/each}
 </nav>
-{/if}
 
-<!-- DESKTOPMENY -->
 <nav class="desktop-nav">
     {#each links as link}
         <a
@@ -66,6 +60,8 @@
         padding: 12px 16px;
         background: #ffffff;
         border-bottom: 1px solid #e5e5e5;
+        position: relative;
+        z-index: 20;
     }
 
     .hamburger {
@@ -83,10 +79,16 @@
     }
 
     .mobile-menu {
-        display: flex;
+        display: none;
         flex-direction: column;
         background: #fafafa;
         border-bottom: 1px solid #e5e5e5;
+        position: relative;
+        z-index: 10;
+    }
+
+    .mobile-menu.open {
+        display: flex;
     }
 
     .mobile-menu a {
