@@ -1,27 +1,38 @@
-import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/auth-helpers-sveltekit';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 import type { Handle } from '@sveltejs/kit';
 
 export const handle: Handle = async ({ event, resolve }) => {
-    // Skapa EN global Supabase-klient
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: {
-            persistSession: false
+    // Skapa Supabase-klient med korrekt cookie-hantering
+    event.locals.supabase = createServerClient(
+        SUPABASE_URL,
+        SUPABASE_ANON_KEY,
+        {
+            cookies: {
+                get: (key) => event.cookies.get(key),
+                set: (key, value, options) => {
+                    event.cookies.set(key, value, {
+                        ...options,
+                        path: '/'
+                    });
+                },
+                remove: (key, options) => {
+                    event.cookies.delete(key, {
+                        ...options,
+                        path: '/'
+                    });
+                }
+            }
         }
-    });
+    );
 
-    event.locals.supabase = supabase;
+    // Hämta användaren (utan att krascha)
+    const {
+        data: { user }
+    } = await event.locals.supabase.auth.getUser();
 
-    // Läs token från cookies
-    const access_token = event.cookies.get('sb-access-token');
+    event.locals.user = user;
 
-    if (access_token) {
-        const { data } = await supabase.auth.getUser(access_token);
-        event.locals.user = data.user ?? null;
-    } else {
-        event.locals.user = null;
-    }
-
-    // Kör vidare till route/layout
+    // Kör vidare
     return resolve(event);
 };
