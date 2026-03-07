@@ -14,10 +14,15 @@
         { label: "Oförutsägbart", path: "/unexpected_expenses" },
         { label: "Extra inkomster", path: "/extra_income" },
         { label: "Budget", path: "/budget" },
+
+        // ⭐ Nytt menyval
+        { label: "Skattetabell", path: "/skattetabell" },
+
         { label: "Skatt", path: "/skatt" },
         { label: "Lån", path: "/loans" },
-        { label: "Skattetabell", path: "/skattetabell" },
-        { label: "Inställningar", path: "/inställningar" }
+
+        // ⭐ Viktigt: använd engelskt filnamn i path
+        { label: "Inställningar", path: "/settings" }
     ];
 </script>
 
@@ -29,7 +34,7 @@
     <span class="title">Ekonomi</span>
 </div>
 
-<!-- MOBIL MENY (slide-down) -->
+<!-- MOBIL MENY -->
 {#if open}
 <nav class="mobile-menu">
     {#each links as link}
@@ -44,7 +49,7 @@
 </nav>
 {/if}
 
-<!-- DESKTOP SIDOMENY -->
+<!-- DESKTOP MENY -->
 <nav class="desktop-nav">
     {#each links as link}
         <a
@@ -102,7 +107,7 @@
         font-weight: bold;
     }
 
-    /* DESKTOP SIDOMENY */
+    /* DESKTOP MENY */
     .desktop-nav {
         display: none;
     }
