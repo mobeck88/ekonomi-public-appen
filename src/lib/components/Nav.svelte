@@ -16,7 +16,6 @@
         { label: "Budget", path: "/budget" },
         { label: "Skatt", path: "/skatt" },
         { label: "Lån", path: "/loans" },
-        { label: "Skattetabell", path: "/skattetabell" },
         { label: "Inställningar", path: "/inställningar" }
     ];
 </script>
