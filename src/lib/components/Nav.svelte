@@ -14,6 +14,10 @@
         { label: "Oförutsägbart", path: "/unexpected_expenses" },
         { label: "Extra inkomster", path: "/extra_income" },
         { label: "Budget", path: "/budget" },
+
+        /* ENDA NYA MENYVALET */
+        { label: "Skattetabell", path: "/skattetabell" },
+
         { label: "Skatt", path: "/skatt" },
         { label: "Lån", path: "/loans" },
         { label: "Inställningar", path: "/inställningar" }
@@ -22,13 +26,13 @@
 
 <!-- MOBIL TOPPBAR -->
 <div class="mobile-nav">
-    <button class="hamburger" on:click={() => (open = !open)}>
+    <button class="hamburger" type="button" on:click={() => (open = !open)}>
         ☰
     </button>
     <span class="title">Ekonomi</span>
 </div>
 
-<!-- MOBIL MENY (slide-down) -->
+<!-- MOBILMENY -->
 {#if open}
 <nav class="mobile-menu">
     {#each links as link}
@@ -43,7 +47,7 @@
 </nav>
 {/if}
 
-<!-- DESKTOP SIDOMENY -->
+<!-- DESKTOPMENY -->
 <nav class="desktop-nav">
     {#each links as link}
         <a
@@ -56,7 +60,6 @@
 </nav>
 
 <style>
-    /* MOBIL TOPPBAR */
     .mobile-nav {
         display: flex;
         align-items: center;
@@ -79,7 +82,6 @@
         margin-left: 12px;
     }
 
-    /* MOBIL MENY */
     .mobile-menu {
         display: flex;
         flex-direction: column;
@@ -101,7 +103,6 @@
         font-weight: bold;
     }
 
-    /* DESKTOP SIDOMENY */
     .desktop-nav {
         display: none;
     }
