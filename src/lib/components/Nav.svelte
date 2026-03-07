@@ -15,14 +15,12 @@
         { label: "Extra inkomster", path: "/extra_income" },
         { label: "Budget", path: "/budget" },
 
-        // ⭐ Nytt menyval
+        // ENDA NYA RADEN I LOGIKEN:
         { label: "Skattetabell", path: "/skattetabell" },
 
         { label: "Skatt", path: "/skatt" },
         { label: "Lån", path: "/loans" },
-
-        // ⭐ Viktigt: använd engelskt filnamn i path
-        { label: "Inställningar", path: "/settings" }
+        { label: "Inställningar", path: "/inställningar" }
     ];
 </script>
 
@@ -34,7 +32,7 @@
     <span class="title">Ekonomi</span>
 </div>
 
-<!-- MOBIL MENY -->
+<!-- MOBIL MENY (slide-down) -->
 {#if open}
 <nav class="mobile-menu">
     {#each links as link}
@@ -49,7 +47,7 @@
 </nav>
 {/if}
 
-<!-- DESKTOP MENY -->
+<!-- DESKTOP SIDOMENY -->
 <nav class="desktop-nav">
     {#each links as link}
         <a
@@ -107,7 +105,7 @@
         font-weight: bold;
     }
 
-    /* DESKTOP MENY */
+    /* DESKTOP SIDOMENY */
     .desktop-nav {
         display: none;
     }

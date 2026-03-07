@@ -16,10 +16,7 @@
     flex-direction: column; /* MOBIL: Nav överst */
     width: 100%;
     height: 100vh;
-
-    /* ⭐ FIX: tillåt menyn att synas */
-    overflow-x: hidden;
-    overflow-y: auto;
+    overflow: hidden;
   }
 
   /* DESKTOP */
