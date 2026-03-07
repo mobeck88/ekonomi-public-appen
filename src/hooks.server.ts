@@ -1,38 +1,50 @@
-import { createServerClient } from '@supabase/auth-helpers-sveltekit';
+import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 import type { Handle } from '@sveltejs/kit';
 
 export const handle: Handle = async ({ event, resolve }) => {
-    // Skapa Supabase-klient med korrekt cookie-hantering
-    event.locals.supabase = createServerClient(
-        SUPABASE_URL,
-        SUPABASE_ANON_KEY,
-        {
-            cookies: {
-                get: (key) => event.cookies.get(key),
-                set: (key, value, options) => {
-                    event.cookies.set(key, value, {
-                        ...options,
-                        path: '/'
-                    });
-                },
-                remove: (key, options) => {
-                    event.cookies.delete(key, {
-                        ...options,
-                        path: '/'
-                    });
-                }
-            }
+    // Skapa Supabase-klient utan att auth-helpers tar över cookies
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+            persistSession: false
         }
-    );
+    });
 
-    // Hämta användaren (utan att krascha)
-    const {
-        data: { user }
-    } = await event.locals.supabase.auth.getUser();
+    event.locals.supabase = supabase;
 
-    event.locals.user = user;
+    // Läs token från cookies (din egen metod)
+    const access_token = event.cookies.get('sb-access-token');
 
-    // Kör vidare
+    if (access_token) {
+        const { data } = await supabase.auth.getUser(access_token);
+        event.locals.user = data.user ?? null;
+    } else {
+        event.locals.user = null;
+    }
+
+    return resolve(event);
+};
+import { createClient } from '@supabase/supabase-js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
+import type { Handle } from '@sveltejs/kit';
+
+export const handle: Handle = async ({ event, resolve }) => {
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+            persistSession: false
+        }
+    });
+
+    event.locals.supabase = supabase;
+
+    const access_token = event.cookies.get('sb-access-token');
+
+    if (access_token) {
+        const { data } = await supabase.auth.getUser(access_token);
+        event.locals.user = data.user ?? null;
+    } else {
+        event.locals.user = null;
+    }
+
     return resolve(event);
 };
