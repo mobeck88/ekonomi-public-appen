@@ -14,6 +14,10 @@
         { label: "Oförutsägbart", path: "/unexpected_expenses" },
         { label: "Extra inkomster", path: "/extra_income" },
         { label: "Budget", path: "/budget" },
+
+        // ⭐ NYTT MENYVAL
+        { label: "Skattetabell", path: "/skattetabell" },
+
         { label: "Skatt", path: "/skatt" },
         { label: "Lån", path: "/loans" },
         { label: "Inställningar", path: "/inställningar" }
