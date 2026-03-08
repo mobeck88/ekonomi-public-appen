@@ -1,3 +1,4 @@
+import { redirect } from '@sveltejs/kit';
 import { supabase } from '$lib/supabaseClient';
 
 export const load = async ({ locals }) => {
@@ -34,7 +35,7 @@ export const actions = {
         return { message: "Kyrkotillhörighet uppdaterad" };
     },
 
-    changePassword: async ({ request, locals }) => {
+    changePassword: async ({ request }) => {
         const form = await request.formData();
         const newPassword = form.get("newPassword");
 
@@ -47,5 +48,12 @@ export const actions = {
         }
 
         return { message: "Lösenord uppdaterat" };
+    },
+
+    logout: async ({ locals }) => {
+        await locals.supabase.auth.signOut();
+
+        // ⭐ Direkt redirect till login
+        throw redirect(303, '/login');
     }
 };
