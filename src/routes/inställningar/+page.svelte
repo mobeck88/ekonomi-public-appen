@@ -4,6 +4,7 @@
     let isMember = data.isMemberOfChurch;
     let message = data.message ?? "";
 
+    // Accordion states
     let showChurch = false;
     let showPassword = false;
     let showLogout = false;
@@ -11,7 +12,7 @@
 
 <h1>Inställningar</h1>
 
-<!-- ⭐ Kyrkotillhörighet -->
+<!-- ⭐ Sektion: Kyrkotillhörighet -->
 <div class="section">
     <button class="section-header" on:click={() => showChurch = !showChurch}>
         <span>Kyrkotillhörighet</span>
@@ -32,7 +33,7 @@
     {/if}
 </div>
 
-<!-- ⭐ Byt lösenord -->
+<!-- ⭐ Sektion: Byt lösenord -->
 <div class="section">
     <button class="section-header" on:click={() => showPassword = !showPassword}>
         <span>Byt lösenord</span>
@@ -51,7 +52,7 @@
     {/if}
 </div>
 
-<!-- ⭐ Logga ut -->
+<!-- ⭐ Sektion: Logga ut -->
 <div class="section">
     <button class="section-header" on:click={() => showLogout = !showLogout}>
         <span>Logga ut</span>
@@ -59,9 +60,9 @@
     </button>
 
     {#if showLogout}
-        <form method="POST" class="form">
+        <form method="POST" action="?/logout" class="form">
             <p class="logout-text">Du kommer att loggas ut från appen.</p>
-            <button class="danger" name="action" value="logout">Logga ut</button>
+            <button class="danger">Logga ut</button>
         </form>
     {/if}
 </div>
@@ -78,10 +79,15 @@
         font-weight: 700;
     }
 
+    /* Sektioner */
     .section {
         margin-bottom: 1.5rem;
         border: 1px solid #e5e7eb;
         border-radius: 12px;
+
+        /* ⭐ FIX: denna rad togs bort eftersom den bröt mobilmenyn */
+        /* overflow: hidden; */
+
         background: #ffffff;
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
@@ -103,6 +109,7 @@
         background: #e5e7eb;
     }
 
+    /* Formulär */
     .form {
         display: grid;
         gap: 0.9rem;

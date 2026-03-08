@@ -13,20 +13,26 @@
 <style>
   .app-container {
     display: flex;
-    flex-direction: column;
+    flex-direction: column; /* MOBIL: Nav överst */
     width: 100%;
-    min-height: 100vh;   /* Viktigt: inte height:100vh */
+    height: 100vh;
+
+    /* ⭐ RÄTT: ingen scroll här */
+    overflow: hidden;
   }
 
+  /* DESKTOP */
   @media (min-width: 768px) {
     .app-container {
-      flex-direction: row;
+      flex-direction: row; /* DESKTOP: Nav till vänster */
     }
   }
 
   .page-content {
     flex: 1;
     padding: 20px;
-    overflow-y: auto;     /* Scroll här */
+
+    /* ⭐ Scroll här istället */
+    overflow-y: auto;
   }
 </style>
