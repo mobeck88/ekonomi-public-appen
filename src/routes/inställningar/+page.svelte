@@ -60,7 +60,7 @@
     </button>
 
     {#if showLogout}
-        <form method="POST" action="?/logout" class="form">
+        <form method="GET" action="/logout" class="form">
             <p class="logout-text">Du kommer att loggas ut från appen.</p>
             <button class="danger">Logga ut</button>
         </form>
@@ -84,10 +84,6 @@
         margin-bottom: 1.5rem;
         border: 1px solid #e5e7eb;
         border-radius: 12px;
-
-        /* ⭐ FIX: denna rad togs bort eftersom den bröt mobilmenyn */
-        /* overflow: hidden; */
-
         background: #ffffff;
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
