@@ -1,9 +1,9 @@
-import { createClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 import { redirect } from '@sveltejs/kit';
 
 export const load = async ({ locals }) => {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    if (!locals.user) throw redirect(303, '/login');
+
+    const supabase = locals.supabase;
 
     const { data } = await supabase
         .from('monthly_income')
@@ -16,7 +16,9 @@ export const load = async ({ locals }) => {
 
 export const actions = {
     add: async ({ request, locals }) => {
-        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        if (!locals.user) throw redirect(303, '/login');
+
+        const supabase = locals.supabase;
         const form = await request.formData();
 
         const payload = {
@@ -43,7 +45,9 @@ export const actions = {
     },
 
     update: async ({ request, locals }) => {
-        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        if (!locals.user) throw redirect(303, '/login');
+
+        const supabase = locals.supabase;
         const form = await request.formData();
 
         const id = form.get('id');
