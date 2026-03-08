@@ -1,9 +1,12 @@
 <script>
   import Nav from '$lib/components/Nav.svelte';
+  export let data;
 </script>
 
 <div class="app-container">
-  <Nav />
+  {#if data.user}
+    <Nav />
+  {/if}
 
   <main class="page-content">
     <slot />
