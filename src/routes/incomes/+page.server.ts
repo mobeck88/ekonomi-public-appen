@@ -40,11 +40,7 @@ export const actions = {
             fk_nettolon: form.get('fk_nettolon') || null
         };
 
-        // ⭐ Lägg till JWT i headern
-        const access_token = locals.cookies.get('sb-access-token');
-        const supabaseWithAuth = supabase.auth.setAuth(access_token);
-
-        await supabaseWithAuth.from('monthly_income').insert(payload);
+        await supabase.from('monthly_income').insert(payload);
         throw redirect(303, '/incomes');
     },
 
@@ -53,6 +49,7 @@ export const actions = {
 
         const supabase = locals.supabase;
         const form = await request.formData();
+
         const id = form.get('id');
 
         const payload = {
@@ -73,11 +70,7 @@ export const actions = {
             fk_nettolon: form.get('fk_nettolon') || null
         };
 
-        // ⭐ Lägg till JWT i headern
-        const access_token = locals.cookies.get('sb-access-token');
-        const supabaseWithAuth = supabase.auth.setAuth(access_token);
-
-        await supabaseWithAuth
+        await supabase
             .from('monthly_income')
             .update(payload)
             .eq('id', id)
