@@ -3,19 +3,29 @@
     let open = false;
 
     const links = [
+        // --- MÅNADSKOLL ---
+        { label: "Månadskoll", header: true },
         { label: "Inkomster", path: "/incomes" },
+        { label: "El", path: "/electricity" },
+        { label: "Budget", path: "/budget" },
+        { label: "Skatt", path: "/skatt" },
+
+        // --- ÖVRIGT ---
+        { label: "Övrigt", header: true },
+        { label: "Oförutsägbart", path: "/unexpected_expenses" },
+        { label: "Extra inkomster", path: "/extra_income" },
+
+        // --- UTGIFTER ---
+        { label: "Utgifter", header: true },
         { label: "Utgifter", path: "/expenses" },
         { label: "Fasta kostnader", path: "/fixed_costs" },
         { label: "Abonnemang", path: "/subscriptions" },
-        { label: "El", path: "/electricity" },
         { label: "Sparande", path: "/savings" },
         { label: "Fickpengar", path: "/allowance" },
         { label: "Barnens pengar", path: "/kids_allowance" },
-        { label: "Oförutsägbart", path: "/unexpected_expenses" },
-        { label: "Extra inkomster", path: "/extra_income" },
-        { label: "Budget", path: "/budget" },
-        { label: "Skatt", path: "/skatt" },
         { label: "Lån", path: "/loans" },
+
+        // --- INSTÄLLNINGAR ---
         { label: "Inställningar", path: "/inställningar" }
     ];
 </script>
@@ -28,17 +38,21 @@
     <span class="title">Ekonomi</span>
 </div>
 
-<!-- MOBIL MENY (slide-down) -->
+<!-- MOBIL MENY -->
 {#if open}
 <nav class="mobile-menu">
     {#each links as link}
-        <a
-            href={link.path}
-            class:selected={$page.url.pathname.startsWith(link.path)}
-            on:click={() => (open = false)}
-        >
-            {link.label}
-        </a>
+        {#if link.header}
+            <div class="menu-header">{link.label}</div>
+        {:else}
+            <a
+                href={link.path}
+                class:selected={$page.url.pathname.startsWith(link.path)}
+                on:click={() => (open = false)}
+            >
+                {link.label}
+            </a>
+        {/if}
     {/each}
 </nav>
 {/if}
@@ -46,12 +60,16 @@
 <!-- DESKTOP SIDOMENY -->
 <nav class="desktop-nav">
     {#each links as link}
-        <a
-            href={link.path}
-            class:selected={$page.url.pathname.startsWith(link.path)}
-        >
-            {link.label}
-        </a>
+        {#if link.header}
+            <div class="menu-header">{link.label}</div>
+        {:else}
+            <a
+                href={link.path}
+                class:selected={$page.url.pathname.startsWith(link.path)}
+            >
+                {link.label}
+            </a>
+        {/if}
     {/each}
 </nav>
 
@@ -101,6 +119,16 @@
         font-weight: bold;
     }
 
+    .menu-header {
+        padding: 14px 20px;
+        font-size: 14px;
+        font-weight: 700;
+        color: #666;
+        background: #f0f0f0;
+        border-bottom: 1px solid #e5e5e5;
+        text-transform: uppercase;
+    }
+
     /* DESKTOP SIDOMENY */
     .desktop-nav {
         display: none;
@@ -138,6 +166,15 @@
             color: white;
             font-weight: bold;
             padding-left: 12px;
+        }
+
+        .menu-header {
+            margin-top: 20px;
+            margin-bottom: 6px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #555;
+            text-transform: uppercase;
         }
     }
 </style>
