@@ -15,10 +15,17 @@ export const load = async ({ locals }) => {
 };
 
 export const actions = {
-    add: async ({ request, locals }) => {
+    add: async ({ request, locals, cookies }) => {
         if (!locals.user) throw redirect(303, '/login');
 
         const supabase = locals.supabase;
+
+        // ⭐ KORREKT sätt att läsa cookies i actions
+        const access_token = cookies.get('sb-access-token');
+        if (access_token) {
+            supabase.auth.setAuth(access_token);
+        }
+
         const form = await request.formData();
 
         const payload = {
@@ -44,12 +51,18 @@ export const actions = {
         throw redirect(303, '/incomes');
     },
 
-    update: async ({ request, locals }) => {
+    update: async ({ request, locals, cookies }) => {
         if (!locals.user) throw redirect(303, '/login');
 
         const supabase = locals.supabase;
-        const form = await request.formData();
 
+        // ⭐ KORREKT sätt att läsa cookies i actions
+        const access_token = cookies.get('sb-access-token');
+        if (access_token) {
+            supabase.auth.setAuth(access_token);
+        }
+
+        const form = await request.formData();
         const id = form.get('id');
 
         const payload = {
