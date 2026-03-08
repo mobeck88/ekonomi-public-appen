@@ -5,6 +5,15 @@ export const load = async ({ locals }) => {
 
     const supabase = locals.supabase;
 
+    // ⭐ Injicera session i serverklienten
+    const access_token = locals.cookies.get('sb-access-token');
+    if (access_token) {
+        await supabase.auth.setSession({
+            access_token,
+            refresh_token: locals.cookies.get('sb-refresh-token') ?? ''
+        });
+    }
+
     const { data } = await supabase
         .from('monthly_income')
         .select('*')
@@ -19,6 +28,16 @@ export const actions = {
         if (!locals.user) throw redirect(303, '/login');
 
         const supabase = locals.supabase;
+
+        // ⭐ Injicera session i serverklienten
+        const access_token = locals.cookies.get('sb-access-token');
+        if (access_token) {
+            await supabase.auth.setSession({
+                access_token,
+                refresh_token: locals.cookies.get('sb-refresh-token') ?? ''
+            });
+        }
+
         const form = await request.formData();
 
         const payload = {
@@ -48,8 +67,17 @@ export const actions = {
         if (!locals.user) throw redirect(303, '/login');
 
         const supabase = locals.supabase;
-        const form = await request.formData();
 
+        // ⭐ Injicera session i serverklienten
+        const access_token = locals.cookies.get('sb-access-token');
+        if (access_token) {
+            await supabase.auth.setSession({
+                access_token,
+                refresh_token: locals.cookies.get('sb-refresh-token') ?? ''
+            });
+        }
+
+        const form = await request.formData();
         const id = form.get('id');
 
         const payload = {
