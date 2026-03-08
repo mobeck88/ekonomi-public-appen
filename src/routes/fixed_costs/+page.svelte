@@ -42,7 +42,6 @@
                             <!-- UPPDATERA -->
                             <form method="post" action="?/update">
                                 <input type="hidden" name="cost_group_id" value={c.cost_group_id} />
-                                <input type="hidden" name="user_id" value={c.user_id} />
 
                                 <label for={"update-amount-" + c.cost_group_id}>Nytt belopp</label>
                                 <input
@@ -66,7 +65,6 @@
                             <!-- AVSLUTA -->
                             <form method="post" action="?/end">
                                 <input type="hidden" name="cost_group_id" value={c.cost_group_id} />
-                                <input type="hidden" name="user_id" value={c.user_id} />
 
                                 <label for={"end-month-" + c.cost_group_id}>Avsluta från (YYYY-MM)</label>
                                 <input
@@ -98,9 +96,6 @@
 
     {#if showCreate}
         <form method="post" action="?/create" class="create-form">
-
-            <!-- KRITISKT: user_id måste skickas med -->
-            <input type="hidden" name="user_id" value={data.user_id} />
 
             <label for="create-name">Kostnadens namn</label>
             <input

@@ -6,17 +6,17 @@ export const load: PageServerLoad = async ({ locals }) => {
 
     const supabase = locals.supabase;
 
+    // ⭐ HÄMTA ALLA AKTIVA KOSTNADER (inte per användare)
     const { data: active } = await supabase
         .from('fixed_costs')
         .select('*')
-        .eq('user_id', locals.user.id)
         .is('end_month', null)
         .order('cost_name', { ascending: true });
 
+    // ⭐ HÄMTA ALL HISTORIK (inte per användare)
     const { data: history } = await supabase
         .from('fixed_costs')
         .select('*')
-        .eq('user_id', locals.user.id)
         .not('end_month', 'is', null)
         .order('cost_name', { ascending: true })
         .order('start_month', { ascending: true });
@@ -36,8 +36,8 @@ export const actions: Actions = {
         const raw = form.get('start_month');
         const start_month = `${raw}-01`;
 
+        // ⭐ INGEN user_id längre
         const { error } = await supabase.from('fixed_costs').insert({
-            user_id: locals.user.id,   // ⭐ KRITISKT
             cost_name,
             amount,
             start_month,
@@ -62,16 +62,17 @@ export const actions: Actions = {
         const raw = form.get('start_month');
         const new_start = `${raw}-01`;
 
+        // ⭐ HÄMTA AKTIV POST UTAN user_id
         const { data: active } = await supabase
             .from('fixed_costs')
             .select('*')
-            .eq('user_id', locals.user.id)   // ⭐ KRITISKT
             .eq('cost_group_id', group_id)
             .is('end_month', null)
             .single();
 
         if (!active) return fail(400, { error: 'Ingen aktiv period hittades' });
 
+        // ⭐ Avsluta gamla perioden
         const end_date = new Date(new_start);
         end_date.setMonth(end_date.getMonth() - 1);
         const end_month = end_date.toISOString().slice(0, 10);
@@ -79,11 +80,10 @@ export const actions: Actions = {
         await supabase
             .from('fixed_costs')
             .update({ end_month })
-            .eq('id', active.id)
-            .eq('user_id', locals.user.id);   // ⭐ KRITISKT
+            .eq('id', active.id);
 
+        // ⭐ Skapa ny period
         await supabase.from('fixed_costs').insert({
-            user_id: locals.user.id,          // ⭐ KRITISKT
             cost_group_id: group_id,
             cost_name: active.cost_name,
             amount: new_amount,
@@ -103,11 +103,11 @@ export const actions: Actions = {
         const raw = form.get('end_month');
         const end_month = `${raw}-01`;
 
+        // ⭐ Avsluta utan user_id
         await supabase
             .from('fixed_costs')
             .update({ end_month })
             .eq('cost_group_id', group_id)
-            .eq('user_id', locals.user.id)   // ⭐ KRITISKT
             .is('end_month', null);
 
         return { success: true };
