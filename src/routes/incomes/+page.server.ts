@@ -5,15 +5,6 @@ export const load = async ({ locals }) => {
 
     const supabase = locals.supabase;
 
-    // ⭐ Injicera session i serverklienten
-    const access_token = locals.cookies.get('sb-access-token');
-    if (access_token) {
-        await supabase.auth.setSession({
-            access_token,
-            refresh_token: locals.cookies.get('sb-refresh-token') ?? ''
-        });
-    }
-
     const { data } = await supabase
         .from('monthly_income')
         .select('*')
@@ -28,16 +19,6 @@ export const actions = {
         if (!locals.user) throw redirect(303, '/login');
 
         const supabase = locals.supabase;
-
-        // ⭐ Injicera session i serverklienten
-        const access_token = locals.cookies.get('sb-access-token');
-        if (access_token) {
-            await supabase.auth.setSession({
-                access_token,
-                refresh_token: locals.cookies.get('sb-refresh-token') ?? ''
-            });
-        }
-
         const form = await request.formData();
 
         const payload = {
@@ -59,7 +40,11 @@ export const actions = {
             fk_nettolon: form.get('fk_nettolon') || null
         };
 
-        await supabase.from('monthly_income').insert(payload);
+        // ⭐ Lägg till JWT i headern
+        const access_token = locals.cookies.get('sb-access-token');
+        const supabaseWithAuth = supabase.auth.setAuth(access_token);
+
+        await supabaseWithAuth.from('monthly_income').insert(payload);
         throw redirect(303, '/incomes');
     },
 
@@ -67,16 +52,6 @@ export const actions = {
         if (!locals.user) throw redirect(303, '/login');
 
         const supabase = locals.supabase;
-
-        // ⭐ Injicera session i serverklienten
-        const access_token = locals.cookies.get('sb-access-token');
-        if (access_token) {
-            await supabase.auth.setSession({
-                access_token,
-                refresh_token: locals.cookies.get('sb-refresh-token') ?? ''
-            });
-        }
-
         const form = await request.formData();
         const id = form.get('id');
 
@@ -98,7 +73,11 @@ export const actions = {
             fk_nettolon: form.get('fk_nettolon') || null
         };
 
-        await supabase
+        // ⭐ Lägg till JWT i headern
+        const access_token = locals.cookies.get('sb-access-token');
+        const supabaseWithAuth = supabase.auth.setAuth(access_token);
+
+        await supabaseWithAuth
             .from('monthly_income')
             .update(payload)
             .eq('id', id)
