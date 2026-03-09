@@ -6,19 +6,29 @@ export const load: PageServerLoad = async ({ locals }) => {
 
     const supabase = locals.supabase;
 
-    const { data: active } = await supabase
+    // ⭐ Aktiva utgifter
+    const { data: active, error: activeError } = await supabase
         .from('expenses')
         .select('*')
-        .eq('user_id', locals.user.id)          // ⭐ FIX
+        .eq('user_id', locals.user.id)
         .is('end_month', null)
         .order('start_month', { ascending: true });
 
-    const { data: history } = await supabase
+    if (activeError) {
+        console.error("LOAD ACTIVE EXPENSES ERROR:", activeError);
+    }
+
+    // ⭐ Historik
+    const { data: history, error: historyError } = await supabase
         .from('expenses')
         .select('*')
-        .eq('user_id', locals.user.id)          // ⭐ FIX
-        .not('end_month', 'is', null)
+        .eq('user_id', locals.user.id)
+        .is('end_month', 'not.null')   // ⭐ FIX: stabil syntax
         .order('start_month', { ascending: true });
+
+    if (historyError) {
+        console.error("LOAD HISTORY EXPENSES ERROR:", historyError);
+    }
 
     return { active, history };
 };
@@ -37,10 +47,10 @@ export const actions: Actions = {
         const owner = form.get('owner');
 
         const rawStart = form.get('start_month') as string | null;
-        const start_month = rawStart ? `${rawStart}-01` : null;
+        const start_month = rawStart ? `${rawStart}-01` : null;  // ⭐ FIX: korrekt datum
 
         const { error } = await supabase.from('expenses').insert({
-            user_id: locals.user.id,            // ⭐ FIX
+            user_id: locals.user.id,   // ⭐ FIX: krävs för RLS
             title,
             description,
             amount,
@@ -51,7 +61,7 @@ export const actions: Actions = {
         });
 
         if (error) {
-            console.error('CREATE EXPENSE ERROR:', error);
+            console.error("CREATE EXPENSE ERROR:", error);
             return fail(400, { error: error.message });
         }
 
@@ -69,18 +79,23 @@ export const actions: Actions = {
         const new_owner = form.get('owner');
 
         const rawStart = form.get('start_month') as string | null;
-        const new_start = rawStart ? `${rawStart}-01` : null;
+        const new_start = rawStart ? `${rawStart}-01` : null;  // ⭐ FIX
 
-        const { data: active } = await supabase
+        // Hämta aktiv period
+        const { data: active, error: activeError } = await supabase
             .from('expenses')
             .select('*')
             .eq('expense_group_id', group_id)
-            .eq('user_id', locals.user.id)      // ⭐ FIX
+            .eq('user_id', locals.user.id)   // ⭐ FIX
             .is('end_month', null)
             .single();
 
-        if (!active) return fail(400, { error: 'Ingen aktiv period hittades' });
+        if (activeError || !active) {
+            console.error("UPDATE FETCH ACTIVE ERROR:", activeError);
+            return fail(400, { error: 'Ingen aktiv period hittades' });
+        }
 
+        // Avsluta gamla perioden
         const end_date = new Date(new_start!);
         end_date.setMonth(end_date.getMonth() - 1);
         const end_month = end_date.toISOString().slice(0, 10);
@@ -90,8 +105,9 @@ export const actions: Actions = {
             .update({ end_month })
             .eq('id', active.id);
 
+        // Skapa ny period
         const { error } = await supabase.from('expenses').insert({
-            user_id: locals.user.id,            // ⭐ FIX
+            user_id: locals.user.id,   // ⭐ FIX
             expense_group_id: group_id,
             title: active.title,
             description: active.description,
@@ -103,7 +119,7 @@ export const actions: Actions = {
         });
 
         if (error) {
-            console.error('UPDATE EXPENSE ERROR:', error);
+            console.error("UPDATE EXPENSE ERROR:", error);
             return fail(400, { error: error.message });
         }
 
@@ -118,17 +134,17 @@ export const actions: Actions = {
         const group_id = form.get('expense_group_id');
 
         const rawEnd = form.get('end_month') as string | null;
-        const end_month = rawEnd ? `${rawEnd}-01` : null;
+        const end_month = rawEnd ? `${rawEnd}-01` : null;  // ⭐ FIX
 
         const { error } = await supabase
             .from('expenses')
             .update({ end_month })
             .eq('expense_group_id', group_id)
-            .eq('user_id', locals.user.id)      // ⭐ FIX
+            .eq('user_id', locals.user.id)   // ⭐ FIX
             .is('end_month', null);
 
         if (error) {
-            console.error('END EXPENSE ERROR:', error);
+            console.error("END EXPENSE ERROR:", error);
             return fail(400, { error: error.message });
         }
 
