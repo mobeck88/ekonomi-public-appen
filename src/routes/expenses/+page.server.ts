@@ -6,7 +6,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 
     const supabase = locals.supabase;
 
-    // Aktiva utgifter
     const { data: active, error: activeError } = await supabase
         .from('expenses')
         .select('*')
@@ -18,7 +17,6 @@ export const load: PageServerLoad = async ({ locals }) => {
         throw fail(500, { error: activeError.message });
     }
 
-    // Historik
     const { data: history, error: historyError } = await supabase
         .from('expenses')
         .select('*')
