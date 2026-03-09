@@ -1,61 +1,116 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
+import type { Actions, PageServerLoad } from './$types';
 
-export const actions = {
-    default: async ({ request }) => {
+export const load: PageServerLoad = async ({ locals }) => {
+    // Om användaren redan är inloggad → skicka hem
+    if (locals.user) throw redirect(303, '/budget');
+    return {};
+};
+
+export const actions: Actions = {
+    default: async ({ request, cookies }) => {
         const form = await request.formData();
+
         const email = form.get('email') as string;
         const password = form.get('password') as string;
-        const name = form.get('name') as string | null;
+        const full_name = form.get('name') as string;
 
-        if (!email || !password) {
-            return fail(400, { error: 'E‑post och lösenord krävs.' });
+        if (!email || !password || !full_name) {
+            return fail(400, { error: 'Alla fält måste fyllas i.' });
         }
 
         const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // 1. Skapa användare
+        // ⭐ Skapa användare i Auth
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
             email,
             password
         });
 
         if (signUpError || !signUpData.user) {
-            return fail(400, { error: signUpError?.message ?? 'Kunde inte skapa konto.' });
+            console.error('Signup error:', signUpError);
+            return fail(400, { error: signUpError?.message ?? 'Kunde inte skapa användare.' });
         }
 
         const userId = signUpData.user.id;
 
-        // 2. Skapa hushåll
-        const householdName = name || 'Mitt hushåll';
+        // ⭐ Skapa profil
+        const { error: profileError } = await supabase.from('profiles').insert({
+            id: userId,
+            full_name
+        });
 
-        const { data: householdData, error: householdError } = await supabase
-            .from('households')
-            .insert({
-                name: householdName
-            })
-            .select('id')
-            .single();
-
-        if (householdError || !householdData) {
-            return fail(500, { error: 'Kunde inte skapa hushåll.' });
+        if (profileError) {
+            console.error('Profile insert error:', profileError);
+            return fail(400, { error: profileError.message });
         }
 
-        const householdId = householdData.id;
+        // ⭐ Skapa hushåll
+        const { data: household, error: householdError } = await supabase
+            .from('households')
+            .insert({})
+            .select()
+            .single();
 
-        // 3. Lägg till användaren som owner i household_members
+        if (householdError) {
+            console.error('Household creation error:', householdError);
+            return fail(400, { error: householdError.message });
+        }
+
+        // ⭐ Lägg till användaren i hushållet
         const { error: memberError } = await supabase.from('household_members').insert({
-            household_id: householdId,
+            household_id: household.id,
             user_id: userId,
             role: 'owner'
         });
 
         if (memberError) {
-            return fail(500, { error: 'Kunde inte koppla användare till hushåll.' });
+            console.error('Household member error:', memberError);
+            return fail(400, { error: memberError.message });
         }
 
-        // 4. Tillbaka till login (användaren loggar in efter att ha bekräftat mail)
-        throw redirect(303, '/login');
+        // ⭐ Logga in användaren direkt
+        const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+            email,
+            password
+        });
+
+        if (loginError || !loginData.session) {
+            console.error('Login error:', loginError);
+            return fail(400, { error: loginError?.message ?? 'Kunde inte logga in.' });
+        }
+
+        const session = loginData.session;
+
+        // ⭐ Spara tokens i cookies
+        cookies.set('sb-access-token', session.access_token, {
+            path: '/',
+            httpOnly: true,
+            sameSite: 'lax',
+            secure: true,
+            maxAge: 60 * 60 * 24 * 7
+        });
+
+        cookies.set('sb-refresh-token', session.refresh_token, {
+            path: '/',
+            httpOnly: true,
+            sameSite: 'lax',
+            secure: true,
+            maxAge: 60 * 60 * 24 * 30
+        });
+
+        // ⭐ Spara household_id i cookie
+        cookies.set('household_id', household.id, {
+            path: '/',
+            httpOnly: true,
+            sameSite: 'lax',
+            secure: true,
+            maxAge: 60 * 60 * 24 * 30
+        });
+
+        // ⭐ Redirect till dashboard
+        throw redirect(303, '/budget');
     }
 };

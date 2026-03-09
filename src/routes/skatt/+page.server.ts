@@ -1,18 +1,38 @@
-import { supabase } from '$lib/supabaseClient';
+import { redirect } from '@sveltejs/kit';
+import { createClient } from '@supabase/supabase-js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
-export const load = async ({ url }) => {
+export const load = async ({ locals, cookies, url }) => {
+    const user = locals.user;
+    const householdId = locals.householdId;
+
+    if (!user) throw redirect(303, '/login');
+    if (!householdId) throw redirect(303, '/setup-household');
+
+    const access_token = cookies.get('sb-access-token');
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        global: {
+            headers: {
+                Authorization: `Bearer ${access_token}`
+            }
+        }
+    });
+
     const currentYear = new Date().getFullYear();
     const year = Number(url.searchParams.get("year") ?? currentYear);
 
-    const ANDREAS = "e01fef73-06ac-4652-9827-15820ff9198e";
-    const HANNA = "9929ea93-2634-4fb6-b063-610f9e9b1e92";
+    // ⭐ Hämta hushållets medlemmar + namn
+    const { data: members } = await supabase
+        .from("household_members")
+        .select("user_id, profiles(full_name)")
+        .eq("household_id", householdId);
 
-    const people = [
-        { name: "Andreas", user_id: ANDREAS },
-        { name: "Hanna", user_id: HANNA }
-    ];
+    if (!members || members.length === 0) {
+        return { year, currentYear, people: [] };
+    }
 
-    // Statlig skatt-gräns (global)
+    // ⭐ Hämta statlig skatt-gräns (global)
     const { data: taxSettings } = await supabase
         .from("tax_settings")
         .select("*")
@@ -21,6 +41,7 @@ export const load = async ({ url }) => {
 
     const statligSkattGräns = taxSettings?.statlig_skatt_grans ?? 660400;
 
+    // ⭐ Funktion: hämta rätt kommunalskatt från tabell
     const lookupTax = async (bruttolön) => {
         const { data: row } = await supabase
             .from("tax_table")
@@ -33,11 +54,12 @@ export const load = async ({ url }) => {
         return row?.tax_amount ?? 0;
     };
 
+    // ⭐ Funktion: beräkna sammanfattning för en person
     const calculateSummary = async (rows, isMemberOfChurch) => {
         if (!rows || rows.length === 0) return null;
 
         let årsinkomstHittills = 0;
-        let totalSkattHittills = 0; // = rad 34 i Excel
+        let totalSkattHittills = 0;
 
         rows.forEach((row) => {
             const bruttoOrd = Number(row.ord_lon_fore_skatt ?? 0);
@@ -46,18 +68,16 @@ export const load = async ({ url }) => {
 
             årsinkomstHittills += bruttoOrd + bruttoAssist + bruttoFK;
 
-            // 33 = total skatt innevarande månad
             const månadensSkatt =
                 Number(row.ord_skatt ?? 0) +
                 Number(row.ass_skatt ?? 0) +
                 Number(row.ass_frivillig_skatt ?? 0) +
                 Number(row.fk_skatt ?? 0);
 
-            // 34 = föregående 34 + innevarande 33
             totalSkattHittills += månadensSkatt;
         });
 
-        const monthsCount = rows.length; // månadens nummer
+        const monthsCount = rows.length;
         const årsprognos = (årsinkomstHittills / monthsCount) * 12;
 
         const last = rows[rows.length - 1];
@@ -83,7 +103,6 @@ export const load = async ({ url }) => {
 
         const totalSkattBorde = kommunalSkattÅr + statligSkatt;
 
-        // EXCEL: Förväntad inbetald årsskatt = 34 / månadens nummer * 12
         const expectedPaidTax = (totalSkattHittills / monthsCount) * 12;
 
         const diff = expectedPaidTax - totalSkattBorde;
@@ -103,25 +122,39 @@ export const load = async ({ url }) => {
         };
     };
 
-    for (const person of people) {
+    // ⭐ Bygg people‑array dynamiskt
+    const people = [];
+
+    for (const member of members) {
+        const userId = member.user_id;
+        const fullName = member.profiles.full_name;
+
+        // Hämta kyrkotillhörighet
         const { data: userTaxSettings } = await supabase
             .from("tax_user_settings")
             .select("is_member_of_church")
-            .eq("user_id", person.user_id)
+            .eq("user_id", userId)
             .eq("year", year)
             .maybeSingle();
 
         const isMemberOfChurch = userTaxSettings?.is_member_of_church ?? true;
 
+        // Hämta inkomstrader
         const { data: rows } = await supabase
             .from("monthly_income")
             .select("*")
-            .eq("user_id", person.user_id)
+            .eq("user_id", userId)
             .gte("month", `${year}-01-01`)
             .lte("month", `${year}-12-31`)
             .order("month", { ascending: true });
 
-        person.summary = await calculateSummary(rows, isMemberOfChurch);
+        const summary = await calculateSummary(rows, isMemberOfChurch);
+
+        people.push({
+            name: fullName,
+            user_id: userId,
+            summary
+        });
     }
 
     return {

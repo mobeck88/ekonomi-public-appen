@@ -5,10 +5,18 @@
     let title = '';
     let description = '';
     let amount = '';
+    let owner = 'shared';
 
     // Accordion states
     let showCreate = false;
     let showHistory = false;
+
+    function ownerLabel(owner: string) {
+        if (owner === "shared") return "Gemensamt";
+
+        const match = data.members.find(m => m.user_id === owner);
+        return match?.profiles?.full_name ?? owner;
+    }
 </script>
 
 <h1>Extra inkomster</h1>
@@ -34,6 +42,14 @@
             <label for="amount">Belopp</label>
             <input id="amount" name="amount" type="number" bind:value={amount} required />
 
+            <label for="owner">Ägare</label>
+            <select id="owner" name="owner" bind:value={owner} required>
+                <option value="shared">Gemensamt</option>
+                {#each data.members as m}
+                    <option value={m.user_id}>{m.profiles.full_name}</option>
+                {/each}
+            </select>
+
             <button>Spara</button>
         </form>
     {/if}
@@ -52,6 +68,8 @@
                 <div class="card">
                     <strong>{e.date}</strong><br />
                     {e.title} — {e.amount} kr<br />
+                    <span class="label">Ägare:</span> {ownerLabel(e.owner)}<br />
+
                     {#if e.description}
                         <span class="desc">{e.description}</span>
                     {/if}
@@ -71,7 +89,6 @@
         font-weight: 700;
     }
 
-    /* Sektioner */
     .section {
         margin-bottom: 1.5rem;
         border: 1px solid #e5e7eb;
@@ -103,7 +120,6 @@
         color: #6b7280;
     }
 
-    /* Cards */
     .card {
         border-top: 1px solid #e5e7eb;
         padding: 1rem;
@@ -112,12 +128,16 @@
         color: #374151;
     }
 
+    .label {
+        color: #6b7280;
+        font-size: 0.85rem;
+    }
+
     .desc {
         color: #6b7280;
         font-size: 0.9rem;
     }
 
-    /* Formulär */
     .form {
         display: grid;
         gap: 0.9rem;
@@ -125,7 +145,7 @@
         max-width: 420px;
     }
 
-    input, textarea {
+    input, textarea, select {
         padding: 0.65rem;
         border: 1px solid #d1d5db;
         border-radius: 8px;
@@ -133,7 +153,7 @@
         background: #f9fafb;
     }
 
-    input:focus, textarea:focus {
+    input:focus, textarea:focus, select:focus {
         outline: none;
         border-color: #2563eb;
         box-shadow: 0 0 0 2px #dbeafe;

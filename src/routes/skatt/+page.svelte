@@ -1,11 +1,11 @@
-<script>
+<script lang="ts">
     export let data;
 
     let selectedYear = data.year;
 
     const changeYear = (event) => {
         const year = event.target.value;
-        window.location.href = `/skatt?year=${year}`;
+        window.location.href = `/budget?year=${year}`;
     };
 
     // Rätt nycklar enligt nya loadern

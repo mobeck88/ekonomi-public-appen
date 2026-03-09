@@ -6,19 +6,40 @@
     const years = Array.from({ length: 2100 - 2010 + 1 }, (_, i) => (2010 + i).toString());
     const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
 
+    // Dynamiska barnkategorier
+    const childCategories = Object.keys(data.kidsPerMonth).map(name => `MånadsPeng ${name}`);
+
+    // Dynamiska fasta kostnader + expenses
+    const fixedGroups = data.fixedGroups;
+
+    // Dynamiska abonnemang (owner)
+    const subscriptionCategories = [
+        'Tjänster o abonnemang A',
+        'Tjänster o abonnemang H'
+    ];
+
+    // Dynamiska sparande (owner)
+    const savingCategories = [
+        'Sparande A',
+        'Sparande H'
+    ];
+
+    // Dynamiska fickpengar (owner)
+    const allowanceCategories = [
+        'Fickpengar Andreas',
+        'Fickpengar Hanna'
+    ];
+
+    // Alla kategorier i rätt ordning
     const categories = [
         'Gemensam inkomst',
         'Lån',
         'El',
-        ...data.fixedGroups,
-        'Tjänster o abonnemang A',
-        'Tjänster o abonnemang H',
-        'Sparande A',
-        'Sparande H',
-        'Fickpengar Andreas',
-        'Fickpengar Hanna',
-        'MånadsPeng Theo',
-        'MånadsPeng Lowe',
+        ...fixedGroups,
+        ...subscriptionCategories,
+        ...savingCategories,
+        ...allowanceCategories,
+        ...childCategories,
         'Oförutsägbara utgifter',
         'Extra inkomster'
     ];
@@ -29,24 +50,43 @@
     }
 
     function getAmount(category, index) {
-        switch (category) {
-            case 'Gemensam inkomst': return data.incomePerMonth[index];
-            case 'Lån': return data.loansPerMonth[index];
-            case 'El': return data.electricityPerMonth[index];
-            case 'Tjänster o abonnemang A': return data.subsA[index];
-            case 'Tjänster o abonnemang H': return data.subsH[index];
-            case 'Sparande A': return data.savingsA[index];
-            case 'Sparande H': return data.savingsH[index];
-            case 'Fickpengar Andreas': return data.allowanceA[index];
-            case 'Fickpengar Hanna': return data.allowanceH[index];
-            case 'MånadsPeng Theo': return data.theo[index];
-            case 'MånadsPeng Lowe': return data.lowe[index];
-            case 'Oförutsägbara utgifter': return data.unexpectedPerMonth[index];
-            case 'Extra inkomster': return data.extraPerMonth[index];
-            default:
-                if (data.fixedPerGroup[category]) return data.fixedPerGroup[category][index];
-                return 0;
+        // Inkomster
+        if (category === 'Gemensam inkomst') return data.incomePerMonth[index];
+
+        // Lån
+        if (category === 'Lån') return data.loansPerMonth[index];
+
+        // El
+        if (category === 'El') return data.electricityPerMonth[index];
+
+        // Abonnemang
+        if (category === 'Tjänster o abonnemang A') return data.subs[index].A ?? 0;
+        if (category === 'Tjänster o abonnemang H') return data.subs[index].H ?? 0;
+
+        // Sparande
+        if (category === 'Sparande A') return data.savings[index].A ?? 0;
+        if (category === 'Sparande H') return data.savings[index].H ?? 0;
+
+        // Fickpengar
+        if (category === 'Fickpengar Andreas') return data.allowanceUser[index].A ?? 0;
+        if (category === 'Fickpengar Hanna') return data.allowanceUser[index].H ?? 0;
+
+        // Barn
+        if (category.startsWith('MånadsPeng ')) {
+            const name = category.replace('MånadsPeng ', '');
+            return data.kidsPerMonth[name][index] ?? 0;
         }
+
+        // Oförutsägbara
+        if (category === 'Oförutsägbara utgifter') return data.unexpectedPerMonth[index];
+
+        // Extra inkomster
+        if (category === 'Extra inkomster') return data.extraPerMonth[index];
+
+        // Fasta kostnader / expenses
+        if (data.fixedPerGroup[category]) return data.fixedPerGroup[category][index];
+
+        return 0;
     }
 
     function sumIn(i) {
@@ -104,7 +144,7 @@
                     class:fixed={data.fixedNames.includes(cat)}
                     class:hanna={data.ownerMap[cat] === 'H'}
                     class:andreas={data.ownerMap[cat] === 'A'}
-                    class:joint={data.ownerMap[cat] === 'A+H'}
+                    class:joint={data.ownerMap[cat] === 'shared'}
                     class:annual={data.intervalMap[cat] === 12}
                     class:quarterly={data.intervalMap[cat] === 3}
                 >
@@ -174,49 +214,26 @@
         font-weight: bold;
     }
 
-    /* === FÄRGER FÖR FASTA UTGIFTER === */
-    tr.fixed td {
-        background: #fff2cc;
-    }
+    tr.fixed td { background: #fff2cc; }
+    tr.hanna td { background: #ffe0e6; }
+    tr.andreas td { background: #e0ecff; }
+    tr.joint td { background: #f4f4f4; }
 
-    /* === FÄRGER FÖR EXPENSES (ägare) === */
-    tr.hanna td {
-        background: #ffe0e6;
-    }
-
-    tr.andreas td {
-        background: #e0ecff;
-    }
-
-    tr.joint td {
-        background: #f4f4f4;
-    }
-
-    /* === ORIGINALFÄRGER (oförändrade) === */
     tr[data-cat='Gemensam inkomst'] td { background: #d9ead3; }
     tr[data-cat='Lån'] td { background: #f4cccc; }
     tr[data-cat='El'] td { background: #cfe2f3; }
 
-    tr[data-cat='Tjänster o abonnemang A'] td,
-    tr[data-cat='Tjänster o abonnemang H'] td { background: #c9daf8; }
-
-    tr[data-cat='Sparande A'] td,
-    tr[data-cat='Sparande H'] td { background: #fff2cc; }
-
-    tr[data-cat='Fickpengar Andreas'] td,
-    tr[data-cat='Fickpengar Hanna'] td { background: #ead1dc; }
-
-    tr[data-cat='MånadsPeng Theo'] td,
-    tr[data-cat='MånadsPeng Lowe'] td { background: #d9d2e9; }
+    tr[data-cat^='Tjänster o abonnemang'] td { background: #c9daf8; }
+    tr[data-cat^='Sparande'] td { background: #fff2cc; }
+    tr[data-cat^='Fickpengar'] td { background: #ead1dc; }
+    tr[data-cat^='MånadsPeng'] td { background: #d9d2e9; }
 
     tr[data-cat='Oförutsägbara utgifter'] td { background: #fce5cd; }
     tr[data-cat='Extra inkomster'] td { background: #d9ead3; }
 
-    /* === INTERVALLMARKERING === */
     tr.annual td { border-left: 4px solid #8b5cf6; }
     tr.quarterly td { border-left: 4px solid #10b981; }
 
-    /* === SUMMERING === */
     tr.sum td {
         background: #e0e0e0 !important;
         font-weight: bold;

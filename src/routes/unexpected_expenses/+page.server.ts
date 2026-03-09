@@ -1,36 +1,77 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import { createClient } from '@supabase/supabase-js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
-export const load: PageServerLoad = async ({ locals }) => {
-    if (!locals.user) throw redirect(303, '/login');
+export const load: PageServerLoad = async ({ locals, cookies }) => {
+    const user = locals.user;
+    const householdId = locals.householdId;
 
-    const supabase = locals.supabase;
+    if (!user) throw redirect(303, '/login');
+    if (!householdId) return { entries: [], members: [] };
 
-    const { data } = await supabase
+    const access_token = cookies.get('sb-access-token');
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        global: {
+            headers: {
+                Authorization: `Bearer ${access_token}`
+            }
+        }
+    });
+
+    // ⭐ Hämta alla oväntade utgifter för hushållet
+    const { data: entries } = await supabase
         .from('unexpected_expenses')
         .select('*')
+        .eq('household_id', householdId)
         .order('date', { ascending: false });
 
-    return { entries: data ?? [] };
+    // ⭐ Hämta hushållsmedlemmar + namn
+    const { data: members } = await supabase
+        .from('household_members')
+        .select('user_id, profiles(full_name)')
+        .eq('household_id', householdId);
+
+    return {
+        entries: entries ?? [],
+        members: members ?? []
+    };
 };
 
 export const actions: Actions = {
-    create: async ({ request, locals }) => {
-        if (!locals.user) throw redirect(303, '/login');
+    create: async ({ request, locals, cookies }) => {
+        const user = locals.user;
+        const householdId = locals.householdId;
 
-        const supabase = locals.supabase;
+        if (!user) throw redirect(303, '/login');
+        if (!householdId) return fail(400, { error: 'Inget hushåll kopplat.' });
+
+        const access_token = cookies.get('sb-access-token');
+
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            global: {
+                headers: {
+                    Authorization: `Bearer ${access_token}`
+                }
+            }
+        });
+
         const form = await request.formData();
 
         const date_raw = form.get('date'); // YYYY-MM-DD
         const title = form.get('title');
         const description = form.get('description');
         const amount = Number(form.get('amount'));
+        const owner = form.get('owner'); // ⭐ user_id eller "shared"
 
         const { error } = await supabase.from('unexpected_expenses').insert({
+            household_id: householdId,
             date: date_raw,
             title,
             description,
-            amount
+            amount,
+            owner
         });
 
         if (error) {

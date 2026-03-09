@@ -4,24 +4,113 @@
 
 <h1>Skapa konto</h1>
 
-<form method="POST">
-    <label for="name">Namn på hushåll</label>
-    <input id="name" name="name" type="text" placeholder="Andreas & Hanna" />
+<div class="section">
+    <form method="POST" class="form">
 
-    <label for="email">E‑post</label>
-    <input id="email" name="email" type="email" required />
+        <label for="name">Ditt namn</label>
+        <input
+            id="name"
+            name="name"
+            type="text"
+            placeholder="Andreas"
+            required
+        />
 
-    <label for="password">Lösenord</label>
-    <input id="password" name="password" type="password" required />
+        <label for="email">E‑post</label>
+        <input
+            id="email"
+            name="email"
+            type="email"
+            required
+        />
 
-    {#if form?.error}
-        <p style="color:red; margin-top:10px">{form.error}</p>
-    {/if}
+        <label for="password">Lösenord</label>
+        <input
+            id="password"
+            name="password"
+            type="password"
+            required
+        />
 
-    <button type="submit" style="margin-top:10px">Skapa konto</button>
-</form>
+        {#if form?.error}
+            <p class="error">{form.error}</p>
+        {/if}
 
-<p style="margin-top:20px">
+        <button type="submit">Skapa konto</button>
+    </form>
+</div>
+
+<p class="login">
     Har du redan ett konto?
     <a href="/login">Logga in</a>
 </p>
+
+<style>
+    h1 {
+        margin-bottom: 1.2rem;
+        color: #1f2937;
+        font-size: 1.6rem;
+        font-weight: 700;
+    }
+
+    .section {
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        background: #ffffff;
+        padding: 1.5rem;
+        max-width: 420px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .form {
+        display: grid;
+        gap: 1rem;
+    }
+
+    input {
+        padding: 0.65rem;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        background: #f9fafb;
+    }
+
+    input:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 2px #dbeafe;
+        background: #ffffff;
+    }
+
+    button {
+        padding: 0.75rem 1rem;
+        border: none;
+        background: #2563eb;
+        color: white;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.95rem;
+        font-weight: 600;
+        transition: background 0.15s;
+    }
+
+    button:hover {
+        background: #1d4ed8;
+    }
+
+    .error {
+        color: #dc2626;
+        font-size: 0.9rem;
+        margin-top: -0.5rem;
+    }
+
+    .login {
+        margin-top: 1rem;
+        font-size: 0.95rem;
+    }
+
+    .login a {
+        color: #2563eb;
+        font-weight: 600;
+    }
+</style>

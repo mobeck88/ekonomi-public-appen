@@ -1,14 +1,28 @@
 import { redirect, fail } from '@sveltejs/kit';
+import { createClient } from '@supabase/supabase-js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
-export const load = async ({ locals }) => {
-    if (!locals.user) throw redirect(303, '/login');
+export const load = async ({ locals, cookies }) => {
+    const user = locals.user;
+    const householdId = locals.householdId;
 
-    const supabase = locals.supabase;
+    if (!user) throw redirect(303, '/login');
+    if (!householdId) return { incomes: [] };
+
+    const access_token = cookies.get('sb-access-token');
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        global: {
+            headers: {
+                Authorization: `Bearer ${access_token}`
+            }
+        }
+    });
 
     const { data, error } = await supabase
-        .from('monthly_income')
+        .from('incomes')
         .select('*')
-        .eq('user_id', locals.user.id)
+        .eq('household_id', householdId)
         .order('month', { ascending: false });
 
     if (error) {
@@ -20,17 +34,30 @@ export const load = async ({ locals }) => {
 };
 
 export const actions = {
-    add: async ({ request, locals }) => {
-        if (!locals.user) throw redirect(303, '/login');
+    add: async ({ request, locals, cookies }) => {
+        const user = locals.user;
+        const householdId = locals.householdId;
 
-        const supabase = locals.supabase;
+        if (!user) throw redirect(303, '/login');
+        if (!householdId) return fail(400, { message: 'Inget hushåll kopplat.' });
+
+        const access_token = cookies.get('sb-access-token');
+
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            global: {
+                headers: {
+                    Authorization: `Bearer ${access_token}`
+                }
+            }
+        });
+
         const form = await request.formData();
 
         const rawMonth = form.get('month') as string | null;
-        const month = rawMonth ? `${rawMonth}-01` : null; // ⭐ FIX: gör YYYY-MM till YYYY-MM-01
+        const month = rawMonth ? `${rawMonth}-01` : null;
 
         const payload = {
-            user_id: locals.user.id,
+            household_id: householdId,
             month,
 
             ord_lon_fore_skatt: Number(form.get('ord_lon_fore_skatt')) || null,
@@ -48,7 +75,7 @@ export const actions = {
             fk_nettolon: Number(form.get('fk_nettolon')) || null
         };
 
-        const { error } = await supabase.from('monthly_income').insert(payload);
+        const { error } = await supabase.from('incomes').insert(payload);
 
         if (error) {
             console.error('ADD INCOME ERROR:', error, payload);
@@ -58,15 +85,28 @@ export const actions = {
         throw redirect(303, '/incomes');
     },
 
-    update: async ({ request, locals }) => {
-        if (!locals.user) throw redirect(303, '/login');
+    update: async ({ request, locals, cookies }) => {
+        const user = locals.user;
+        const householdId = locals.householdId;
 
-        const supabase = locals.supabase;
+        if (!user) throw redirect(303, '/login');
+        if (!householdId) return fail(400, { message: 'Inget hushåll kopplat.' });
+
+        const access_token = cookies.get('sb-access-token');
+
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            global: {
+                headers: {
+                    Authorization: `Bearer ${access_token}`
+                }
+            }
+        });
+
         const form = await request.formData();
         const id = form.get('id');
 
         const rawMonth = form.get('month') as string | null;
-        const month = rawMonth ? `${rawMonth}-01` : null; // ⭐ samma fix här
+        const month = rawMonth ? `${rawMonth}-01` : null;
 
         const payload = {
             month,
@@ -87,10 +127,10 @@ export const actions = {
         };
 
         const { error } = await supabase
-            .from('monthly_income')
+            .from('incomes')
             .update(payload)
             .eq('id', id)
-            .eq('user_id', locals.user.id);
+            .eq('household_id', householdId);
 
         if (error) {
             console.error('UPDATE INCOME ERROR:', error, payload);

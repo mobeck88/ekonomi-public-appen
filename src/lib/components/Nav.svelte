@@ -1,5 +1,8 @@
-<script>
+<script lang="ts">
     import { page } from "$app/stores";
+    export let user;
+    export let householdId;
+
     let open = false;
 
     const links = [
@@ -27,15 +30,18 @@
 
         // --- INSTÄLLNINGAR ---
         { label: "Inställningar", header: true },
-        { label: "Inställningar", path: "/inställningar" }
+        { label: "Inställningar", path: "/settings" }
     ];
+
+    const logout = async () => {
+        await fetch("/logout", { method: "POST" });
+        window.location.href = "/login";
+    };
 </script>
 
 <!-- MOBIL TOPPBAR -->
 <div class="mobile-nav">
-    <button class="hamburger" on:click={() => (open = !open)}>
-        ☰
-    </button>
+    <button class="hamburger" on:click={() => (open = !open)}>☰</button>
     <span class="title">Ekonomi</span>
 </div>
 
@@ -43,6 +49,10 @@
 {#if open}
 <nav class="mobile-menu">
     <div class="mobile-scroll">
+        <div class="user-box">
+            <strong>{user.email}</strong>
+        </div>
+
         {#each links as link}
             {#if link.header}
                 <div class="menu-header">{link.label}</div>
@@ -56,12 +66,18 @@
                 </a>
             {/if}
         {/each}
+
+        <button class="logout" on:click={logout}>Logga ut</button>
     </div>
 </nav>
 {/if}
 
 <!-- DESKTOP SIDOMENY -->
 <nav class="desktop-nav">
+    <div class="user-box">
+        <strong>{user.email}</strong>
+    </div>
+
     {#each links as link}
         {#if link.header}
             <div class="menu-header">{link.label}</div>
@@ -74,6 +90,8 @@
             </a>
         {/if}
     {/each}
+
+    <button class="logout" on:click={logout}>Logga ut</button>
 </nav>
 
 <style>
@@ -140,6 +158,30 @@
         background: #f0f0f0;
         border-bottom: 1px solid #e5e5e5;
         text-transform: uppercase;
+    }
+
+    .user-box {
+        padding: 16px 20px;
+        border-bottom: 1px solid #e5e5e5;
+        background: #ffffff;
+        font-size: 14px;
+        color: #444;
+    }
+
+    .logout {
+        margin: 20px;
+        padding: 10px 14px;
+        background: #dc2626;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        width: calc(100% - 40px);
+        font-size: 15px;
+    }
+
+    .logout:hover {
+        background: #b91c1c;
     }
 
     /* DESKTOP SIDOMENY */

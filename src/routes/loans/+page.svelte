@@ -5,11 +5,24 @@
     let createReference = '';
     let createAmount = '';
     let createStart = '';
+    let createOwner = 'shared';
 
     // Accordion states
     let showActive = false;
     let showCreate = false;
     let showHistory = false;
+
+    function ownerLabel(owner: string) {
+        if (owner === "shared") return "Gemensamt";
+
+        const match = data.members.find(m => m.user_id === owner);
+        return match?.profiles?.full_name ?? owner;
+    }
+
+    function toMonth(dateString: string | null) {
+        if (!dateString) return "";
+        return dateString.slice(0, 7);
+    }
 </script>
 
 <h1>Lån</h1>
@@ -30,10 +43,11 @@
                             <strong>{l.loan_name}</strong><br />
                             <span class="label">Ref:</span> {l.reference}<br />
                             {l.amount} kr/mån<br />
-                            <span class="label">Start:</span> {l.start_month}<br />
+                            <span class="label">Ägare:</span> {ownerLabel(l.owner)}<br />
+                            <span class="label">Start:</span> {toMonth(l.start_month)}<br />
                             <span class="label">Slut:</span>
                             {#if l.end_month}
-                                {l.end_month}
+                                {toMonth(l.end_month)}
                             {:else}
                                 aktiv
                             {/if}
@@ -45,21 +59,19 @@
                             <form method="post" action="?/update">
                                 <input type="hidden" name="loan_group_id" value={l.loan_group_id} />
 
-                                <label for={"update-amount-" + l.loan_group_id}>Nytt belopp</label>
-                                <input
-                                    id={"update-amount-" + l.loan_group_id}
-                                    name="amount"
-                                    type="number"
-                                    required
-                                />
+                                <label>Nytt belopp</label>
+                                <input name="amount" type="number" required />
 
-                                <label for={"update-start-" + l.loan_group_id}>Gäller från (YYYY-MM)</label>
-                                <input
-                                    id={"update-start-" + l.loan_group_id}
-                                    name="start_month"
-                                    type="month"
-                                    required
-                                />
+                                <label>Ny ägare</label>
+                                <select name="owner" required>
+                                    <option value="shared">Gemensamt</option>
+                                    {#each data.members as m}
+                                        <option value={m.user_id}>{m.profiles.full_name}</option>
+                                    {/each}
+                                </select>
+
+                                <label>Gäller från (YYYY-MM)</label>
+                                <input name="start_month" type="month" required />
 
                                 <button>Uppdatera</button>
                             </form>
@@ -68,13 +80,8 @@
                             <form method="post" action="?/end">
                                 <input type="hidden" name="loan_group_id" value={l.loan_group_id} />
 
-                                <label for={"end-month-" + l.loan_group_id}>Avsluta från (YYYY-MM)</label>
-                                <input
-                                    id={"end-month-" + l.loan_group_id}
-                                    name="end_month"
-                                    type="month"
-                                    required
-                                />
+                                <label>Avsluta från (YYYY-MM)</label>
+                                <input name="end_month" type="month" required />
 
                                 <button class="danger">Avsluta</button>
                             </form>
@@ -99,40 +106,25 @@
     {#if showCreate}
         <form method="post" action="?/create" class="create-form">
 
-            <label for="create-name">Lånets namn</label>
-            <input
-                id="create-name"
-                name="loan_name"
-                type="text"
-                bind:value={createName}
-                required
-            />
+            <label>Lånets namn</label>
+            <input name="loan_name" type="text" bind:value={createName} required />
 
-            <label for="create-ref">Referensnummer</label>
-            <input
-                id="create-ref"
-                name="reference"
-                type="text"
-                bind:value={createReference}
-            />
+            <label>Referensnummer</label>
+            <input name="reference" type="text" bind:value={createReference} />
 
-            <label for="create-amount">Belopp per månad</label>
-            <input
-                id="create-amount"
-                name="amount"
-                type="number"
-                bind:value={createAmount}
-                required
-            />
+            <label>Belopp per månad</label>
+            <input name="amount" type="number" bind:value={createAmount} required />
 
-            <label for="create-start">Startmånad (YYYY-MM)</label>
-            <input
-                id="create-start"
-                name="start_month"
-                type="month"
-                bind:value={createStart}
-                required
-            />
+            <label>Ägare</label>
+            <select name="owner" bind:value={createOwner} required>
+                <option value="shared">Gemensamt</option>
+                {#each data.members as m}
+                    <option value={m.user_id}>{m.profiles.full_name}</option>
+                {/each}
+            </select>
+
+            <label>Startmånad (YYYY-MM)</label>
+            <input name="start_month" type="month" bind:value={createStart} required />
 
             <button>Skapa</button>
         </form>
@@ -152,7 +144,8 @@
                 <div class="history">
                     <strong>{l.loan_name}</strong><br />
                     {l.amount} kr/mån<br />
-                    {l.start_month} → {l.end_month}
+                    <span class="label">Ägare:</span> {ownerLabel(l.owner)}<br />
+                    {toMonth(l.start_month)} → {toMonth(l.end_month)}
                 </div>
             {/each}
         {:else}
@@ -169,7 +162,6 @@
         font-weight: 700;
     }
 
-    /* Sektioner */
     .section {
         margin-bottom: 1.5rem;
         border: 1px solid #e5e7eb;
@@ -201,7 +193,6 @@
         color: #6b7280;
     }
 
-    /* Cards */
     .card {
         border-top: 1px solid #e5e7eb;
         padding: 1rem;
@@ -232,7 +223,6 @@
         min-width: 200px;
     }
 
-    /* Formulär */
     .create-form {
         display: grid;
         gap: 0.9rem;
@@ -240,7 +230,7 @@
         max-width: 420px;
     }
 
-    input, textarea {
+    input, textarea, select {
         padding: 0.65rem;
         border: 1px solid #d1d5db;
         border-radius: 8px;
@@ -248,7 +238,7 @@
         background: #f9fafb;
     }
 
-    input:focus, textarea:focus {
+    input:focus, textarea:focus, select:focus {
         outline: none;
         border-color: #2563eb;
         box-shadow: 0 0 0 2px #dbeafe;

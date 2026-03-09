@@ -1,13 +1,13 @@
 <script>
     export let data;
 
-    // Vald månad (default: senaste)
-    let selected = data.incomes?.[0];
+    // Om inga inkomster finns
+    let selected = data.incomes?.[0] ?? null;
 
-    // Formläge: add eller update
+    // Formläge
     let mode = "add";
 
-    // Formfält
+    // Formdata
     let formData = {
         id: null,
         month: "",
@@ -24,14 +24,25 @@
         fk_nettolon: ""
     };
 
+    // Konvertera YYYY-MM-01 → YYYY-MM
+    function toMonthInput(dateString) {
+        if (!dateString) return "";
+        return dateString.slice(0, 7);
+    }
+
     function selectMonth(inc) {
         selected = inc;
     }
 
     function editMonth(inc) {
         mode = "update";
-        formData = { ...inc };
         selected = inc;
+
+        formData = {
+            ...inc,
+            month: toMonthInput(inc.month)
+        };
+
         showForm = true;
     }
 
@@ -87,37 +98,42 @@
     </button>
 
     {#if showList}
-        <table class="month-list">
-            <thead>
-                <tr>
-                    <th>Månad</th>
-                    <th>Ord netto</th>
-                    <th>Ass netto</th>
-                    <th>FK netto</th>
-                    <th>Total netto</th>
-                    <th></th>
-                </tr>
-            </thead>
-
-            <tbody>
-                {#each data.incomes as inc}
-                    <tr class:selected={selected?.id === inc.id}>
-                        <td on:click={() => selectMonth(inc)}>{inc.month}</td>
-                        <td>{inc.ord_nettolon ?? 0} kr</td>
-                        <td>{inc.ass_nettolon ?? 0} kr</td>
-                        <td>{inc.fk_nettolon ?? 0} kr</td>
-                        <td>
-                            {(Number(inc.ord_nettolon ?? 0)
-                            + Number(inc.ass_nettolon ?? 0)
-                            + Number(inc.fk_nettolon ?? 0))} kr
-                        </td>
-                        <td>
-                            <button type="button" class="small" on:click={() => editMonth(inc)}>Redigera</button>
-                        </td>
+        {#if data.incomes.length === 0}
+            <p style="padding: 1rem;">Inga inkomster registrerade ännu.</p>
+        {:else}
+            <table class="month-list">
+                <thead>
+                    <tr>
+                        <th>Månad</th>
+                        <th>Ord netto</th>
+                        <th>Ass netto</th>
+                        <th>FK netto</th>
+                        <th>Total netto</th>
+                        <th></th>
                     </tr>
-                {/each}
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    {#each data.incomes as inc}
+                        <tr class:selected={selected?.id === inc.id}>
+                            <td on:click={() => selectMonth(inc)}>
+                                {toMonthInput(inc.month)}
+                            </td>
+                            <td>{inc.ord_nettolon ?? 0} kr</td>
+                            <td>{inc.ass_nettolon ?? 0} kr</td>
+                            <td>{inc.fk_nettolon ?? 0} kr</td>
+                            <td>
+                                {(Number(inc.ord_nettolon ?? 0)
+                                + Number(inc.ass_nettolon ?? 0)
+                                + Number(inc.fk_nettolon ?? 0))} kr
+                            </td>
+                            <td>
+                                <button type="button" class="small" on:click={() => editMonth(inc)}>Redigera</button>
+                            </td>
+                        </tr>
+                    {/each}
+                </tbody>
+            </table>
+        {/if}
     {/if}
 </div>
 
@@ -175,7 +191,7 @@
 {#if selected}
 <div class="section">
     <button class="section-header" on:click={() => showSummary = !showSummary}>
-        <span>Sammanställning för {selected.month}</span>
+        <span>Sammanställning för {toMonthInput(selected.month)}</span>
         <span>{showSummary ? "▲" : "▼"}</span>
     </button>
 
@@ -222,7 +238,6 @@
         font-weight: 700;
     }
 
-    /* Sektioner */
     .section {
         margin-bottom: 1.5rem;
         border: 1px solid #e5e7eb;
@@ -249,7 +264,6 @@
         background: #e5e7eb;
     }
 
-    /* Tabeller */
     table {
         width: 100%;
         border-collapse: collapse;
@@ -272,7 +286,6 @@
         font-size: 0.8rem;
     }
 
-    /* Formulär */
     .form {
         display: grid;
         gap: 1rem;
@@ -322,7 +335,6 @@
         background: #1d4ed8;
     }
 
-    /* Sammanställning */
     .summary {
         margin-top: 1rem;
         width: 100%;

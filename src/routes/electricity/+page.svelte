@@ -5,6 +5,12 @@
     let eonAmount = '';
     let tibberAmount = '';
 
+    // Konvertera YYYY-MM-01 → YYYY-MM
+    function toMonthInput(dateString: string | null) {
+        if (!dateString) return "";
+        return dateString.slice(0, 7);
+    }
+
     // Accordion states
     let showForm = false;
     let showList = false;
@@ -24,10 +30,10 @@
             <label for="month">Månad</label>
             <input id="month" name="month" type="month" bind:value={month} required />
 
-            <label for="eon_amount">E.ON (nätavgift)</label>
+            <label for="eon_amount">Nätägare</label>
             <input id="eon_amount" name="eon_amount" type="number" bind:value={eonAmount} required />
 
-            <label for="tibber_amount">Tibber (elhandel)</label>
+            <label for="tibber_amount">Elbolag</label>
             <input id="tibber_amount" name="tibber_amount" type="number" bind:value={tibberAmount} required />
 
             <button>Spara</button>
@@ -48,9 +54,9 @@
                 <div class="card">
                     <div class="row">
                         <div class="info">
-                            <strong>{row.month}</strong><br />
-                            <span class="label">E.ON:</span> {row.eon_amount} kr<br />
-                            <span class="label">Tibber:</span> {row.tibber_amount} kr
+                            <strong>{toMonthInput(row.month)}</strong><br />
+                            <span class="label">Nätägare:</span> {row.eon_amount} kr<br />
+                            <span class="label">Elbolag:</span> {row.tibber_amount} kr
                         </div>
                     </div>
                 </div>
@@ -69,7 +75,6 @@
         font-weight: 700;
     }
 
-    /* Sektioner */
     .section {
         margin-bottom: 1.5rem;
         border: 1px solid #e5e7eb;
@@ -101,7 +106,6 @@
         color: #6b7280;
     }
 
-    /* Cards */
     .card {
         border-top: 1px solid #e5e7eb;
         padding: 1rem;
@@ -125,7 +129,6 @@
         font-size: 0.85rem;
     }
 
-    /* Formulär */
     .create-form {
         display: grid;
         gap: 0.9rem;

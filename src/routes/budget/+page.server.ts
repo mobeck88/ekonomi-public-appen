@@ -5,7 +5,28 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     if (!locals.user) throw redirect(303, '/login');
 
     const supabase = locals.supabase;
-    const userId = locals.user.id;
+    const householdId = locals.householdId;
+
+    if (!householdId) {
+        return {
+            selectedYear: null,
+            months: [],
+            incomePerMonth: [],
+            electricityPerMonth: [],
+            fixedPerGroup: {},
+            loansPerMonth: [],
+            subs: [],
+            savings: [],
+            allowanceUser: [],
+            kidsPerMonth: {},
+            unexpectedPerMonth: [],
+            extraPerMonth: [],
+            fixedGroups: [],
+            ownerMap: {},
+            intervalMap: {},
+            fixedNames: []
+        };
+    }
 
     const selectedYear =
         url.searchParams.get('year') ?? new Date().getFullYear().toString();
@@ -33,69 +54,80 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         loansRes,
         expensesRes
     ] = await Promise.all([
-        supabase.from('monthly_income')
+        supabase
+            .from('monthly_income')
             .select('*')
-            .eq('user_id', userId)
+            .eq('household_id', householdId)
             .gte('month', yearStart)
             .lte('month', yearEnd),
 
-        supabase.from('electricity')
+        supabase
+            .from('electricity_monthly')
             .select('*')
-            .eq('user_id', userId)
+            .eq('household_id', householdId)
             .gte('month', yearStart)
             .lte('month', yearEnd),
 
-        supabase.from('fixed_costs')
+        supabase
+            .from('fixed_costs')
             .select('*')
-            .eq('user_id', userId)
+            .eq('household_id', householdId)
             .lte('start_month', yearEnd)
             .or(endFilter),
 
-        supabase.from('subscriptions')
+        supabase
+            .from('subscriptions')
             .select('*')
-            .eq('user_id', userId)
+            .eq('household_id', householdId)
             .lte('start_month', yearEnd)
             .or(endFilter),
 
-        supabase.from('savings')
+        supabase
+            .from('saving_streams')
             .select('*')
-            .eq('user_id', userId)
+            .eq('household_id', householdId)
             .lte('start_month', yearEnd)
             .or(endFilter),
 
-        supabase.from('allowance')
+        supabase
+            .from('allowance')
             .select('*')
-            .eq('user_id', userId)
+            .eq('household_id', householdId)
             .lte('start_month', yearEnd)
             .or(endFilter),
 
-        supabase.from('kids_allowance')
+        supabase
+            .from('kids_allowance')
             .select('*')
-            .eq('user_id', userId)
+            .eq('household_id', householdId)
             .lte('start_month', yearEnd)
             .or(endFilter),
 
-        supabase.from('unexpected_expenses')
+        supabase
+            .from('unexpected_expenses')
             .select('*')
-            .eq('user_id', userId)
+            .eq('household_id', householdId)
             .gte('date', yearStart)
             .lte('date', yearEnd),
 
-        supabase.from('extra_income')
+        supabase
+            .from('extra_income')
             .select('*')
-            .eq('user_id', userId)
+            .eq('household_id', householdId)
             .gte('date', yearStart)
             .lte('date', yearEnd),
 
-        supabase.from('loans')
+        supabase
+            .from('loans')
             .select('*')
-            .eq('user_id', userId)
+            .eq('household_id', householdId)
             .lte('start_month', yearEnd)
             .or(endFilter),
 
-        supabase.from('expenses')
+        supabase
+            .from('expenses')
             .select('*')
-            .eq('user_id', userId)
+            .eq('household_id', householdId)
             .lte('start_month', yearEnd)
             .or(endFilter)
     ]);
@@ -113,8 +145,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     const expenses = expensesRes.data ?? [];
 
     const sortedExpenses = expenses.sort((a, b) => {
-        const order = { H: 0, A: 1, 'A+H': 2 };
-        return (order[a.owner] ?? 3) - (order[b.owner] ?? 3);
+        const order: Record<string, number> = { shared: 0, [locals.user.id]: 1 };
+        return (order[a.owner] ?? 2) - (order[b.owner] ?? 2);
     });
 
     const ownerMap = Object.fromEntries(
@@ -199,6 +231,18 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
     const loansPerMonth = months.map((m) => sum(loans, m));
 
+    // Dynamiska barnnamn från Rubrik/child_name
+    const childNames = [...new Set(kids.map((k) => k.child_name as string))];
+
+    const kidsPerMonth = Object.fromEntries(
+        childNames.map((name) => [
+            name,
+            months.map((m) =>
+                sum(kids.filter((k) => k.child_name === name), m)
+            )
+        ])
+    );
+
     return {
         selectedYear,
         months,
@@ -208,25 +252,13 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         fixedPerGroup,
         loansPerMonth,
 
-        subs: months.map((m) =>
-            sum(subscriptions.filter((s) => s.user_id === userId), m)
-        ),
+        subs: months.map((m) => sum(subscriptions, m)),
 
-        savings: months.map((m) =>
-            sum(savings.filter((s) => s.user_id === userId), m)
-        ),
+        savings: months.map((m) => sum(savings, m)),
 
-        allowanceUser: months.map((m) =>
-            sum(allowance.filter((a) => a.user_id === userId), m)
-        ),
+        allowanceUser: months.map((m) => sum(allowance, m)),
 
-        theo: months.map((m) =>
-            sum(kids.filter((k) => k.child_name === 'Theo'), m)
-        ),
-
-        lowe: months.map((m) =>
-            sum(kids.filter((k) => k.child_name === 'Lowe'), m)
-        ),
+        kidsPerMonth,
 
         unexpectedPerMonth: months.map((m) =>
             unexpected

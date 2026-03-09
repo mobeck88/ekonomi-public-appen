@@ -6,6 +6,12 @@
     let createTitle = '';
     let createDescription = '';
 
+    // Konvertera YYYY-MM-01 → YYYY-MM
+    function toMonthInput(dateString: string | null) {
+        if (!dateString) return "";
+        return dateString.slice(0, 7);
+    }
+
     // Accordion states
     let showActive = false;
     let showCreate = false;
@@ -28,10 +34,10 @@
                     <div class="row">
                         <div class="info">
                             <strong>{a.amount} kr</strong><br />
-                            <span class="label">Start:</span> {a.start_month}<br />
+                            <span class="label">Start:</span> {toMonthInput(a.start_month)}<br />
                             <span class="label">Slut:</span>
                             {#if a.end_month}
-                                {a.end_month}
+                                {toMonthInput(a.end_month)}
                             {:else}
                                 aktiv
                             {/if}
@@ -105,7 +111,7 @@
         {#if data.history && data.history.length > 0}
             {#each data.history as a}
                 <div class="history">
-                    {a.amount} kr — {a.start_month} → {a.end_month}
+                    {a.amount} kr — {toMonthInput(a.start_month)} → {toMonthInput(a.end_month)}
                 </div>
             {/each}
         {:else}
@@ -122,7 +128,6 @@
         font-weight: 700;
     }
 
-    /* Sektioner */
     .section {
         margin-bottom: 1.5rem;
         border: 1px solid #e5e7eb;
@@ -154,7 +159,6 @@
         color: #6b7280;
     }
 
-    /* Cards */
     .card {
         border-top: 1px solid #e5e7eb;
         padding: 1rem;
@@ -185,7 +189,6 @@
         min-width: 200px;
     }
 
-    /* Formulär */
     .create-form {
         display: grid;
         gap: 0.9rem;

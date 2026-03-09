@@ -1,23 +1,87 @@
+import { redirect } from '@sveltejs/kit';
 import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
-import type { Handle } from '@sveltejs/kit';
 
-export const handle: Handle = async ({ event, resolve }) => {
+export const handle = async ({ event, resolve }) => {
+    const access_token = event.cookies.get('sb-access-token');
+    const refresh_token = event.cookies.get('sb-refresh-token');
+
+    const publicRoutes = ['/login', '/register'];
+
+    // ⭐ Skapa Supabase‑client med auth‑headers
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: {
-            persistSession: false
+        global: {
+            headers: access_token
+                ? { Authorization: `Bearer ${access_token}` }
+                : {}
         }
     });
 
     event.locals.supabase = supabase;
+    event.locals.user = null;
+    event.locals.householdId = null;
 
-    const access_token = event.cookies.get('sb-access-token');
+    // ⭐ Ingen session → tillåt bara public routes
+    if (!access_token) {
+        if (!publicRoutes.includes(event.url.pathname)) {
+            throw redirect(303, '/login');
+        }
+        return resolve(event);
+    }
 
-    if (access_token) {
-        const { data } = await supabase.auth.getUser(access_token);
-        event.locals.user = data.user ?? null;
-    } else {
-        event.locals.user = null;
+    // ⭐ Försök hämta användaren
+    let { data: userData, error: userError } = await supabase.auth.getUser();
+
+    // ⭐ Access-token kan vara ogiltig → försök förnya sessionen
+    if (userError || !userData?.user) {
+        if (refresh_token) {
+            const { data: refreshData, error: refreshError } =
+                await supabase.auth.refreshSession({ refresh_token });
+
+            if (!refreshError && refreshData?.session) {
+                // Uppdatera cookies
+                event.cookies.set('sb-access-token', refreshData.session.access_token, {
+                    path: '/',
+                    httpOnly: true,
+                    sameSite: 'lax',
+                    secure: true
+                });
+
+                event.cookies.set('sb-refresh-token', refreshData.session.refresh_token, {
+                    path: '/',
+                    httpOnly: true,
+                    sameSite: 'lax',
+                    secure: true
+                });
+
+                // Uppdatera auth‑header
+                supabase.auth.setSession(refreshData.session);
+
+                userData = { user: refreshData.session.user };
+            } else {
+                // Kunde inte förnya → logga ut
+                event.cookies.delete('sb-access-token', { path: '/' });
+                event.cookies.delete('sb-refresh-token', { path: '/' });
+                throw redirect(303, '/login');
+            }
+        } else {
+            event.cookies.delete('sb-access-token', { path: '/' });
+            throw redirect(303, '/login');
+        }
+    }
+
+    const user = userData.user;
+    event.locals.user = user;
+
+    // ⭐ Hämta householdId
+    const { data: membership } = await supabase
+        .from('household_members')
+        .select('household_id')
+        .eq('user_id', user.id)
+        .single();
+
+    if (membership) {
+        event.locals.householdId = membership.household_id;
     }
 
     return resolve(event);

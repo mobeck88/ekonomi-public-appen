@@ -5,11 +5,24 @@
     let createStart = '';
     let createTitle = '';
     let createDescription = '';
+    let createOwner = 'shared';
 
     // Accordion states
     let showActive = false;
     let showCreate = false;
     let showHistory = false;
+
+    function ownerLabel(owner: string) {
+        if (owner === "shared") return "Gemensamt";
+
+        const match = data.members.find(m => m.user_id === owner);
+        return match?.profiles?.full_name ?? owner;
+    }
+
+    function toMonth(dateString: string | null) {
+        if (!dateString) return "";
+        return dateString.slice(0, 7);
+    }
 </script>
 
 <h1>Abonnemang</h1>
@@ -28,33 +41,44 @@
                     <div class="row">
                         <div class="info">
                             <strong>{sub.amount} kr</strong><br />
-                            <span class="label">Start:</span> {sub.start_month}<br />
+                            <span class="label">Ägare:</span> {ownerLabel(sub.owner)}<br />
+                            <span class="label">Start:</span> {toMonth(sub.start_month)}<br />
                             <span class="label">Slut:</span>
                             {#if sub.end_month}
-                                {sub.end_month}
+                                {toMonth(sub.end_month)}
                             {:else}
                                 aktiv
                             {/if}
                         </div>
 
                         <div class="actions">
+                            <!-- UPPDATERA -->
                             <form method="post" action="?/update">
                                 <input type="hidden" name="subscription_group_id" value={sub.subscription_group_id} />
 
-                                <label for={"amount-" + sub.id}>Nytt belopp</label>
-                                <input id={"amount-" + sub.id} name="amount" type="number" step="1" required />
+                                <label>Nytt belopp</label>
+                                <input name="amount" type="number" step="1" required />
 
-                                <label for={"start-" + sub.id}>Gäller från (YYYY-MM)</label>
-                                <input id={"start-" + sub.id} name="start_month" type="month" required />
+                                <label>Ny ägare</label>
+                                <select name="owner" required>
+                                    <option value="shared">Gemensamt</option>
+                                    {#each data.members as m}
+                                        <option value={m.user_id}>{m.profiles.full_name}</option>
+                                    {/each}
+                                </select>
+
+                                <label>Gäller från (YYYY-MM)</label>
+                                <input name="start_month" type="month" required />
 
                                 <button>Uppdatera</button>
                             </form>
 
+                            <!-- AVSLUTA -->
                             <form method="post" action="?/end">
                                 <input type="hidden" name="subscription_group_id" value={sub.subscription_group_id} />
 
-                                <label for={"end-" + sub.id}>Avsluta från och med (YYYY-MM)</label>
-                                <input id={"end-" + sub.id} name="end_month" type="month" required />
+                                <label>Avsluta från och med (YYYY-MM)</label>
+                                <input name="end_month" type="month" required />
 
                                 <button class="danger">Avsluta</button>
                             </form>
@@ -77,17 +101,25 @@
 
     {#if showCreate}
         <form method="post" action="?/create" class="create-form">
-            <label for="title">Rubrik</label>
-            <input id="title" name="title" type="text" bind:value={createTitle} required />
+            <label>Rubrik</label>
+            <input name="title" type="text" bind:value={createTitle} required />
 
-            <label for="description">Beskrivning</label>
-            <textarea id="description" name="description" rows="2" bind:value={createDescription}></textarea>
+            <label>Beskrivning</label>
+            <textarea name="description" rows="2" bind:value={createDescription}></textarea>
 
-            <label for="amount">Belopp</label>
-            <input id="amount" name="amount" type="number" step="1" bind:value={createAmount} required />
+            <label>Belopp</label>
+            <input name="amount" type="number" step="1" bind:value={createAmount} required />
 
-            <label for="start_month">Startmånad (YYYY-MM)</label>
-            <input id="start_month" name="start_month" type="month" bind:value={createStart} required />
+            <label>Ägare</label>
+            <select name="owner" bind:value={createOwner} required>
+                <option value="shared">Gemensamt</option>
+                {#each data.members as m}
+                    <option value={m.user_id}>{m.profiles.full_name}</option>
+                {/each}
+            </select>
+
+            <label>Startmånad (YYYY-MM)</label>
+            <input name="start_month" type="month" bind:value={createStart} required />
 
             <button>Skapa</button>
         </form>
@@ -106,7 +138,8 @@
             {#each data.history as sub}
                 <div class="history">
                     <strong>{sub.amount} kr</strong><br />
-                    {sub.start_month} → {sub.end_month}
+                    <span class="label">Ägare:</span> {ownerLabel(sub.owner)}<br />
+                    {toMonth(sub.start_month)} → {toMonth(sub.end_month)}
                 </div>
             {/each}
         {:else}
@@ -123,7 +156,6 @@
         font-weight: 700;
     }
 
-    /* Sektioner */
     .section {
         margin-bottom: 1.5rem;
         border: 1px solid #e5e7eb;
@@ -155,7 +187,6 @@
         color: #6b7280;
     }
 
-    /* Cards */
     .card {
         border-top: 1px solid #e5e7eb;
         padding: 1rem;
@@ -186,7 +217,6 @@
         min-width: 200px;
     }
 
-    /* Formulär */
     .create-form {
         display: grid;
         gap: 0.9rem;
@@ -194,7 +224,7 @@
         max-width: 420px;
     }
 
-    input, textarea {
+    input, textarea, select {
         padding: 0.65rem;
         border: 1px solid #d1d5db;
         border-radius: 8px;
@@ -202,7 +232,7 @@
         background: #f9fafb;
     }
 
-    input:focus, textarea:focus {
+    input:focus, textarea:focus, select:focus {
         outline: none;
         border-color: #2563eb;
         box-shadow: 0 0 0 2px #dbeafe;
