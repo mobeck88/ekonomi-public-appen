@@ -2,69 +2,66 @@ import { fail } from '@sveltejs/kit';
 import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
-export const load = async ({ locals }) => {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
+export const load = async ({ locals, cookies }) => {
     const user = locals.user;
+    if (!user) return { user: null, householdId: null, role: null };
 
-    if (!user) {
-        return { user: null, householdId: null, role: null };
-    }
+    const access_token = cookies.get('sb-access-token');
 
-    const { data: memberships, error } = await supabase
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        global: {
+            headers: {
+                Authorization: `Bearer ${access_token}`
+            }
+        }
+    });
+
+    const { data: membership } = await supabase
         .from('household_members')
         .select('household_id, role')
         .eq('user_id', user.id)
-        .limit(1);
-
-    if (error || !memberships || memberships.length === 0) {
-        return { user, householdId: null, role: null };
-    }
+        .maybeSingle();
 
     return {
         user,
-        householdId: memberships[0].household_id,
-        role: memberships[0].role
+        householdId: membership?.household_id ?? null,
+        role: membership?.role ?? null
     };
 };
 
 export const actions = {
-    join: async ({ request, locals }) => {
+    join: async ({ request, locals, cookies }) => {
         const user = locals.user;
-        if (!user) {
-            return fail(401, { error: 'Du måste vara inloggad.' });
-        }
+        if (!user) return fail(401, { error: 'Du måste vara inloggad.' });
 
         const form = await request.formData();
-        const code = form.get('code') as string;
+        const code = form.get('code');
 
-        if (!code) {
-            return fail(400, { error: 'Du måste ange en hushållskod.' });
-        }
+        const access_token = cookies.get('sb-access-token');
 
-        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            global: {
+                headers: {
+                    Authorization: `Bearer ${access_token}`
+                }
+            }
+        });
 
-        // Kontrollera att hushållet finns
-        const { data: household, error: householdError } = await supabase
+        const { data: household } = await supabase
             .from('households')
             .select('id')
             .eq('id', code)
-            .single();
+            .maybeSingle();
 
-        if (householdError || !household) {
-            return fail(404, { error: 'Hushåll hittades inte.' });
-        }
+        if (!household) return fail(404, { error: 'Hushåll hittades inte.' });
 
-        // Lägg till användaren som member
-        const { error: memberError } = await supabase.from('household_members').insert({
+        const { error } = await supabase.from('household_members').insert({
             household_id: household.id,
             user_id: user.id,
             role: 'member'
         });
 
-        if (memberError) {
-            return fail(500, { error: 'Kunde inte gå med i hushållet.' });
-        }
+        if (error) return fail(500, { error: 'Kunde inte gå med i hushållet.' });
 
         return { success: true };
     }
