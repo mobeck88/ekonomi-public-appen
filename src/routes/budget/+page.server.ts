@@ -1,14 +1,11 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import {
-    BUDGET_ANDREAS_USER_ID,
-    BUDGET_HANNA_USER_ID
-} from '$env/static/private';
 
 export const load: PageServerLoad = async ({ url, locals }) => {
     if (!locals.user) throw redirect(303, '/login');
 
     const supabase = locals.supabase;
+    const userId = locals.user.id;
 
     const selectedYear =
         url.searchParams.get('year') ?? new Date().getFullYear().toString();
@@ -38,56 +35,67 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     ] = await Promise.all([
         supabase.from('monthly_income')
             .select('*')
+            .eq('user_id', userId)
             .gte('month', yearStart)
             .lte('month', yearEnd),
 
         supabase.from('electricity')
             .select('*')
+            .eq('user_id', userId)
             .gte('month', yearStart)
             .lte('month', yearEnd),
 
         supabase.from('fixed_costs')
             .select('*')
+            .eq('user_id', userId)
             .lte('start_month', yearEnd)
             .or(endFilter),
 
         supabase.from('subscriptions')
             .select('*')
+            .eq('user_id', userId)
             .lte('start_month', yearEnd)
             .or(endFilter),
 
         supabase.from('savings')
             .select('*')
+            .eq('user_id', userId)
             .lte('start_month', yearEnd)
             .or(endFilter),
 
         supabase.from('allowance')
             .select('*')
+            .eq('user_id', userId)
             .lte('start_month', yearEnd)
             .or(endFilter),
 
         supabase.from('kids_allowance')
             .select('*')
+            .eq('user_id', userId)
             .lte('start_month', yearEnd)
             .or(endFilter),
 
         supabase.from('unexpected_expenses')
             .select('*')
+            .eq('user_id', userId)
             .gte('date', yearStart)
             .lte('date', yearEnd),
 
         supabase.from('extra_income')
             .select('*')
+            .eq('user_id', userId)
             .gte('date', yearStart)
             .lte('date', yearEnd),
 
         supabase.from('loans')
             .select('*')
+            .eq('user_id', userId)
             .lte('start_month', yearEnd)
             .or(endFilter),
 
         supabase.from('expenses')
             .select('*')
+            .eq('user_id', userId)
             .lte('start_month', yearEnd)
             .or(endFilter)
     ]);
@@ -104,21 +112,17 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     const loans = loansRes.data ?? [];
     const expenses = expensesRes.data ?? [];
 
-    // Sortering: H → A → A+H
     const sortedExpenses = expenses.sort((a, b) => {
         const order = { H: 0, A: 1, 'A+H': 2 };
         return (order[a.owner] ?? 3) - (order[b.owner] ?? 3);
     });
 
-    // OwnerMap för färgkodning
     const ownerMap = Object.fromEntries(
         sortedExpenses.map((e) => [e.title, e.owner])
     );
 
-    // Namn på fasta kostnader (fixed_costs)
     const fixedNames = [...new Set(fixed.map((f) => f.cost_name as string))];
 
-    // IntervalMap för UI-markering
     const intervalMap = Object.fromEntries(
         sortedExpenses.map((e) => [e.title, e.interval_months])
     );
@@ -204,28 +208,16 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         fixedPerGroup,
         loansPerMonth,
 
-        subsA: months.map((m) =>
-            sum(subscriptions.filter((s) => s.user_id === BUDGET_ANDREAS_USER_ID), m)
+        subs: months.map((m) =>
+            sum(subscriptions.filter((s) => s.user_id === userId), m)
         ),
 
-        subsH: months.map((m) =>
-            sum(subscriptions.filter((s) => s.user_id === BUDGET_HANNA_USER_ID), m)
+        savings: months.map((m) =>
+            sum(savings.filter((s) => s.user_id === userId), m)
         ),
 
-        savingsA: months.map((m) =>
-            sum(savings.filter((s) => s.user_id === BUDGET_ANDREAS_USER_ID), m)
-        ),
-
-        savingsH: months.map((m) =>
-            sum(savings.filter((s) => s.user_id === BUDGET_HANNA_USER_ID), m)
-        ),
-
-        allowanceA: months.map((m) =>
-            sum(allowance.filter((a) => a.user_id === BUDGET_ANDREAS_USER_ID), m)
-        ),
-
-        allowanceH: months.map((m) =>
-            sum(allowance.filter((a) => a.user_id === BUDGET_HANNA_USER_ID), m)
+        allowanceUser: months.map((m) =>
+            sum(allowance.filter((a) => a.user_id === userId), m)
         ),
 
         theo: months.map((m) =>
