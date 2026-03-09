@@ -10,11 +10,6 @@
         { label: "Budget", path: "/budget" },
         { label: "Skatt", path: "/skatt" },
 
-        // --- ÖVRIGT ---
-        { label: "Övrigt", header: true },
-        { label: "Oförutsägbart", path: "/unexpected_expenses" },
-        { label: "Extra inkomster", path: "/extra_income" },
-
         // --- UTGIFTER ---
         { label: "Utgifter", header: true },
         { label: "Utgifter", path: "/expenses" },
@@ -25,7 +20,13 @@
         { label: "Barnens pengar", path: "/kids_allowance" },
         { label: "Lån", path: "/loans" },
 
+        // --- ÖVRIGT ---
+        { label: "Övrigt", header: true },
+        { label: "Oförutsägbart", path: "/unexpected_expenses" },
+        { label: "Extra inkomster", path: "/extra_income" },
+
         // --- INSTÄLLNINGAR ---
+        { label: "Inställningar", header: true },
         { label: "Inställningar", path: "/inställningar" }
     ];
 </script>
@@ -41,19 +42,21 @@
 <!-- MOBIL MENY -->
 {#if open}
 <nav class="mobile-menu">
-    {#each links as link}
-        {#if link.header}
-            <div class="menu-header">{link.label}</div>
-        {:else}
-            <a
-                href={link.path}
-                class:selected={$page.url.pathname.startsWith(link.path)}
-                on:click={() => (open = false)}
-            >
-                {link.label}
-            </a>
-        {/if}
-    {/each}
+    <div class="mobile-scroll">
+        {#each links as link}
+            {#if link.header}
+                <div class="menu-header">{link.label}</div>
+            {:else}
+                <a
+                    href={link.path}
+                    class:selected={$page.url.pathname.startsWith(link.path)}
+                    on:click={() => (open = false)}
+                >
+                    {link.label}
+                </a>
+            {/if}
+        {/each}
+    </div>
 </nav>
 {/if}
 
@@ -81,6 +84,9 @@
         padding: 12px 16px;
         background: #ffffff;
         border-bottom: 1px solid #e5e5e5;
+        position: sticky;
+        top: 0;
+        z-index: 20;
     }
 
     .hamburger {
@@ -99,10 +105,16 @@
 
     /* MOBIL MENY */
     .mobile-menu {
-        display: flex;
-        flex-direction: column;
         background: #fafafa;
         border-bottom: 1px solid #e5e5e5;
+        max-height: 80vh;
+        overflow: hidden;
+    }
+
+    .mobile-scroll {
+        overflow-y: auto;
+        max-height: 80vh;
+        padding-bottom: 20px;
     }
 
     .mobile-menu a {
@@ -111,6 +123,7 @@
         text-decoration: none;
         color: #333;
         font-size: 16px;
+        display: block;
     }
 
     .mobile-menu a.selected {
@@ -143,10 +156,14 @@
         .desktop-nav {
             display: flex;
             flex-direction: column;
-            width: 220px;
+            width: 240px;
             background: #ffffff;
             border-right: 1px solid #e5e5e5;
             padding: 20px;
+            height: 100vh;
+            overflow-y: auto;
+            position: sticky;
+            top: 0;
         }
 
         .desktop-nav a {
@@ -169,7 +186,7 @@
         }
 
         .menu-header {
-            margin-top: 20px;
+            margin-top: 22px;
             margin-bottom: 6px;
             font-size: 13px;
             font-weight: 700;

@@ -126,8 +126,19 @@
         </thead>
 
         <tbody>
+
+            <!-- Sektionstitel -->
+            <tr class="section">
+                <td colspan="13">Utgifter</td>
+            </tr>
+
             {#each categories as cat}
-                <tr data-cat={cat}>
+                <tr
+                    data-cat={cat}
+                    class:data-owner={data.ownerMap[cat]}
+                    class:annual={data.intervalMap[cat] === 12}
+                    class:quarterly={data.intervalMap[cat] === 3}
+                >
                     <td>{cat}</td>
                     {#each data.months as _, i}
                         <td>{formatKr(getAmount(cat, i))}</td>
@@ -196,25 +207,39 @@
         font-weight: bold;
     }
 
-    tr[data-cat='Gemensam inkomst'] td { background: #d9ead3; }
-    tr[data-cat='Lån'] td { background: #f4cccc; }
-    tr[data-cat='El'] td { background: #cfe2f3; }
+    /* Sektionstitel */
+    tr.section td {
+        background: #222;
+        color: white;
+        font-weight: bold;
+        text-transform: uppercase;
+        text-align: left;
+        font-size: 0.9rem;
+    }
 
-    tr[data-cat='Tjänster o abonnemang A'] td,
-    tr[data-cat='Tjänster o abonnemang H'] td { background: #c9daf8; }
+    /* Ägare-färgkoder */
+    tr[data-owner="H"] td {
+        background-color: #ffe0e6 !important;
+    }
 
-    tr[data-cat='Sparande A'] td,
-    tr[data-cat='Sparande H'] td { background: #fff2cc; }
+    tr[data-owner="A"] td {
+        background-color: #e0ecff !important;
+    }
 
-    tr[data-cat='Fickpengar Andreas'] td,
-    tr[data-cat='Fickpengar Hanna'] td { background: #ead1dc; }
+    tr[data-owner="A+H"] td {
+        background-color: #f4f4f4 !important;
+    }
 
-    tr[data-cat='MånadsPeng Theo'] td,
-    tr[data-cat='MånadsPeng Lowe'] td { background: #d9d2e9; }
+    /* Intervallmarkering */
+    tr.annual td {
+        border-left: 4px solid #8b5cf6;
+    }
 
-    tr[data-cat='Oförutsägbara utgifter'] td { background: #fce5cd; }
-    tr[data-cat='Extra inkomster'] td { background: #d9ead3; }
+    tr.quarterly td {
+        border-left: 4px solid #10b981;
+    }
 
+    /* Summeringsrader */
     tr.sum td {
         background: #e0e0e0 !important;
         font-weight: bold;

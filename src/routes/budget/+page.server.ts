@@ -86,7 +86,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             .lte('start_month', yearEnd)
             .or(endFilter),
 
-        // Hämta utgifter
         supabase.from('expenses')
             .select('*')
             .lte('start_month', yearEnd)
@@ -111,6 +110,16 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         return (order[a.owner] ?? 3) - (order[b.owner] ?? 3);
     });
 
+    // OwnerMap för färgkodning i UI
+    const ownerMap = Object.fromEntries(
+        sortedExpenses.map(e => [e.title, e.owner])
+    );
+
+    // IntervalMap för UI-markering (årsvis, kvartalsvis)
+    const intervalMap = Object.fromEntries(
+        sortedExpenses.map(e => [e.title, e.interval_months])
+    );
+
     const toYM = (value: any) => {
         if (!value) return null;
         return new Date(value).toISOString().slice(0, 7);
@@ -122,7 +131,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         return start && start <= ym && (!end || end >= ym);
     };
 
-    // NYTT: korrekt hantering av interval_months
+    // Korrekt intervallhantering
     const occursThisMonth = (row: any, ym: string) => {
         const start = toYM(row.start_month);
         if (!start) return false;
@@ -239,6 +248,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
                 .reduce((acc, x) => acc + Number(x.amount ?? 0), 0)
         ),
 
-        fixedGroups
+        fixedGroups,
+        ownerMap,
+        intervalMap
     };
 };
