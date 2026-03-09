@@ -4,9 +4,9 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
 export const actions = {
     default: async ({ request, cookies }) => {
-        const formData = await request.formData();
-        const email = formData.get('email') as string;
-        const password = formData.get('password') as string;
+        const form = await request.formData();
+        const email = form.get('email') as string;
+        const password = form.get('password') as string;
 
         const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -19,15 +19,15 @@ export const actions = {
             return fail(400, { error: error.message });
         }
 
-        // Spara sessionen i cookie
+        // Sätt sessionen i cookies
         cookies.set('sb-access-token', data.session.access_token, {
             path: '/',
             httpOnly: true,
-            sameSite: 'strict',
-            secure: false,
+            sameSite: 'lax',
+            secure: true,
             maxAge: 60 * 60 * 24 * 7
         });
 
-        throw redirect(303, '/');
+        return redirect(303, '/budget');
     }
 };
