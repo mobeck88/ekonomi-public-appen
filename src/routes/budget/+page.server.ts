@@ -86,7 +86,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             .lte('start_month', yearEnd)
             .or(endFilter),
 
-        // NYTT: hämta utgifter
+        // Hämta utgifter
         supabase.from('expenses')
             .select('*')
             .lte('start_month', yearEnd)
@@ -120,6 +120,19 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         const start = toYM(row.start_month);
         const end = toYM(row.end_month);
         return start && start <= ym && (!end || end >= ym);
+    };
+
+    // NYTT: korrekt hantering av interval_months
+    const occursThisMonth = (row: any, ym: string) => {
+        const start = toYM(row.start_month);
+        if (!start) return false;
+
+        const [startY, startM] = start.split('-').map(Number);
+        const [curY, curM] = ym.split('-').map(Number);
+
+        const monthsDiff = (curY - startY) * 12 + (curM - startM);
+
+        return monthsDiff >= 0 && monthsDiff % Number(row.interval_months ?? 1) === 0;
     };
 
     const sum = (rows: any[], ym: string) =>
@@ -163,7 +176,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
                     .reduce((acc, f) => acc + Number(f.amount ?? 0), 0);
 
                 const expenseSum = sortedExpenses
-                    .filter((e) => e.title === name && isActive(e, m))
+                    .filter((e) => e.title === name && occursThisMonth(e, m))
                     .reduce((acc, e) => acc + Number(e.amount ?? 0), 0);
 
                 return fixedSum + expenseSum;
