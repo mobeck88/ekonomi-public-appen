@@ -21,7 +21,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     const yearStart = `${selectedYear}-01-01`;
     const yearEnd = `${selectedYear}-12-31`;
 
-    // OR-filter för slutdatum
     const endFilter = `end_month.gte.${yearStart},end_month.is.null`;
 
     const [
@@ -37,69 +36,58 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         loansRes,
         expensesRes
     ] = await Promise.all([
-        supabase
-            .from('monthly_income')
+        supabase.from('monthly_income')
             .select('*')
             .gte('month', yearStart)
             .lte('month', yearEnd),
 
-        supabase
-            .from('electricity')
+        supabase.from('electricity')
             .select('*')
             .gte('month', yearStart)
             .lte('month', yearEnd),
 
-        supabase
-            .from('fixed_costs')
+        supabase.from('fixed_costs')
             .select('*')
             .lte('start_month', yearEnd)
             .or(endFilter),
 
-        supabase
-            .from('subscriptions')
+        supabase.from('subscriptions')
             .select('*')
             .lte('start_month', yearEnd)
             .or(endFilter),
 
-        supabase
-            .from('savings')
+        supabase.from('savings')
             .select('*')
             .lte('start_month', yearEnd)
             .or(endFilter),
 
-        supabase
-            .from('allowance')
+        supabase.from('allowance')
             .select('*')
             .lte('start_month', yearEnd)
             .or(endFilter),
 
-        supabase
-            .from('kids_allowance')
+        supabase.from('kids_allowance')
             .select('*')
             .lte('start_month', yearEnd)
             .or(endFilter),
 
-        supabase
-            .from('unexpected_expenses')
+        supabase.from('unexpected_expenses')
             .select('*')
             .gte('date', yearStart)
             .lte('date', yearEnd),
 
-        supabase
-            .from('extra_income')
+        supabase.from('extra_income')
             .select('*')
             .gte('date', yearStart)
             .lte('date', yearEnd),
 
-        supabase
-            .from('loans')
+        supabase.from('loans')
             .select('*')
             .lte('start_month', yearEnd)
             .or(endFilter),
 
-        // NYTT: hämta alla utgifter
-        supabase
-            .from('expenses')
+        // NYTT: hämta utgifter
+        supabase.from('expenses')
             .select('*')
             .lte('start_month', yearEnd)
             .or(endFilter)
@@ -116,6 +104,12 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     const extra = extraRes.data ?? [];
     const loans = loansRes.data ?? [];
     const expenses = expensesRes.data ?? [];
+
+    // Sortering: H → A → A+H
+    const sortedExpenses = expenses.sort((a, b) => {
+        const order = { 'H': 0, 'A': 1, 'A+H': 2 };
+        return (order[a.owner] ?? 3) - (order[b.owner] ?? 3);
+    });
 
     const toYM = (value: any) => {
         if (!value) return null;
@@ -151,15 +145,15 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         return Number(row?.eon_amount ?? 0) + Number(row?.tibber_amount ?? 0);
     });
 
-    // NYTT: grupper för både fixed_costs och expenses
+    // Kategorier: fixed_costs + expenses
     const fixedGroups = [
         ...new Set([
             ...fixed.map((f) => f.cost_name as string),
-            ...expenses.map((e) => e.title as string)
+            ...sortedExpenses.map((e) => e.title as string)
         ])
     ];
 
-    // NYTT: summera per grupp och månad, fixed + expenses
+    // Summering per kategori och månad
     const fixedPerGroup = Object.fromEntries(
         fixedGroups.map((name) => [
             name,
@@ -168,7 +162,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
                     .filter((f) => f.cost_name === name && isActive(f, m))
                     .reduce((acc, f) => acc + Number(f.amount ?? 0), 0);
 
-                const expenseSum = expenses
+                const expenseSum = sortedExpenses
                     .filter((e) => e.title === name && isActive(e, m))
                     .reduce((acc, e) => acc + Number(e.amount ?? 0), 0);
 
