@@ -1,15 +1,20 @@
-import { redirect } from '@sveltejs/kit';
+import { redirect, fail } from '@sveltejs/kit';
 
 export const load = async ({ locals }) => {
     if (!locals.user) throw redirect(303, '/login');
 
     const supabase = locals.supabase;
 
-    const { data } = await supabase
+    const { data, error } = await supabase
         .from('monthly_income')
         .select('*')
         .eq('user_id', locals.user.id)
         .order('month', { ascending: false });
+
+    if (error) {
+        console.error("LOAD INCOME ERROR:", error);
+        return { incomes: [] };
+    }
 
     return { incomes: data };
 };
@@ -40,7 +45,13 @@ export const actions = {
             fk_nettolon: Number(form.get('fk_nettolon')) || null
         };
 
-        await supabase.from('monthly_income').insert(payload);
+        const { error } = await supabase.from('monthly_income').insert(payload);
+
+        if (error) {
+            console.error("ADD INCOME ERROR:", error, payload);
+            return fail(400, { message: error.message });
+        }
+
         throw redirect(303, '/incomes');
     },
 
@@ -69,11 +80,16 @@ export const actions = {
             fk_nettolon: Number(form.get('fk_nettolon')) || null
         };
 
-        await supabase
+        const { error } = await supabase
             .from('monthly_income')
             .update(payload)
             .eq('id', id)
             .eq('user_id', locals.user.id);
+
+        if (error) {
+            console.error("UPDATE INCOME ERROR:", error, payload);
+            return fail(400, { message: error.message });
+        }
 
         throw redirect(303, '/incomes');
     }
