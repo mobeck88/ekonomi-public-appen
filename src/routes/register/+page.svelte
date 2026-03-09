@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { register } from '$lib/api';
+    import { register as apiRegister } from '$lib/api';
     import { goto } from '$app/navigation';
 
     let email = '';
@@ -12,7 +12,7 @@
         errorMessage = '';
 
         try {
-            await register(email, password);
+            await apiRegister(email, password);
             goto('/login');
         } catch (error: any) {
             errorMessage = error.message;

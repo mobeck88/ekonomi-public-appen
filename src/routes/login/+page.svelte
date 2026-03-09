@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { login } from '$lib/api';
+    import { login as apiLogin } from '$lib/api';
     import { goto } from '$app/navigation';
 
     let email = '';
@@ -12,7 +12,7 @@
         errorMessage = '';
 
         try {
-            await login(email, password);
+            await apiLogin(email, password);
             goto('/budget');
         } catch (error: any) {
             errorMessage = error.message;
