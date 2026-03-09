@@ -7,9 +7,12 @@ export const load = async ({ cookies, url, locals }) => {
 
     const access_token = cookies.get('sb-access-token');
 
-    // Ingen session → redirect till login
+    // Offentliga sidor som inte kräver inloggning
+    const publicRoutes = ['/login', '/register'];
+
+    // Ingen session → redirect till login, men tillåt public routes
     if (!access_token) {
-        if (url.pathname !== '/login') {
+        if (!publicRoutes.includes(url.pathname)) {
             throw redirect(303, '/login');
         }
         locals.user = null;
