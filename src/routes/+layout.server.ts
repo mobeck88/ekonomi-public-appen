@@ -7,30 +7,44 @@ export const load = async ({ cookies, url, locals }) => {
 
     const access_token = cookies.get('sb-access-token');
 
-    // Offentliga sidor som inte kräver inloggning
     const publicRoutes = ['/login', '/register'];
 
-    // Ingen session → redirect till login, men tillåt public routes
+    // Ingen session → tillåt bara public routes
     if (!access_token) {
         if (!publicRoutes.includes(url.pathname)) {
             throw redirect(303, '/login');
         }
         locals.user = null;
-        return { user: null };
+        return { user: null, householdId: null };
     }
 
     // Hämta användaren
-    const { data, error } = await supabase.auth.getUser(access_token);
+    const { data: userData, error: userError } = await supabase.auth.getUser(access_token);
 
-    if (error || !data.user) {
+    if (userError || !userData.user) {
         cookies.delete('sb-access-token', { path: '/' });
         throw redirect(303, '/login');
     }
 
-    // Spara användaren i locals
-    locals.user = data.user;
+    const user = userData.user;
+
+    // Hämta household för användaren
+    const { data: memberships, error: memberError } = await supabase
+        .from('household_members')
+        .select('household_id')
+        .eq('user_id', user.id)
+        .limit(1);
+
+    if (memberError) {
+        console.error('Error fetching household membership', memberError);
+    }
+
+    const householdId = memberships && memberships.length > 0 ? memberships[0].household_id : null;
+
+    locals.user = user;
 
     return {
-        user: data.user
+        user,
+        householdId
     };
 };

@@ -8,9 +8,27 @@
     let showChurch = false;
     let showPassword = false;
     let showLogout = false;
+    let showHousehold = false;
 </script>
 
 <h1>Inställningar</h1>
+
+<!-- ⭐ Sektion: Hushåll -->
+<div class="section">
+    <button class="section-header" on:click={() => showHousehold = !showHousehold}>
+        <span>Hushåll</span>
+        <span>{showHousehold ? "▲" : "▼"}</span>
+    </button>
+
+    {#if showHousehold}
+        <div class="form">
+            <p>Hantera hushåll, bjud in partner eller gå med i ett hushåll.</p>
+            <a href="/household">
+                <button type="button">Gå till hushållsinställningar</button>
+            </a>
+        </div>
+    {/if}
+</div>
 
 <!-- ⭐ Sektion: Kyrkotillhörighet -->
 <div class="section">
@@ -79,7 +97,6 @@
         font-weight: 700;
     }
 
-    /* Sektioner */
     .section {
         margin-bottom: 1.5rem;
         border: 1px solid #e5e7eb;
@@ -105,7 +122,6 @@
         background: #e5e7eb;
     }
 
-    /* Formulär */
     .form {
         display: grid;
         gap: 0.9rem;
