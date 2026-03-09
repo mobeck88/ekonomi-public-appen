@@ -18,12 +18,12 @@ export const load: PageServerLoad = async ({ locals }) => {
         console.error("LOAD ACTIVE EXPENSES ERROR:", activeError);
     }
 
-    // ⭐ Historik
+    // ⭐ Historik (fixad syntax)
     const { data: history, error: historyError } = await supabase
         .from('expenses')
         .select('*')
         .eq('user_id', locals.user.id)
-        .is('end_month', 'not.null')   // ⭐ FIX: stabil syntax
+        .not('end_month', 'is', null)   // ⭐ FIX: stabil PostgREST-syntax
         .order('start_month', { ascending: true });
 
     if (historyError) {
