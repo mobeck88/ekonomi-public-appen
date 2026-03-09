@@ -9,12 +9,14 @@ export const load: PageServerLoad = async ({ locals }) => {
     const { data: active } = await supabase
         .from('expenses')
         .select('*')
+        .eq('user_id', locals.user.id)          // ⭐ FIX
         .is('end_month', null)
         .order('start_month', { ascending: true });
 
     const { data: history } = await supabase
         .from('expenses')
         .select('*')
+        .eq('user_id', locals.user.id)          // ⭐ FIX
         .not('end_month', 'is', null)
         .order('start_month', { ascending: true });
 
@@ -35,9 +37,10 @@ export const actions: Actions = {
         const owner = form.get('owner');
 
         const rawStart = form.get('start_month') as string | null;
-        const start_month = rawStart ? `${rawStart}-01` : null;   // ⭐ FIX
+        const start_month = rawStart ? `${rawStart}-01` : null;
 
         const { error } = await supabase.from('expenses').insert({
+            user_id: locals.user.id,            // ⭐ FIX
             title,
             description,
             amount,
@@ -66,12 +69,13 @@ export const actions: Actions = {
         const new_owner = form.get('owner');
 
         const rawStart = form.get('start_month') as string | null;
-        const new_start = rawStart ? `${rawStart}-01` : null;   // ⭐ FIX
+        const new_start = rawStart ? `${rawStart}-01` : null;
 
         const { data: active } = await supabase
             .from('expenses')
             .select('*')
             .eq('expense_group_id', group_id)
+            .eq('user_id', locals.user.id)      // ⭐ FIX
             .is('end_month', null)
             .single();
 
@@ -87,6 +91,7 @@ export const actions: Actions = {
             .eq('id', active.id);
 
         const { error } = await supabase.from('expenses').insert({
+            user_id: locals.user.id,            // ⭐ FIX
             expense_group_id: group_id,
             title: active.title,
             description: active.description,
@@ -113,12 +118,13 @@ export const actions: Actions = {
         const group_id = form.get('expense_group_id');
 
         const rawEnd = form.get('end_month') as string | null;
-        const end_month = rawEnd ? `${rawEnd}-01` : null;   // ⭐ FIX
+        const end_month = rawEnd ? `${rawEnd}-01` : null;
 
         const { error } = await supabase
             .from('expenses')
             .update({ end_month })
             .eq('expense_group_id', group_id)
+            .eq('user_id', locals.user.id)      // ⭐ FIX
             .is('end_month', null);
 
         if (error) {
