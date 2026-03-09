@@ -32,10 +32,10 @@ export const actions: Actions = {
         const description = form.get('description');
         const amount = Number(form.get('amount'));
         const interval = Number(form.get('interval_months'));
-        const owner = form.get('owner'); // 'A', 'H', 'A+H'
-        const start_raw = form.get('start_month');
+        const owner = form.get('owner');
 
-        const start_month = `${start_raw}-01`;
+        const rawStart = form.get('start_month') as string | null;
+        const start_month = rawStart ? `${rawStart}-01` : null;   // ⭐ FIX
 
         const { error } = await supabase.from('expenses').insert({
             title,
@@ -48,7 +48,7 @@ export const actions: Actions = {
         });
 
         if (error) {
-            console.error('create expense error', error);
+            console.error('CREATE EXPENSE ERROR:', error);
             return fail(400, { error: error.message });
         }
 
@@ -64,9 +64,9 @@ export const actions: Actions = {
         const new_amount = Number(form.get('amount'));
         const new_interval = Number(form.get('interval_months'));
         const new_owner = form.get('owner');
-        const new_start_raw = form.get('start_month');
 
-        const new_start = `${new_start_raw}-01`;
+        const rawStart = form.get('start_month') as string | null;
+        const new_start = rawStart ? `${rawStart}-01` : null;   // ⭐ FIX
 
         const { data: active } = await supabase
             .from('expenses')
@@ -77,7 +77,7 @@ export const actions: Actions = {
 
         if (!active) return fail(400, { error: 'Ingen aktiv period hittades' });
 
-        const end_date = new Date(new_start);
+        const end_date = new Date(new_start!);
         end_date.setMonth(end_date.getMonth() - 1);
         const end_month = end_date.toISOString().slice(0, 10);
 
@@ -86,7 +86,7 @@ export const actions: Actions = {
             .update({ end_month })
             .eq('id', active.id);
 
-        await supabase.from('expenses').insert({
+        const { error } = await supabase.from('expenses').insert({
             expense_group_id: group_id,
             title: active.title,
             description: active.description,
@@ -97,6 +97,11 @@ export const actions: Actions = {
             end_month: null
         });
 
+        if (error) {
+            console.error('UPDATE EXPENSE ERROR:', error);
+            return fail(400, { error: error.message });
+        }
+
         return { success: true };
     },
 
@@ -106,15 +111,20 @@ export const actions: Actions = {
 
         const form = await request.formData();
         const group_id = form.get('expense_group_id');
-        const end_raw = form.get('end_month');
 
-        const end_month = `${end_raw}-01`;
+        const rawEnd = form.get('end_month') as string | null;
+        const end_month = rawEnd ? `${rawEnd}-01` : null;   // ⭐ FIX
 
-        await supabase
+        const { error } = await supabase
             .from('expenses')
             .update({ end_month })
             .eq('expense_group_id', group_id)
             .is('end_month', null);
+
+        if (error) {
+            console.error('END EXPENSE ERROR:', error);
+            return fail(400, { error: error.message });
+        }
 
         return { success: true };
     }
