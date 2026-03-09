@@ -14,3 +14,7 @@
 
     <button type="submit">Logga in</button>
 </form>
+<p>
+    Har du inget konto?
+    <a href="/register">Skapa konto</a>
+</p>
