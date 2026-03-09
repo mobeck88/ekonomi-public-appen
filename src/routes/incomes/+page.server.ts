@@ -12,7 +12,7 @@ export const load = async ({ locals }) => {
         .order('month', { ascending: false });
 
     if (error) {
-        console.error("LOAD INCOME ERROR:", error);
+        console.error('LOAD INCOME ERROR:', error);
         return { incomes: [] };
     }
 
@@ -26,9 +26,12 @@ export const actions = {
         const supabase = locals.supabase;
         const form = await request.formData();
 
+        const rawMonth = form.get('month') as string | null;
+        const month = rawMonth ? `${rawMonth}-01` : null; // ⭐ FIX: gör YYYY-MM till YYYY-MM-01
+
         const payload = {
             user_id: locals.user.id,
-            month: form.get('month'),
+            month,
 
             ord_lon_fore_skatt: Number(form.get('ord_lon_fore_skatt')) || null,
             ord_franvaro: Number(form.get('ord_franvaro')) || null,
@@ -48,7 +51,7 @@ export const actions = {
         const { error } = await supabase.from('monthly_income').insert(payload);
 
         if (error) {
-            console.error("ADD INCOME ERROR:", error, payload);
+            console.error('ADD INCOME ERROR:', error, payload);
             return fail(400, { message: error.message });
         }
 
@@ -62,8 +65,11 @@ export const actions = {
         const form = await request.formData();
         const id = form.get('id');
 
+        const rawMonth = form.get('month') as string | null;
+        const month = rawMonth ? `${rawMonth}-01` : null; // ⭐ samma fix här
+
         const payload = {
-            month: form.get('month'),
+            month,
 
             ord_lon_fore_skatt: Number(form.get('ord_lon_fore_skatt')) || null,
             ord_franvaro: Number(form.get('ord_franvaro')) || null,
@@ -87,7 +93,7 @@ export const actions = {
             .eq('user_id', locals.user.id);
 
         if (error) {
-            console.error("UPDATE INCOME ERROR:", error, payload);
+            console.error('UPDATE INCOME ERROR:', error, payload);
             return fail(400, { message: error.message });
         }
 
