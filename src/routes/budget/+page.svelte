@@ -30,65 +30,37 @@
 
     function getAmount(category, index) {
         switch (category) {
-            case 'Gemensam inkomst':
-                return data.incomePerMonth[index];
-
-            case 'Lån':
-                return data.loansPerMonth[index];
-
-            case 'El':
-                return data.electricityPerMonth[index];
-
-            case 'Tjänster o abonnemang A':
-                return data.subsA[index];
-
-            case 'Tjänster o abonnemang H':
-                return data.subsH[index];
-
-            case 'Sparande A':
-                return data.savingsA[index];
-
-            case 'Sparande H':
-                return data.savingsH[index];
-
-            case 'Fickpengar Andreas':
-                return data.allowanceA[index];
-
-            case 'Fickpengar Hanna':
-                return data.allowanceH[index];
-
-            case 'MånadsPeng Theo':
-                return data.theo[index];
-
-            case 'MånadsPeng Lowe':
-                return data.lowe[index];
-
-            case 'Oförutsägbara utgifter':
-                return data.unexpectedPerMonth[index];
-
-            case 'Extra inkomster':
-                return data.extraPerMonth[index];
-
+            case 'Gemensam inkomst': return data.incomePerMonth[index];
+            case 'Lån': return data.loansPerMonth[index];
+            case 'El': return data.electricityPerMonth[index];
+            case 'Tjänster o abonnemang A': return data.subsA[index];
+            case 'Tjänster o abonnemang H': return data.subsH[index];
+            case 'Sparande A': return data.savingsA[index];
+            case 'Sparande H': return data.savingsH[index];
+            case 'Fickpengar Andreas': return data.allowanceA[index];
+            case 'Fickpengar Hanna': return data.allowanceH[index];
+            case 'MånadsPeng Theo': return data.theo[index];
+            case 'MånadsPeng Lowe': return data.lowe[index];
+            case 'Oförutsägbara utgifter': return data.unexpectedPerMonth[index];
+            case 'Extra inkomster': return data.extraPerMonth[index];
             default:
-                if (data.fixedPerGroup[category]) {
-                    return data.fixedPerGroup[category][index];
-                }
+                if (data.fixedPerGroup[category]) return data.fixedPerGroup[category][index];
                 return 0;
         }
     }
 
-    function sumIn(index) {
-        return data.incomePerMonth[index] + data.extraPerMonth[index];
+    function sumIn(i) {
+        return data.incomePerMonth[i] + data.extraPerMonth[i];
     }
 
-    function sumOut(index) {
+    function sumOut(i) {
         return categories
             .filter((c) => c !== 'Gemensam inkomst' && c !== 'Extra inkomster')
-            .reduce((a, c) => a + getAmount(c, index), 0);
+            .reduce((a, c) => a + getAmount(c, i), 0);
     }
 
-    function sumDiff(index) {
-        return sumIn(index) - sumOut(index);
+    function sumDiff(i) {
+        return sumIn(i) - sumOut(i);
     }
 
     let startingBuffer = 0;
@@ -126,16 +98,13 @@
         </thead>
 
         <tbody>
-
-            <!-- Sektionstitel -->
-            <tr class="section">
-                <td colspan="13">Utgifter</td>
-            </tr>
-
             {#each categories as cat}
                 <tr
                     data-cat={cat}
-                    class:data-owner={data.ownerMap[cat]}
+                    class:fixed={data.fixedNames.includes(cat)}
+                    class:hanna={data.ownerMap[cat] === 'H'}
+                    class:andreas={data.ownerMap[cat] === 'A'}
+                    class:joint={data.ownerMap[cat] === 'A+H'}
                     class:annual={data.intervalMap[cat] === 12}
                     class:quarterly={data.intervalMap[cat] === 3}
                 >
@@ -189,8 +158,7 @@
         font-size: 0.85rem;
     }
 
-    th,
-    td {
+    th, td {
         border: 1px solid #ddd;
         padding: 0.4rem 0.6rem;
         text-align: right;
@@ -201,45 +169,54 @@
         background: #f5f5f5;
     }
 
-    th:first-child,
-    td:first-child {
+    th:first-child, td:first-child {
         text-align: left;
         font-weight: bold;
     }
 
-    /* Sektionstitel */
-    tr.section td {
-        background: #222;
-        color: white;
-        font-weight: bold;
-        text-transform: uppercase;
-        text-align: left;
-        font-size: 0.9rem;
+    /* === FÄRGER FÖR FASTA UTGIFTER === */
+    tr.fixed td {
+        background: #fff2cc;
     }
 
-    /* Ägare-färgkoder */
-    tr[data-owner="H"] td {
-        background-color: #ffe0e6 !important;
+    /* === FÄRGER FÖR EXPENSES (ägare) === */
+    tr.hanna td {
+        background: #ffe0e6;
     }
 
-    tr[data-owner="A"] td {
-        background-color: #e0ecff !important;
+    tr.andreas td {
+        background: #e0ecff;
     }
 
-    tr[data-owner="A+H"] td {
-        background-color: #f4f4f4 !important;
+    tr.joint td {
+        background: #f4f4f4;
     }
 
-    /* Intervallmarkering */
-    tr.annual td {
-        border-left: 4px solid #8b5cf6;
-    }
+    /* === ORIGINALFÄRGER (oförändrade) === */
+    tr[data-cat='Gemensam inkomst'] td { background: #d9ead3; }
+    tr[data-cat='Lån'] td { background: #f4cccc; }
+    tr[data-cat='El'] td { background: #cfe2f3; }
 
-    tr.quarterly td {
-        border-left: 4px solid #10b981;
-    }
+    tr[data-cat='Tjänster o abonnemang A'] td,
+    tr[data-cat='Tjänster o abonnemang H'] td { background: #c9daf8; }
 
-    /* Summeringsrader */
+    tr[data-cat='Sparande A'] td,
+    tr[data-cat='Sparande H'] td { background: #fff2cc; }
+
+    tr[data-cat='Fickpengar Andreas'] td,
+    tr[data-cat='Fickpengar Hanna'] td { background: #ead1dc; }
+
+    tr[data-cat='MånadsPeng Theo'] td,
+    tr[data-cat='MånadsPeng Lowe'] td { background: #d9d2e9; }
+
+    tr[data-cat='Oförutsägbara utgifter'] td { background: #fce5cd; }
+    tr[data-cat='Extra inkomster'] td { background: #d9ead3; }
+
+    /* === INTERVALLMARKERING === */
+    tr.annual td { border-left: 4px solid #8b5cf6; }
+    tr.quarterly td { border-left: 4px solid #10b981; }
+
+    /* === SUMMERING === */
     tr.sum td {
         background: #e0e0e0 !important;
         font-weight: bold;

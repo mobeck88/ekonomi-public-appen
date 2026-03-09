@@ -106,18 +106,21 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
     // Sortering: H → A → A+H
     const sortedExpenses = expenses.sort((a, b) => {
-        const order = { 'H': 0, 'A': 1, 'A+H': 2 };
+        const order = { H: 0, A: 1, 'A+H': 2 };
         return (order[a.owner] ?? 3) - (order[b.owner] ?? 3);
     });
 
-    // OwnerMap för färgkodning i UI
+    // OwnerMap för färgkodning
     const ownerMap = Object.fromEntries(
-        sortedExpenses.map(e => [e.title, e.owner])
+        sortedExpenses.map((e) => [e.title, e.owner])
     );
 
-    // IntervalMap för UI-markering (årsvis, kvartalsvis)
+    // Namn på fasta kostnader (fixed_costs)
+    const fixedNames = [...new Set(fixed.map((f) => f.cost_name as string))];
+
+    // IntervalMap för UI-markering
     const intervalMap = Object.fromEntries(
-        sortedExpenses.map(e => [e.title, e.interval_months])
+        sortedExpenses.map((e) => [e.title, e.interval_months])
     );
 
     const toYM = (value: any) => {
@@ -131,7 +134,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         return start && start <= ym && (!end || end >= ym);
     };
 
-    // Korrekt intervallhantering
     const occursThisMonth = (row: any, ym: string) => {
         const start = toYM(row.start_month);
         if (!start) return false;
@@ -167,7 +169,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         return Number(row?.eon_amount ?? 0) + Number(row?.tibber_amount ?? 0);
     });
 
-    // Kategorier: fixed_costs + expenses
     const fixedGroups = [
         ...new Set([
             ...fixed.map((f) => f.cost_name as string),
@@ -175,7 +176,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         ])
     ];
 
-    // Summering per kategori och månad
     const fixedPerGroup = Object.fromEntries(
         fixedGroups.map((name) => [
             name,
@@ -250,6 +250,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
         fixedGroups,
         ownerMap,
-        intervalMap
+        intervalMap,
+        fixedNames
     };
 };
