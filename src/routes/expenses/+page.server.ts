@@ -5,28 +5,29 @@ export const load: PageServerLoad = async ({ locals }) => {
     if (!locals.user) throw redirect(303, '/login');
 
     const supabase = locals.supabase;
-    const userId = locals.user.id;
 
+    // Aktiva utgifter
     const { data: active, error: activeError } = await supabase
         .from('expenses')
         .select('*')
-        .eq('user_id', userId)
         .is('end_month', null)
         .order('start_month', { ascending: true });
 
     if (activeError) {
-        console.error('load expenses active error', activeError);
+        console.error('load active expenses error', activeError);
+        throw fail(500, { error: activeError.message });
     }
 
+    // Historik
     const { data: history, error: historyError } = await supabase
         .from('expenses')
         .select('*')
-        .eq('user_id', userId)
         .not('end_month', 'is', null)
         .order('start_month', { ascending: true });
 
     if (historyError) {
-        console.error('load expenses history error', historyError);
+        console.error('load history expenses error', historyError);
+        throw fail(500, { error: historyError.message });
     }
 
     return { active, history };
@@ -36,21 +37,19 @@ export const actions: Actions = {
     create: async ({ request, locals }) => {
         if (!locals.user) throw redirect(303, '/login');
         const supabase = locals.supabase;
-        const userId = locals.user.id;
 
         const form = await request.formData();
 
-        const title = form.get('title') as string;
-        const description = (form.get('description') as string) || null;
+        const title = form.get('title');
+        const description = form.get('description');
         const amount = Number(form.get('amount'));
         const interval = Number(form.get('interval_months'));
-        const owner = form.get('owner') as string; // 'A', 'H', 'A+H'
-        const start_raw = form.get('start_month') as string; // YYYY-MM
+        const owner = form.get('owner');
+        const start_raw = form.get('start_month');
 
         const start_month = `${start_raw}-01`;
 
         const { error } = await supabase.from('expenses').insert({
-            user_id: userId,
             title,
             description,
             amount,
@@ -58,7 +57,6 @@ export const actions: Actions = {
             owner,
             start_month,
             end_month: null
-            // expense_group_id antas ha default i databasen (t.ex. gen_random_uuid())
         });
 
         if (error) {
@@ -72,30 +70,25 @@ export const actions: Actions = {
     update: async ({ request, locals }) => {
         if (!locals.user) throw redirect(303, '/login');
         const supabase = locals.supabase;
-        const userId = locals.user.id;
 
         const form = await request.formData();
-        const group_id = form.get('expense_group_id') as string;
+        const group_id = form.get('expense_group_id');
         const new_amount = Number(form.get('amount'));
         const new_interval = Number(form.get('interval_months'));
-        const new_owner = form.get('owner') as string;
-        const new_start_raw = form.get('start_month') as string;
+        const new_owner = form.get('owner');
+        const new_start_raw = form.get('start_month');
 
         const new_start = `${new_start_raw}-01`;
 
         const { data: active, error: activeError } = await supabase
             .from('expenses')
             .select('*')
-            .eq('user_id', userId)
             .eq('expense_group_id', group_id)
             .is('end_month', null)
             .single();
 
-        if (activeError) {
-            console.error('update expense load active error', activeError);
-        }
-
-        if (!active) {
+        if (activeError || !active) {
+            console.error('fetch active expense for update error', activeError);
             return fail(400, { error: 'Ingen aktiv period hittades' });
         }
 
@@ -106,16 +99,14 @@ export const actions: Actions = {
         const { error: endError } = await supabase
             .from('expenses')
             .update({ end_month })
-            .eq('user_id', userId)
             .eq('id', active.id);
 
         if (endError) {
-            console.error('update expense end current error', endError);
+            console.error('end current expense period error', endError);
             return fail(400, { error: endError.message });
         }
 
         const { error: insertError } = await supabase.from('expenses').insert({
-            user_id: userId,
             expense_group_id: group_id,
             title: active.title,
             description: active.description,
@@ -127,7 +118,7 @@ export const actions: Actions = {
         });
 
         if (insertError) {
-            console.error('update expense insert new error', insertError);
+            console.error('insert new expense period error', insertError);
             return fail(400, { error: insertError.message });
         }
 
@@ -137,18 +128,16 @@ export const actions: Actions = {
     end: async ({ request, locals }) => {
         if (!locals.user) throw redirect(303, '/login');
         const supabase = locals.supabase;
-        const userId = locals.user.id;
 
         const form = await request.formData();
-        const group_id = form.get('expense_group_id') as string;
-        const end_raw = form.get('end_month') as string;
+        const group_id = form.get('expense_group_id');
+        const end_raw = form.get('end_month');
 
         const end_month = `${end_raw}-01`;
 
         const { error } = await supabase
             .from('expenses')
             .update({ end_month })
-            .eq('user_id', userId)
             .eq('expense_group_id', group_id)
             .is('end_month', null);
 
