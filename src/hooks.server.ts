@@ -3,7 +3,6 @@ import { createServerClient } from '@supabase/auth-helpers-sveltekit';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
 export const handle = async ({ event, resolve }) => {
-    // Skapa SSR-säker Supabase-klient
     const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         cookies: {
             get: (key) => event.cookies.get(key),
@@ -14,7 +13,6 @@ export const handle = async ({ event, resolve }) => {
 
     event.locals.supabase = supabase;
 
-    // Hämta session + user
     const {
         data: { session }
     } = await supabase.auth.getSession();
@@ -24,13 +22,16 @@ export const handle = async ({ event, resolve }) => {
         if (!publicRoutes.includes(event.url.pathname)) {
             throw redirect(303, '/login');
         }
-        return resolve(event);
+        return resolve(event, {
+            filterSerializedResponseHeaders(name) {
+                return name === 'set-cookie';
+            }
+        });
     }
 
     const user = session.user;
     event.locals.user = user;
 
-    // Hämta householdId
     const { data: membership } = await supabase
         .from('household_members')
         .select('household_id')
@@ -39,5 +40,9 @@ export const handle = async ({ event, resolve }) => {
 
     event.locals.householdId = membership?.household_id ?? null;
 
-    return resolve(event);
+    return resolve(event, {
+        filterSerializedResponseHeaders(name) {
+            return name === 'set-cookie';
+        }
+    });
 };
