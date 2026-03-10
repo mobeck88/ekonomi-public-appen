@@ -2,7 +2,6 @@
   import Nav from '$lib/components/Nav.svelte';
   export let data;
 
-  // user och householdId kommer från +layout.server.ts
   const user = data.user;
   const householdId = data.householdId;
 </script>
