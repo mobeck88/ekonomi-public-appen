@@ -1,4 +1,4 @@
-import { supabase } from '$lib/supabaseClient';
+import { fail, redirect } from "@sveltejs/kit";
 
 export const load = async ({ locals }) => {
     const user = locals.user;
@@ -6,7 +6,7 @@ export const load = async ({ locals }) => {
 
     const year = new Date().getFullYear();
 
-    const { data } = await supabase
+    const { data, error } = await locals.supabase
         .from("tax_user_settings")
         .select("is_member_of_church")
         .eq("user_id", user.id)
@@ -21,15 +21,21 @@ export const load = async ({ locals }) => {
 export const actions = {
     updateChurch: async ({ request, locals }) => {
         const user = locals.user;
+        if (!user) throw redirect(303, "/login");
+
         const form = await request.formData();
         const isMember = form.get("isMember") === "on";
         const year = new Date().getFullYear();
 
-        await supabase
+        const { error } = await locals.supabase
             .from("tax_user_settings")
             .update({ is_member_of_church: isMember })
             .eq("user_id", user.id)
             .eq("year", year);
+
+        if (error) {
+            return fail(500, { message: "Kunde inte uppdatera kyrkotillhörighet." });
+        }
 
         return { message: "Kyrkotillhörighet uppdaterad" };
     },
@@ -38,12 +44,12 @@ export const actions = {
         const form = await request.formData();
         const newPassword = form.get("newPassword");
 
-        const { error } = await supabase.auth.updateUser({
+        const { error } = await locals.supabase.auth.updateUser({
             password: newPassword
         });
 
         if (error) {
-            return { message: "Fel: " + error.message };
+            return fail(500, { message: "Fel: " + error.message });
         }
 
         return { message: "Lösenord uppdaterat" };
