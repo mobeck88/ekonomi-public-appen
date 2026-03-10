@@ -1,5 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/auth-helpers-sveltekit';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
 export const actions = {
@@ -8,7 +8,31 @@ export const actions = {
         const email = form.get('email') as string;
         const password = form.get('password') as string;
 
-        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // ⭐ Skapa Supabase-serverklient med cookie-stöd
+        const supabase = createServerClient(
+            SUPABASE_URL,
+            SUPABASE_ANON_KEY,
+            {
+                cookies: {
+                    getAll: () => {
+                        return cookies.getAll().map((c) => ({
+                            name: c.name,
+                            value: c.value
+                        }));
+                    },
+                    setAll: (newCookies) => {
+                        newCookies.forEach((cookie) => {
+                            cookies.set(cookie.name, cookie.value, {
+                                path: '/',
+                                httpOnly: true,
+                                sameSite: 'lax',
+                                secure: true
+                            });
+                        });
+                    }
+                }
+            }
+        );
 
         // ⭐ Logga in
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -22,23 +46,6 @@ export const actions = {
 
         const session = data.session;
 
-        // ⭐ Spara tokens
-        cookies.set('sb-access-token', session.access_token, {
-            path: '/',
-            httpOnly: true,
-            sameSite: 'lax',
-            secure: true,
-            maxAge: 60 * 60 * 24 * 7
-        });
-
-        cookies.set('sb-refresh-token', session.refresh_token, {
-            path: '/',
-            httpOnly: true,
-            sameSite: 'lax',
-            secure: true,
-            maxAge: 60 * 60 * 24 * 30
-        });
-
         // ⭐ Hämta household_id
         const { data: householdMember } = await supabase
             .from('household_members')
@@ -47,8 +54,7 @@ export const actions = {
             .single();
 
         if (!householdMember) {
-            // Om användaren inte är med i något hushåll → redirect till setup
-            return redirect(303, '/setup-household');
+            throw redirect(303, '/setup-household');
         }
 
         // ⭐ Spara household_id i cookie
