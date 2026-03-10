@@ -6,8 +6,13 @@ export const load: PageServerLoad = async ({ locals }) => {
     const householdId = locals.householdId;
     const supabase = locals.supabase;
 
-    if (!user) throw redirect(303, '/login');
-    if (!householdId) return { active: [], history: [] };
+    if (!user) {
+        return redirect(303, '/login');
+    }
+
+    if (!householdId) {
+        return { active: [], history: [] };
+    }
 
     const selectFields = `
         id,
@@ -51,7 +56,7 @@ export const actions: Actions = {
         const householdId = locals.householdId;
         const supabase = locals.supabase;
 
-        if (!user) throw redirect(303, '/login');
+        if (!user) return redirect(303, '/login');
         if (!householdId) return fail(400, { error: 'Inget hushåll kopplat.' });
 
         const form = await request.formData();
@@ -86,7 +91,7 @@ export const actions: Actions = {
         const householdId = locals.householdId;
         const supabase = locals.supabase;
 
-        if (!user) throw redirect(303, '/login');
+        if (!user) return redirect(303, '/login');
         if (!householdId) return fail(400, { error: 'Inget hushåll kopplat.' });
 
         const form = await request.formData();
@@ -139,7 +144,7 @@ export const actions: Actions = {
         const householdId = locals.householdId;
         const supabase = locals.supabase;
 
-        if (!user) throw redirect(303, '/login');
+        if (!user) return redirect(303, '/login');
         if (!householdId) return fail(400, { error: 'Inget hushåll kopplat.' });
 
         const form = await request.formData();
