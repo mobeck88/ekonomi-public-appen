@@ -47,7 +47,7 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
         .from('allowance')
         .select(selectFields)
         .eq('household_id', householdId)
-        .not('end_month', 'is', null)
+        .neq('end_month', null)
         .order('start_month', { ascending: true });
 
     return {
