@@ -6,13 +6,11 @@
     let createTitle = '';
     let createDescription = '';
 
-    // Konvertera YYYY-MM-01 → YYYY-MM
     function toMonthInput(dateString: string | null) {
         if (!dateString) return "";
         return dateString.slice(0, 7);
     }
 
-    // Accordion states
     let showActive = false;
     let showCreate = false;
     let showHistory = false;
@@ -20,7 +18,6 @@
 
 <h1>Fickpengar</h1>
 
-<!-- ⭐ Sektion: Aktiva perioder -->
 <div class="section">
     <button class="section-header" on:click={() => showActive = !showActive}>
         <span>Aktiva perioder</span>
@@ -74,7 +71,6 @@
     {/if}
 </div>
 
-<!-- ⭐ Sektion: Ny fickpengperiod -->
 <div class="section">
     <button class="section-header" on:click={() => showCreate = !showCreate}>
         <span>Ny fickpengperiod</span>
@@ -100,7 +96,6 @@
     {/if}
 </div>
 
-<!-- ⭐ Sektion: Historik -->
 <div class="section">
     <button class="section-header" on:click={() => showHistory = !showHistory}>
         <span>Historik</span>
