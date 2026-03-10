@@ -27,11 +27,14 @@ export const actions = {
         const isMember = form.get("isMember") === "on";
         const year = new Date().getFullYear();
 
+        // ⭐ UPSERT löser problemet när raden saknas
         const { error } = await locals.supabase
             .from("tax_user_settings")
-            .update({ is_member_of_church: isMember })
-            .eq("user_id", user.id)
-            .eq("year", year);
+            .upsert({
+                user_id: user.id,
+                year,
+                is_member_of_church: isMember
+            });
 
         if (error) {
             return fail(500, { message: "Kunde inte uppdatera kyrkotillhörighet." });
