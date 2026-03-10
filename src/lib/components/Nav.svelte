@@ -34,7 +34,7 @@
     ];
 
     const logout = async () => {
-        await fetch("/logout", { method: "POST" });
+        await fetch("/logout"); // <-- ändrad: tar bort method: "POST"
         window.location.href = "/login";
     };
 </script>
