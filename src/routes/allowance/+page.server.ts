@@ -86,6 +86,7 @@ export const actions: Actions = {
         const { error } = await supabase.from('allowance').insert({
             household_id: householdId,
             user_id: user.id,
+            allowance_group_id: crypto.randomUUID(),
             amount,
             start_month,
             end_month: null,
