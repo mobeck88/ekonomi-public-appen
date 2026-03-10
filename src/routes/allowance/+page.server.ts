@@ -20,6 +20,7 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
         }
     });
 
+    // Aktiva perioder (end_month = null) för hushållet
     const { data: active } = await supabase
         .from('allowance')
         .select('*')
@@ -27,6 +28,7 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
         .is('end_month', null)
         .order('start_month', { ascending: true });
 
+    // Historik (end_month != null) för hushållet
     const { data: history } = await supabase
         .from('allowance')
         .select('*')
@@ -69,11 +71,13 @@ export const actions: Actions = {
 
         const { error } = await supabase.from('allowance').insert({
             household_id: householdId,
+            user_id: user.id,
             amount,
             start_month,
             end_month: null,
             title,
             description
+            // allowance_group_id får default gen_random_uuid()
         });
 
         if (error) {
@@ -107,6 +111,7 @@ export const actions: Actions = {
 
         const new_start = `${new_start_raw}-01`;
 
+        // Hämta aktiv period för gruppen inom hushållet
         const { data: active } = await supabase
             .from('allowance')
             .select('*')
@@ -119,6 +124,7 @@ export const actions: Actions = {
             return fail(400, { error: 'Ingen aktiv period hittades.' });
         }
 
+        // Sätt slutdatum på gamla perioden
         const end_date = new Date(new_start);
         end_date.setMonth(end_date.getMonth() - 1);
         const end_month = end_date.toISOString().slice(0, 10);
@@ -129,8 +135,10 @@ export const actions: Actions = {
             .eq('id', active.id)
             .eq('household_id', householdId);
 
+        // Skapa ny period i samma grupp och hushåll
         const { error: insertError } = await supabase.from('allowance').insert({
             household_id: householdId,
+            user_id: user.id,
             allowance_group_id: group_id,
             amount: new_amount,
             start_month: new_start,
