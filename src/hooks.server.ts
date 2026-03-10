@@ -3,33 +3,29 @@ import { createServerClient } from '@supabase/auth-helpers-sveltekit';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
 export const handle = async ({ event, resolve }) => {
-    // Cookie helpers som krävs av din version av auth-helpers
+    // Cookie helpers (nya API:t)
     const cookieStore = {
-        getAll: () => {
-            return event.cookies.getAll().map((c) => ({
-                name: c.name,
-                value: c.value
-            }));
-        },
-        setAll: (cookies) => {
-            cookies.forEach((cookie) => {
-                event.cookies.set(cookie.name, cookie.value, {
-                    path: '/',
-                    httpOnly: true,
-                    sameSite: 'lax',
-                    secure: true
-                });
-            });
-        }
+        get: (name) => event.cookies.get(name),
+        set: (name, value, options) =>
+            event.cookies.set(name, value, {
+                path: '/',
+                httpOnly: true,
+                sameSite: 'lax',
+                secure: true,
+                ...options
+            }),
+        remove: (name, options) =>
+            event.cookies.delete(name, {
+                path: '/',
+                ...options
+            })
     };
 
     // Skapa Supabase-serverklient
     event.locals.supabase = createServerClient(
         SUPABASE_URL,
         SUPABASE_ANON_KEY,
-        {
-            cookies: cookieStore
-        }
+        { cookies: cookieStore }
     );
 
     // Hämta session
