@@ -1,24 +1,13 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { createClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ locals, cookies }) => {
+export const load: PageServerLoad = async ({ locals }) => {
     const user = locals.user;
     const householdId = locals.householdId;
+    const supabase = locals.supabase;
 
     if (!user) throw redirect(303, '/login');
     if (!householdId) return { active: [], history: [] };
-
-    const access_token = cookies.get('sb-access-token');
-
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        global: {
-            headers: {
-                Authorization: `Bearer ${access_token}`
-            }
-        }
-    });
 
     const selectFields = `
         id,
@@ -57,22 +46,13 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 };
 
 export const actions: Actions = {
-    create: async ({ request, locals, cookies }) => {
+    create: async ({ request, locals }) => {
         const user = locals.user;
         const householdId = locals.householdId;
+        const supabase = locals.supabase;
 
         if (!user) throw redirect(303, '/login');
         if (!householdId) return fail(400, { error: 'Inget hushåll kopplat.' });
-
-        const access_token = cookies.get('sb-access-token');
-
-        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-            global: {
-                headers: {
-                    Authorization: `Bearer ${access_token}`
-                }
-            }
-        });
 
         const form = await request.formData();
 
@@ -101,22 +81,13 @@ export const actions: Actions = {
         return { success: true };
     },
 
-    update: async ({ request, locals, cookies }) => {
+    update: async ({ request, locals }) => {
         const user = locals.user;
         const householdId = locals.householdId;
+        const supabase = locals.supabase;
 
         if (!user) throw redirect(303, '/login');
         if (!householdId) return fail(400, { error: 'Inget hushåll kopplat.' });
-
-        const access_token = cookies.get('sb-access-token');
-
-        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-            global: {
-                headers: {
-                    Authorization: `Bearer ${access_token}`
-                }
-            }
-        });
 
         const form = await request.formData();
         const group_id = form.get('allowance_group_id');
@@ -163,22 +134,13 @@ export const actions: Actions = {
         return { success: true };
     },
 
-    end: async ({ request, locals, cookies }) => {
+    end: async ({ request, locals }) => {
         const user = locals.user;
         const householdId = locals.householdId;
+        const supabase = locals.supabase;
 
         if (!user) throw redirect(303, '/login');
         if (!householdId) return fail(400, { error: 'Inget hushåll kopplat.' });
-
-        const access_token = cookies.get('sb-access-token');
-
-        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-            global: {
-                headers: {
-                    Authorization: `Bearer ${access_token}`
-                }
-            }
-        });
 
         const form = await request.formData();
         const group_id = form.get('allowance_group_id');
