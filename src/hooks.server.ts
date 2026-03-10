@@ -8,6 +8,7 @@ export const handle = async ({ event, resolve }) => {
 
     const publicRoutes = ['/login', '/register'];
 
+    // Skapa klient med ev. befintlig token
     let supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         global: {
             headers: access_token
@@ -23,6 +24,7 @@ export const handle = async ({ event, resolve }) => {
     event.locals.user = null;
     event.locals.householdId = null;
 
+    // Ingen token → kräver login
     if (!access_token) {
         if (!publicRoutes.includes(event.url.pathname)) {
             throw redirect(303, '/login');
@@ -30,14 +32,17 @@ export const handle = async ({ event, resolve }) => {
         return resolve(event);
     }
 
+    // Försök hämta user
     let { data: userData, error: userError } = await supabase.auth.getUser();
 
+    // Token kan vara expired → försök refresh
     if (userError || !userData?.user) {
         if (refresh_token) {
             const { data: refreshData, error: refreshError } =
                 await supabase.auth.refreshSession({ refresh_token });
 
             if (!refreshError && refreshData?.session) {
+                // Uppdatera cookies
                 event.cookies.set('sb-access-token', refreshData.session.access_token, {
                     path: '/',
                     httpOnly: true,
@@ -52,7 +57,7 @@ export const handle = async ({ event, resolve }) => {
                     secure: true
                 });
 
-                // ⭐ FIXEN: skapa en NY supabase-klient med NYA headers
+                // ⭐ SKAPA NY KLIENT MED NYA HEADERS
                 supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
                     global: {
                         headers: {
@@ -77,9 +82,11 @@ export const handle = async ({ event, resolve }) => {
         }
     }
 
+    // Sätt user i locals
     const user = userData.user;
     event.locals.user = user;
 
+    // Hämta householdId
     const { data: membership } = await supabase
         .from('household_members')
         .select('household_id')
