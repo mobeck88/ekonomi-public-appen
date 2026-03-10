@@ -11,81 +11,47 @@ export const load: PageServerLoad = async ({ locals }) => {
     }
 
     if (!householdId) {
-        return { active: [], history: [], members: [] };
+        return { active: [], history: [] };
     }
 
-    // Hämta medlemmar (för owner)
-    const { data: members, error: membersError } = await supabase
-        .from('household_members')
-        .select('user_id, profiles(full_name)')
-        .eq('household_id', householdId);
+    const selectFields = `
+        id,
+        household_id,
+        user_id,
+        title,
+        description,
+        amount,
+        interval_months,
+        start_month,
+        end_month,
+        expense_group_id,
+        created_at,
+        profiles!expenses_user_fk (
+            full_name
+        )
+    `;
 
-    if (membersError) {
-        console.error('membersError', membersError);
-        return fail(500, { error: 'Kunde inte ladda medlemmar' });
-    }
-
-    // Hämta aktiva expenses
-    const { data: active, error: activeError } = await supabase
+    const { data: active } = await supabase
         .from('expenses')
-        .select(`
-            id,
-            household_id,
-            owner,
-            title,
-            description,
-            amount,
-            interval_months,
-            start_month,
-            end_month,
-            expense_group_id,
-            created_at,
-            profiles!expenses_owner_fkey(full_name)
-        `)
+        .select(selectFields)
         .eq('household_id', householdId)
         .is('end_month', null)
         .order('start_month', { ascending: true });
 
-    if (activeError) {
-        console.error('activeError', activeError);
-        return fail(500, { error: 'Kunde inte ladda aktiva utgifter' });
-    }
-
-    // Hämta historik
-    const { data: history, error: historyError } = await supabase
+    const { data: history } = await supabase
         .from('expenses')
-        .select(`
-            id,
-            household_id,
-            owner,
-            title,
-            description,
-            amount,
-            interval_months,
-            start_month,
-            end_month,
-            expense_group_id,
-            created_at,
-            profiles!expenses_owner_fkey(full_name)
-        `)
+        .select(selectFields)
         .eq('household_id', householdId)
         .neq('end_month', null)
         .order('start_month', { ascending: true });
 
-    if (historyError) {
-        console.error('historyError', historyError);
-        return fail(500, { error: 'Kunde inte ladda historik' });
-    }
-
     return {
-        members: members ?? [],
         active: active ?? [],
         history: history ?? []
     };
 };
 
 export const actions: Actions = {
-    // CREATE
     create: async ({ request, locals }) => {
         const user = locals.user;
         const householdId = locals.householdId;
@@ -100,13 +66,11 @@ export const actions: Actions = {
         const description = form.get('description')?.toString().trim() || null;
         const amount_raw = form.get('amount')?.toString();
         const interval_raw = form.get('interval_months')?.toString();
-        const owner = form.get('owner')?.toString();
         const start_raw = form.get('start_month')?.toString();
 
         if (!title) return fail(400, { error: 'Titel saknas' });
         if (!amount_raw || isNaN(Number(amount_raw))) return fail(400, { error: 'Ogiltigt belopp' });
         if (!interval_raw || isNaN(Number(interval_raw))) return fail(400, { error: 'Ogiltigt intervall' });
-        if (!owner) return fail(400, { error: 'Ägare saknas' });
         if (!start_raw || !/^\d{4}-\d{2}$/.test(start_raw)) {
             return fail(400, { error: 'Startmånad saknas eller ogiltig' });
         }
@@ -117,7 +81,7 @@ export const actions: Actions = {
 
         const { error } = await supabase.from('expenses').insert({
             household_id: householdId,
-            owner,
+            user_id: user.id,
             title,
             description,
             amount,
@@ -128,14 +92,12 @@ export const actions: Actions = {
         });
 
         if (error) {
-            console.error('insertError', error);
             return fail(400, { error: error.message });
         }
 
         return { success: true };
     },
 
-    // UPDATE (avsluta gammal + skapa ny)
     update: async ({ request, locals }) => {
         const user = locals.user;
         const householdId = locals.householdId;
@@ -145,23 +107,26 @@ export const actions: Actions = {
         if (!householdId) return fail(400, { error: 'Inget hushåll kopplat.' });
 
         const form = await request.formData();
-
         const group_id = form.get('expense_group_id');
-        const new_amount = Number(form.get('amount'));
-        const new_interval = Number(form.get('interval_months'));
+        const new_amount_raw = form.get('amount')?.toString();
+        const new_interval_raw = form.get('interval_months')?.toString();
         const new_start_raw = form.get('start_month')?.toString();
-        const new_title = form.get('title')?.toString().trim();
-        const new_description = form.get('description')?.toString().trim() || null;
-        const new_owner = form.get('owner')?.toString();
 
         if (!group_id) return fail(400, { error: 'Ingen grupp angiven.' });
+        if (!new_amount_raw || isNaN(Number(new_amount_raw))) {
+            return fail(400, { error: 'Ogiltigt belopp' });
+        }
+        if (!new_interval_raw || isNaN(Number(new_interval_raw))) {
+            return fail(400, { error: 'Ogiltigt intervall' });
+        }
         if (!new_start_raw || !/^\d{4}-\d{2}$/.test(new_start_raw)) {
             return fail(400, { error: 'Ogiltig startmånad' });
         }
 
+        const new_amount = Number(new_amount_raw);
+        const new_interval = Number(new_interval_raw);
         const new_start = `${new_start_raw}-01`;
 
-        // Hämta aktiv period
         const { data: active } = await supabase
             .from('expenses')
             .select('*')
@@ -174,7 +139,6 @@ export const actions: Actions = {
             return fail(400, { error: 'Ingen aktiv period hittades.' });
         }
 
-        // Avsluta aktiv period
         const end_date = new Date(new_start);
         end_date.setMonth(end_date.getMonth() - 1);
         const end_month = end_date.toISOString().slice(0, 10);
@@ -185,12 +149,11 @@ export const actions: Actions = {
             .eq('id', active.id)
             .eq('household_id', householdId);
 
-        // Skapa ny period
         const { error: insertError } = await supabase.from('expenses').insert({
             household_id: householdId,
-            owner: new_owner,
-            title: new_title,
-            description: new_description,
+            user_id: user.id,
+            title: active.title,
+            description: active.description,
             amount: new_amount,
             interval_months: new_interval,
             start_month: new_start,
@@ -205,7 +168,6 @@ export const actions: Actions = {
         return { success: true };
     },
 
-    // END (avsluta aktiv period)
     end: async ({ request, locals }) => {
         const user = locals.user;
         const householdId = locals.householdId;
@@ -239,5 +201,3 @@ export const actions: Actions = {
         return { success: true };
     }
 };
-
-

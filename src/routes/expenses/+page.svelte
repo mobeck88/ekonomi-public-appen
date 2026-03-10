@@ -5,23 +5,13 @@
     let createDescription = '';
     let createAmount = '';
     let createInterval = '1';
-    let createOwner = 'shared';
     let createStart = '';
 
-    // Konvertera YYYY-MM-01 → YYYY-MM
     function toMonthInput(dateString: string | null) {
         if (!dateString) return "";
         return dateString.slice(0, 7);
     }
 
-    function ownerLabel(owner: string) {
-        if (owner === "shared") return "Gemensamt";
-
-        const match = data.members.find(m => m.user_id === owner);
-        return match?.profiles?.full_name ?? owner;
-    }
-
-    // Accordion states
     let showActive = false;
     let showCreate = false;
     let showHistory = false;
@@ -29,15 +19,15 @@
 
 <h1>Utgifter</h1>
 
-<!-- ⭐ Aktiva utgifter -->
+<!-- Aktiva utgifter -->
 <div class="section">
-    <button class="section-header" on:click={() => showActive = !showActive}>
+    <button class="section-header" on:click={() => (showActive = !showActive)}>
         <span>Aktiva utgifter</span>
-        <span>{showActive ? "▲" : "▼"}</span>
+        <span>{showActive ? '▲' : '▼'}</span>
     </button>
 
     {#if showActive}
-        {#if data.active.length > 0}
+        {#if data.active && data.active.length > 0}
             {#each data.active as e}
                 <div class="card">
                     <div class="row">
@@ -45,25 +35,25 @@
                             <strong>{e.title}</strong><br />
                             {e.amount} kr<br />
                             <span class="label">Intervall:</span> var {e.interval_months} månad(er)<br />
-                            <span class="label">Ägare:</span> {ownerLabel(e.owner)}<br />
                             <span class="label">Start:</span> {toMonthInput(e.start_month)}<br />
                             <span class="label">Slut:</span>
                             {#if e.end_month}
                                 {toMonthInput(e.end_month)}
                             {:else}
                                 aktiv
-                            {/if}
+                            {/if}<br />
+                            <span class="label">Skapad av:</span> {e.profiles?.full_name}
                         </div>
 
                         <div class="actions">
                             <form method="post" action="?/update">
                                 <input type="hidden" name="expense_group_id" value={e.expense_group_id} />
 
-                                <label>Nytt belopp</label>
-                                <input name="amount" type="number" required />
+                                <label for={"amount-" + e.id}>Nytt belopp</label>
+                                <input id={"amount-" + e.id} name="amount" type="number" required />
 
-                                <label>Intervall (månader)</label>
-                                <select name="interval_months" required>
+                                <label for={"interval-" + e.id}>Intervall (månader)</label>
+                                <select id={"interval-" + e.id} name="interval_months" required>
                                     <option value="1">Varje månad</option>
                                     <option value="2">Varannan månad</option>
                                     <option value="3">Var tredje månad</option>
@@ -71,16 +61,8 @@
                                     <option value="12">Årsvis</option>
                                 </select>
 
-                                <label>Ägare</label>
-                                <select name="owner" required>
-                                    <option value="shared">Gemensamt</option>
-                                    {#each data.members as m}
-                                        <option value={m.user_id}>{m.profiles.full_name}</option>
-                                    {/each}
-                                </select>
-
-                                <label>Gäller från (YYYY-MM)</label>
-                                <input name="start_month" type="month" required />
+                                <label for={"start-" + e.id}>Gäller från (YYYY-MM)</label>
+                                <input id={"start-" + e.id} name="start_month" type="month" required />
 
                                 <button>Uppdatera</button>
                             </form>
@@ -88,8 +70,8 @@
                             <form method="post" action="?/end">
                                 <input type="hidden" name="expense_group_id" value={e.expense_group_id} />
 
-                                <label>Avsluta från (YYYY-MM)</label>
-                                <input name="end_month" type="month" required />
+                                <label for={"end-" + e.id}>Avsluta från (YYYY-MM)</label>
+                                <input id={"end-" + e.id} name="end_month" type="month" required />
 
                                 <button class="danger">Avsluta</button>
                             </form>
@@ -103,26 +85,26 @@
     {/if}
 </div>
 
-<!-- ⭐ Ny utgift -->
+<!-- Ny utgift -->
 <div class="section">
-    <button class="section-header" on:click={() => showCreate = !showCreate}>
+    <button class="section-header" on:click={() => (showCreate = !showCreate)}>
         <span>Ny utgift</span>
-        <span>{showCreate ? "▲" : "▼"}</span>
+        <span>{showCreate ? '▲' : '▼'}</span>
     </button>
 
     {#if showCreate}
         <form method="post" action="?/create" class="create-form">
-            <label>Rubrik</label>
-            <input name="title" type="text" bind:value={createTitle} required />
+            <label for="title">Rubrik</label>
+            <input id="title" name="title" type="text" bind:value={createTitle} required />
 
-            <label>Beskrivning</label>
-            <textarea name="description" rows="2" bind:value={createDescription}></textarea>
+            <label for="description">Beskrivning</label>
+            <textarea id="description" name="description" rows="2" bind:value={createDescription}></textarea>
 
-            <label>Belopp</label>
-            <input name="amount" type="number" bind:value={createAmount} required />
+            <label for="amount">Belopp</label>
+            <input id="amount" name="amount" type="number" bind:value={createAmount} required />
 
-            <label>Intervall</label>
-            <select name="interval_months" bind:value={createInterval} required>
+            <label for="interval_months">Intervall</label>
+            <select id="interval_months" name="interval_months" bind:value={createInterval} required>
                 <option value="1">Varje månad</option>
                 <option value="2">Varannan månad</option>
                 <option value="3">Var tredje månad</option>
@@ -130,36 +112,29 @@
                 <option value="12">Årsvis</option>
             </select>
 
-            <label>Ägare</label>
-            <select name="owner" bind:value={createOwner} required>
-                <option value="shared">Gemensamt</option>
-                {#each data.members as m}
-                    <option value={m.user_id}>{m.profiles.full_name}</option>
-                {/each}
-            </select>
-
-            <label>Startmånad (YYYY-MM)</label>
-            <input name="start_month" type="month" bind:value={createStart} required />
+            <label for="start_month">Startmånad (YYYY-MM)</label>
+            <input id="start_month" name="start_month" type="month" bind:value={createStart} required />
 
             <button>Skapa</button>
         </form>
     {/if}
 </div>
 
-<!-- ⭐ Historik -->
+<!-- Historik -->
 <div class="section">
-    <button class="section-header" on:click={() => showHistory = !showHistory}>
+    <button class="section-header" on:click={() => (showHistory = !showHistory)}>
         <span>Historik</span>
-        <span>{showHistory ? "▲" : "▼"}</span>
+        <span>{showHistory ? '▲' : '▼'}</span>
     </button>
 
     {#if showHistory}
-        {#if data.history.length > 0}
+        {#if data.history && data.history.length > 0}
             {#each data.history as e}
                 <div class="history">
                     <strong>{e.title}</strong><br />
-                    {e.amount} kr — var {e.interval_months} månad(er) — {ownerLabel(e.owner)}<br />
-                    {toMonthInput(e.start_month)} → {toMonthInput(e.end_month)}
+                    {e.amount} kr — var {e.interval_months} månad(er)<br />
+                    {toMonthInput(e.start_month)} → {toMonthInput(e.end_month)}<br />
+                    <span class="label">Skapad av:</span> {e.profiles?.full_name}
                 </div>
             {/each}
         {:else}
@@ -182,7 +157,7 @@
         border-radius: 12px;
         overflow: hidden;
         background: #ffffff;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
 
     .section-header {
@@ -244,7 +219,9 @@
         max-width: 420px;
     }
 
-    input, textarea, select {
+    input,
+    textarea,
+    select {
         padding: 0.65rem;
         border: 1px solid #d1d5db;
         border-radius: 8px;
@@ -252,7 +229,9 @@
         background: #f9fafb;
     }
 
-    input:focus, textarea:focus, select:focus {
+    input:focus,
+    textarea:focus,
+    select:focus {
         outline: none;
         border-color: #2563eb;
         box-shadow: 0 0 0 2px #dbeafe;
