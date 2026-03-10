@@ -6,6 +6,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     const householdId = locals.householdId;
     const supabase = locals.supabase;
 
+    // Viktigt: return redirect istället för throw redirect
     if (!user) {
         return redirect(303, '/login');
     }
@@ -25,24 +26,32 @@ export const load: PageServerLoad = async ({ locals }) => {
         description,
         allowance_group_id,
         created_at,
-        profiles:user_id (
+        profiles!user_id (
             full_name
         )
     `;
 
-    const { data: active } = await supabase
+    const { data: active, error: activeError } = await supabase
         .from('allowance')
         .select(selectFields)
         .eq('household_id', householdId)
         .is('end_month', null)
         .order('start_month', { ascending: true });
 
-    const { data: history } = await supabase
+    if (activeError) {
+        console.error("ALLOWANCE ACTIVE ERROR:", activeError);
+    }
+
+    const { data: history, error: historyError } = await supabase
         .from('allowance')
         .select(selectFields)
         .eq('household_id', householdId)
         .neq('end_month', null)
         .order('start_month', { ascending: true });
+
+    if (historyError) {
+        console.error("ALLOWANCE HISTORY ERROR:", historyError);
+    }
 
     return {
         active: active ?? [],
