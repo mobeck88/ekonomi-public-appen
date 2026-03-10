@@ -8,18 +8,13 @@ export const actions = {
         const email = form.get('email') as string;
         const password = form.get('password') as string;
 
-        // ⭐ Skapa Supabase-serverklient med cookie-stöd
+        // Skapa Supabase-serverklient med auth-helpers cookie-hantering
         const supabase = createServerClient(
             SUPABASE_URL,
             SUPABASE_ANON_KEY,
             {
                 cookies: {
-                    getAll: () => {
-                        return cookies.getAll().map((c) => ({
-                            name: c.name,
-                            value: c.value
-                        }));
-                    },
+                    getAll: () => cookies.getAll().map(c => ({ name: c.name, value: c.value })),
                     setAll: (newCookies) => {
                         newCookies.forEach((cookie) => {
                             cookies.set(cookie.name, cookie.value, {
@@ -34,7 +29,7 @@ export const actions = {
             }
         );
 
-        // ⭐ Logga in
+        // Logga in
         const { data, error } = await supabase.auth.signInWithPassword({
             email,
             password
@@ -44,20 +39,18 @@ export const actions = {
             return fail(400, { error: error?.message ?? 'Fel vid inloggning' });
         }
 
-        const session = data.session;
-
-        // ⭐ Hämta household_id
+        // Hämta household_id
         const { data: householdMember } = await supabase
             .from('household_members')
             .select('household_id')
-            .eq('user_id', session.user.id)
+            .eq('user_id', data.session.user.id)
             .single();
 
         if (!householdMember) {
             throw redirect(303, '/setup-household');
         }
 
-        // ⭐ Spara household_id i cookie
+        // Spara household_id i cookie
         cookies.set('household_id', householdMember.household_id, {
             path: '/',
             httpOnly: true,
@@ -66,7 +59,6 @@ export const actions = {
             maxAge: 60 * 60 * 24 * 30
         });
 
-        // ⭐ Redirect till dashboard
         throw redirect(303, '/budget');
     }
 };
