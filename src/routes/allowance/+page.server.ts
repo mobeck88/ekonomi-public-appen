@@ -21,30 +21,25 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
     });
 
     // Aktiva perioder (end_month = null)
-    const { data: active, error: activeError } = await supabase
+    const { data: active } = await supabase
         .from('allowance')
         .select('*')
         .eq('household_id', householdId)
         .is('end_month', null)
         .order('start_month', { ascending: true });
 
-    if (activeError) {
-        console.error('LOAD ACTIVE ALLOWANCE ERROR:', activeError);
-    }
-
     // Historik (end_month != null)
-    const { data: history, error: historyError } = await supabase
+    const { data: history } = await supabase
         .from('allowance')
         .select('*')
         .eq('household_id', householdId)
         .not('end_month', 'is', null)
         .order('start_month', { ascending: true });
 
-    if (historyError) {
-        console.error('LOAD HISTORY ALLOWANCE ERROR:', historyError);
-    }
-
-    return { active: active ?? [], history: history ?? [] };
+    return {
+        active: active ?? [],
+        history: history ?? []
+    };
 };
 
 export const actions: Actions = {
@@ -84,7 +79,6 @@ export const actions: Actions = {
         });
 
         if (error) {
-            console.error('CREATE ALLOWANCE ERROR:', error);
             return fail(400, { error: error.message });
         }
 
@@ -116,7 +110,7 @@ export const actions: Actions = {
         const new_start = `${new_start_raw}-01`;
 
         // Hämta aktiv period
-        const { data: active, error: activeError } = await supabase
+        const { data: active } = await supabase
             .from('allowance')
             .select('*')
             .eq('allowance_group_id', group_id)
@@ -124,7 +118,7 @@ export const actions: Actions = {
             .is('end_month', null)
             .single();
 
-        if (activeError || !active) {
+        if (!active) {
             return fail(400, { error: 'Ingen aktiv period hittades.' });
         }
 
@@ -149,7 +143,6 @@ export const actions: Actions = {
         });
 
         if (insertError) {
-            console.error('UPDATE ALLOWANCE ERROR:', insertError);
             return fail(400, { error: insertError.message });
         }
 
@@ -187,7 +180,6 @@ export const actions: Actions = {
             .is('end_month', null);
 
         if (error) {
-            console.error('END ALLOWANCE ERROR:', error);
             return fail(400, { error: error.message });
         }
 
