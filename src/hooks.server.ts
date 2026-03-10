@@ -8,7 +8,7 @@ export const handle = async ({ event, resolve }) => {
 
     const publicRoutes = ['/login', '/register'];
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    let supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         global: {
             headers: access_token
                 ? { Authorization: `Bearer ${access_token}` }
@@ -52,8 +52,19 @@ export const handle = async ({ event, resolve }) => {
                     secure: true
                 });
 
-                supabase.auth.setSession(refreshData.session);
+                // ⭐ FIXEN: skapa en NY supabase-klient med NYA headers
+                supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+                    global: {
+                        headers: {
+                            Authorization: `Bearer ${refreshData.session.access_token}`
+                        }
+                    },
+                    auth: {
+                        persistSession: false
+                    }
+                });
 
+                event.locals.supabase = supabase;
                 userData = { user: refreshData.session.user };
             } else {
                 event.cookies.delete('sb-access-token', { path: '/' });
