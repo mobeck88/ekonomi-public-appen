@@ -22,7 +22,18 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 
     const { data, error } = await supabase
         .from('electricity')
-        .select('*')
+        .select(`
+            id,
+            household_id,
+            user_id,
+            month,
+            eon_amount,
+            tibber_amount,
+            created_at,
+            profiles:user_id (
+                full_name
+            )
+        `)
         .eq('household_id', householdId)
         .order('month', { ascending: false });
 
@@ -81,7 +92,10 @@ export const actions: Actions = {
             // Uppdatera
             const { error } = await supabase
                 .from('electricity')
-                .update({ eon_amount, tibber_amount })
+                .update({
+                    eon_amount,
+                    tibber_amount
+                })
                 .eq('id', existing.id)
                 .eq('household_id', householdId);
 
@@ -95,6 +109,7 @@ export const actions: Actions = {
                 .from('electricity')
                 .insert({
                     household_id: householdId,
+                    user_id: user.id,
                     month,
                     eon_amount,
                     tibber_amount

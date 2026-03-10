@@ -56,7 +56,8 @@
                         <div class="info">
                             <strong>{toMonthInput(row.month)}</strong><br />
                             <span class="label">Nätägare:</span> {row.eon_amount} kr<br />
-                            <span class="label">Elbolag:</span> {row.tibber_amount} kr
+                            <span class="label">Elbolag:</span> {row.tibber_amount} kr<br />
+                            <span class="label">Skapad av:</span> {row.profiles.full_name}
                         </div>
                     </div>
                 </div>
