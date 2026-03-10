@@ -1,11 +1,12 @@
 import { redirect } from '@sveltejs/kit';
 import { createServerClient } from '@supabase/auth-helpers-sveltekit';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
 export const handle = async ({ event, resolve }) => {
     // Skapa Supabase-serverklient som läser cookies automatiskt
     event.locals.supabase = createServerClient(event, {
-        supabaseUrl: event.env.SUPABASE_URL,
-        supabaseKey: event.env.SUPABASE_ANON_KEY
+        supabaseUrl: SUPABASE_URL,
+        supabaseKey: SUPABASE_ANON_KEY
     });
 
     // Hämta session
