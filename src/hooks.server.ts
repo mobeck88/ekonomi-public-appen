@@ -3,11 +3,34 @@ import { createServerClient } from '@supabase/auth-helpers-sveltekit';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
 export const handle = async ({ event, resolve }) => {
-    // Skapa Supabase-serverklient som läser cookies automatiskt
-    event.locals.supabase = createServerClient(event, {
-        supabaseUrl: SUPABASE_URL,
-        supabaseKey: SUPABASE_ANON_KEY
-    });
+    // Cookie helpers som krävs av din version av auth-helpers
+    const cookieStore = {
+        getAll: () => {
+            return event.cookies.getAll().map((c) => ({
+                name: c.name,
+                value: c.value
+            }));
+        },
+        setAll: (cookies) => {
+            cookies.forEach((cookie) => {
+                event.cookies.set(cookie.name, cookie.value, {
+                    path: '/',
+                    httpOnly: true,
+                    sameSite: 'lax',
+                    secure: true
+                });
+            });
+        }
+    };
+
+    // Skapa Supabase-serverklient
+    event.locals.supabase = createServerClient(
+        SUPABASE_URL,
+        SUPABASE_ANON_KEY,
+        {
+            cookies: cookieStore
+        }
+    );
 
     // Hämta session
     const {
@@ -20,7 +43,7 @@ export const handle = async ({ event, resolve }) => {
 
     const publicRoutes = ['/login', '/register'];
 
-    // Om ingen session → blockera allt utom public routes
+    // Blockera privata routes om ingen session
     if (!session) {
         if (!publicRoutes.includes(event.url.pathname)) {
             throw redirect(303, '/login');
