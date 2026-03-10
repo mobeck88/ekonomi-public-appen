@@ -1,5 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { createServerClient } from '@supabase/auth-helpers-sveltekit';
+import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
 export const actions = {
@@ -8,28 +8,8 @@ export const actions = {
         const email = form.get('email') as string;
         const password = form.get('password') as string;
 
-        // Skapa Supabase-serverklient med auth-helpers cookie-hantering
-        const supabase = createServerClient(
-            SUPABASE_URL,
-            SUPABASE_ANON_KEY,
-            {
-                cookies: {
-                    getAll: () => cookies.getAll().map(c => ({ name: c.name, value: c.value })),
-                    setAll: (newCookies) => {
-                        newCookies.forEach((cookie) => {
-                            cookies.set(cookie.name, cookie.value, {
-                                path: '/',
-                                httpOnly: true,
-                                sameSite: 'lax',
-                                secure: true
-                            });
-                        });
-                    }
-                }
-            }
-        );
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // Logga in
         const { data, error } = await supabase.auth.signInWithPassword({
             email,
             password
@@ -39,24 +19,37 @@ export const actions = {
             return fail(400, { error: error?.message ?? 'Fel vid inloggning' });
         }
 
-        // Hämta household_id
+        const session = data.session;
+
+        cookies.set('sb-access-token', session.access_token, {
+            path: '/',
+            httpOnly: true,
+            sameSite: 'lax',
+            secure: true
+        });
+
+        cookies.set('sb-refresh-token', session.refresh_token, {
+            path: '/',
+            httpOnly: true,
+            sameSite: 'lax',
+            secure: true
+        });
+
         const { data: householdMember } = await supabase
             .from('household_members')
             .select('household_id')
-            .eq('user_id', data.session.user.id)
+            .eq('user_id', session.user.id)
             .single();
 
         if (!householdMember) {
             throw redirect(303, '/setup-household');
         }
 
-        // Spara household_id i cookie
         cookies.set('household_id', householdMember.household_id, {
             path: '/',
             httpOnly: true,
             sameSite: 'lax',
-            secure: true,
-            maxAge: 60 * 60 * 24 * 30
+            secure: true
         });
 
         throw redirect(303, '/budget');
