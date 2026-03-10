@@ -1,11 +1,15 @@
 <script>
   import Nav from '$lib/components/Nav.svelte';
   export let data;
+
+  // user och householdId kommer från +layout.server.ts
+  const user = data.user;
+  const householdId = data.householdId;
 </script>
 
 <div class="app-container">
-  {#if data.user}
-    <Nav user={data.user} householdId={data.householdId} />
+  {#if user}
+    <Nav user={user} householdId={householdId} />
   {/if}
 
   <main class="page-content">
