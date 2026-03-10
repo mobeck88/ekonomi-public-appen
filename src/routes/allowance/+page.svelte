@@ -39,7 +39,7 @@
                             {:else}
                                 aktiv
                             {/if}<br />
-                            <span class="label">Skapad av:</span> {a.profiles.full_name}
+                            <span class="label">Skapad av:</span> {a.profiles?.full_name}
                         </div>
 
                         <div class="actions">
@@ -112,7 +112,7 @@
                 <div class="history">
                     {a.amount} kr — {toMonthInput(a.start_month)} → {toMonthInput(a.end_month)}
                     <br />
-                    <span class="label">Skapad av:</span> {a.profiles.full_name}
+                    <span class="label">Skapad av:</span> {a.profiles?.full_name}
                 </div>
             {/each}
         {:else}
