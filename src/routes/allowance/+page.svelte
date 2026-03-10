@@ -6,13 +6,11 @@
     let createTitle = '';
     let createDescription = '';
 
-    // Konvertera YYYY-MM-01 → YYYY-MM
     function toMonthInput(dateString: string | null) {
         if (!dateString) return "";
         return dateString.slice(0, 7);
     }
 
-    // Accordion states
     let showActive = false;
     let showCreate = false;
     let showHistory = false;
@@ -20,7 +18,7 @@
 
 <h1>Fickpengar</h1>
 
-<!-- ⭐ Sektion: Aktiva perioder -->
+<!-- Aktiva perioder -->
 <div class="section">
     <button class="section-header" on:click={() => showActive = !showActive}>
         <span>Aktiva perioder</span>
@@ -40,7 +38,8 @@
                                 {toMonthInput(a.end_month)}
                             {:else}
                                 aktiv
-                            {/if}
+                            {/if}<br />
+                            <span class="label">Skapad av:</span> {a.profiles.full_name}
                         </div>
 
                         <div class="actions">
@@ -74,7 +73,7 @@
     {/if}
 </div>
 
-<!-- ⭐ Sektion: Ny fickpengperiod -->
+<!-- Ny fickpengperiod -->
 <div class="section">
     <button class="section-header" on:click={() => showCreate = !showCreate}>
         <span>Ny fickpengperiod</span>
@@ -100,7 +99,7 @@
     {/if}
 </div>
 
-<!-- ⭐ Sektion: Historik -->
+<!-- Historik -->
 <div class="section">
     <button class="section-header" on:click={() => showHistory = !showHistory}>
         <span>Historik</span>
@@ -112,6 +111,8 @@
             {#each data.history as a}
                 <div class="history">
                     {a.amount} kr — {toMonthInput(a.start_month)} → {toMonthInput(a.end_month)}
+                    <br />
+                    <span class="label">Skapad av:</span> {a.profiles.full_name}
                 </div>
             {/each}
         {:else}
