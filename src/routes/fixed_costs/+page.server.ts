@@ -1,47 +1,79 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { createClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
-export const load: PageServerLoad = async ({ locals, cookies }) => {
+export const load: PageServerLoad = async ({ locals }) => {
     const user = locals.user;
     const householdId = locals.householdId;
+    const supabase = locals.supabase;
 
     if (!user) throw redirect(303, '/login');
     if (!householdId) return { active: [], history: [], members: [] };
 
-    const access_token = cookies.get('sb-access-token');
-
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        global: {
-            headers: {
-                Authorization: `Bearer ${access_token}`
-            }
-        }
-    });
-
-    // ⭐ Hämta aktiva kostnader
-    const { data: active } = await supabase
+    // ⭐ Aktiva kostnader (end_month IS NULL)
+    const { data: active, error: activeError } = await supabase
         .from('fixed_costs')
-        .select('*')
+        .select(`
+            id,
+            household_id,
+            user_id,
+            cost_name,
+            amount,
+            owner,
+            start_month,
+            end_month,
+            cost_group_id,
+            created_at,
+            profiles!fixed_costs_user_fk(full_name)
+        `)
         .eq('household_id', householdId)
         .is('end_month', null)
         .order('cost_name', { ascending: true });
 
-    // ⭐ Hämta historik
-    const { data: history } = await supabase
+    if (activeError) {
+        console.error('load fixed_costs active error', activeError);
+        return { active: [], history: [], members: [] };
+    }
+
+    // ⭐ Historik (end_month IS NOT NULL)
+    const { data: history, error: historyError } = await supabase
         .from('fixed_costs')
-        .select('*')
+        .select(`
+            id,
+            household_id,
+            user_id,
+            cost_name,
+            amount,
+            owner,
+            start_month,
+            end_month,
+            cost_group_id,
+            created_at,
+            profiles!fixed_costs_user_fk(full_name)
+        `)
         .eq('household_id', householdId)
         .not('end_month', 'is', null)
         .order('cost_name', { ascending: true })
         .order('start_month', { ascending: true });
 
-    // ⭐ Hämta hushållsmedlemmar + namn
-    const { data: members } = await supabase
+    if (historyError) {
+        console.error('load fixed_costs history error', historyError);
+        return { active: active ?? [], history: [], members: [] };
+    }
+
+    // ⭐ Hämta hushållsmedlemmar + namn (som allowance/extra_income)
+    const { data: members, error: membersError } = await supabase
         .from('household_members')
         .select('user_id, profiles(full_name)')
         .eq('household_id', householdId);
+
+    if (membersError) {
+        console.error('load household_members error', membersError);
+        return {
+            active: active ?? [],
+            history: history ?? [],
+            members: []
+        };
+    }
 
     return {
         active: active ?? [],
@@ -51,33 +83,29 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 };
 
 export const actions: Actions = {
-    create: async ({ request, locals, cookies }) => {
+    create: async ({ request, locals }) => {
         const user = locals.user;
         const householdId = locals.householdId;
+        const supabase = locals.supabase;
 
         if (!user) throw redirect(303, '/login');
         if (!householdId) return fail(400, { error: 'Inget hushåll kopplat.' });
-
-        const access_token = cookies.get('sb-access-token');
-
-        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-            global: {
-                headers: {
-                    Authorization: `Bearer ${access_token}`
-                }
-            }
-        });
 
         const form = await request.formData();
 
         const cost_name = form.get('cost_name');
         const amount = Number(form.get('amount'));
-        const owner = form.get('owner'); // ⭐ user_id eller "shared"
+        const owner = form.get('owner');
         const raw = form.get('start_month');
-        const start_month = `${raw}-01`;
+        const start_month = raw ? `${raw}-01` : null;
+
+        if (!cost_name) return fail(400, { error: 'Namn saknas.' });
+        if (isNaN(amount)) return fail(400, { error: 'Ogiltigt belopp.' });
+        if (!start_month) return fail(400, { error: 'Startmånad saknas.' });
 
         const { error } = await supabase.from('fixed_costs').insert({
             household_id: householdId,
+            user_id: user.id,
             cost_name,
             amount,
             owner,
@@ -93,32 +121,27 @@ export const actions: Actions = {
         return { success: true };
     },
 
-    update: async ({ request, locals, cookies }) => {
+    update: async ({ request, locals }) => {
         const user = locals.user;
         const householdId = locals.householdId;
+        const supabase = locals.supabase;
 
         if (!user) throw redirect(303, '/login');
         if (!householdId) return fail(400, { error: 'Inget hushåll kopplat.' });
-
-        const access_token = cookies.get('sb-access-token');
-
-        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-            global: {
-                headers: {
-                    Authorization: `Bearer ${access_token}`
-                }
-            }
-        });
 
         const form = await request.formData();
         const group_id = form.get('cost_group_id');
         const new_amount = Number(form.get('amount'));
         const new_owner = form.get('owner');
         const raw = form.get('start_month');
-        const new_start = `${raw}-01`;
+        const new_start = raw ? `${raw}-01` : null;
 
-        // ⭐ Hämta aktiv post
-        const { data: active } = await supabase
+        if (!group_id) return fail(400, { error: 'Ingen kostnadsgrupp angiven.' });
+        if (isNaN(new_amount)) return fail(400, { error: 'Ogiltigt belopp.' });
+        if (!new_start) return fail(400, { error: 'Ny startmånad saknas.' });
+
+        // ⭐ Hämta aktiv post i gruppen
+        const { data: active, error: activeError } = await supabase
             .from('fixed_costs')
             .select('*')
             .eq('household_id', householdId)
@@ -126,21 +149,30 @@ export const actions: Actions = {
             .is('end_month', null)
             .single();
 
-        if (!active) return fail(400, { error: 'Ingen aktiv period hittades' });
+        if (activeError || !active) {
+            console.error('fetch active fixed cost error', activeError);
+            return fail(400, { error: 'Ingen aktiv period hittades.' });
+        }
 
         // ⭐ Avsluta gamla perioden
-        const end_date = new_start ? new Date(new_start) : new Date();
+        const end_date = new Date(new_start);
         end_date.setMonth(end_date.getMonth() - 1);
         const end_month = end_date.toISOString().slice(0, 10);
 
-        await supabase
+        const { error: endError } = await supabase
             .from('fixed_costs')
             .update({ end_month })
             .eq('id', active.id);
 
+        if (endError) {
+            console.error('end old fixed cost period error', endError);
+            return fail(400, { error: endError.message });
+        }
+
         // ⭐ Skapa ny period
         const { error: insertError } = await supabase.from('fixed_costs').insert({
             household_id: householdId,
+            user_id: user.id,
             cost_group_id: group_id,
             cost_name: active.cost_name,
             amount: new_amount,
@@ -157,27 +189,21 @@ export const actions: Actions = {
         return { success: true };
     },
 
-    end: async ({ request, locals, cookies }) => {
+    end: async ({ request, locals }) => {
         const user = locals.user;
         const householdId = locals.householdId;
+        const supabase = locals.supabase;
 
         if (!user) throw redirect(303, '/login');
         if (!householdId) return fail(400, { error: 'Inget hushåll kopplat.' });
 
-        const access_token = cookies.get('sb-access-token');
-
-        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-            global: {
-                headers: {
-                    Authorization: `Bearer ${access_token}`
-                }
-            }
-        });
-
         const form = await request.formData();
         const group_id = form.get('cost_group_id');
         const raw = form.get('end_month');
-        const end_month = `${raw}-01`;
+        const end_month = raw ? `${raw}-01` : null;
+
+        if (!group_id) return fail(400, { error: 'Ingen kostnadsgrupp angiven.' });
+        if (!end_month) return fail(400, { error: 'Slutmånad saknas.' });
 
         const { error } = await supabase
             .from('fixed_costs')
