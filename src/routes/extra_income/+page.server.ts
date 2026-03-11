@@ -9,7 +9,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     if (!user) throw redirect(303, '/login');
     if (!householdId) return { entries: [], members: [] };
 
-    // ⭐ Hämta extra inkomster
+    // ⭐ Hämta extra inkomster (utan relations-join)
     const { data: entries, error: entriesError } = await supabase
         .from('extra_income')
         .select(`
@@ -21,10 +21,7 @@ export const load: PageServerLoad = async ({ locals }) => {
             description,
             amount,
             owner,
-            created_at,
-            profiles!extra_income_user_fk (
-                full_name
-            )
+            created_at
         `)
         .eq('household_id', householdId)
         .order('date', { ascending: false });
