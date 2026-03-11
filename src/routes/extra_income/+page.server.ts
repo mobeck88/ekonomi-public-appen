@@ -9,14 +9,32 @@ export const load: PageServerLoad = async ({ locals }) => {
     if (!user) throw redirect(303, '/login');
     if (!householdId) return { entries: [], members: [] };
 
-    // ⭐ Hämta inkomster
-    const { data: entries } = await supabase
+    // ⭐ Hämta extra inkomster
+    const { data: entries, error: entriesError } = await supabase
         .from('extra_income')
-        .select('*')
+        .select(`
+            id,
+            household_id,
+            user_id,
+            date,
+            title,
+            description,
+            amount,
+            owner,
+            created_at,
+            profiles!extra_income_user_fk (
+                full_name
+            )
+        `)
         .eq('household_id', householdId)
         .order('date', { ascending: false });
 
-    // ⭐ Hämta hushållsmedlemmar + namn
+    if (entriesError) {
+        console.error('load extra_income error', entriesError);
+        return { entries: [], members: [] };
+    }
+
+    // ⭐ Hämta hushållsmedlemmar
     const { data: members } = await supabase
         .from('household_members')
         .select('user_id, profiles(full_name)')
@@ -43,14 +61,15 @@ export const actions: Actions = {
         const title = form.get('title');
         const description = form.get('description');
         const amount = Number(form.get('amount'));
-        const owner = form.get('owner'); // user_id eller "shared"
+        const owner = form.get('owner'); // "shared" eller user_id
 
-        if (!date_raw) return fail(400, { error: 'Datum saknas' });
-        if (!title) return fail(400, { error: 'Titel saknas' });
-        if (isNaN(amount)) return fail(400, { error: 'Ogiltigt belopp' });
+        if (!date_raw) return fail(400, { error: 'Datum saknas.' });
+        if (!title) return fail(400, { error: 'Titel saknas.' });
+        if (isNaN(amount)) return fail(400, { error: 'Ogiltigt belopp.' });
 
         const { error } = await supabase.from('extra_income').insert({
             household_id: householdId,
+            user_id: user.id,
             date: date_raw,
             title,
             description,
@@ -59,7 +78,7 @@ export const actions: Actions = {
         });
 
         if (error) {
-            console.error('create extra income error', error);
+            console.error('create extra_income error', error);
             return fail(400, { error: error.message });
         }
 
