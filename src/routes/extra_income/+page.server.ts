@@ -9,7 +9,6 @@ export const load: PageServerLoad = async ({ locals }) => {
     if (!user) throw redirect(303, '/login');
     if (!householdId) return { entries: [], members: [] };
 
-    // ⭐ Hämta extra inkomster (utan relations-join)
     const { data: entries, error: entriesError } = await supabase
         .from('extra_income')
         .select(`
@@ -21,7 +20,10 @@ export const load: PageServerLoad = async ({ locals }) => {
             description,
             amount,
             owner,
-            created_at
+            created_at,
+            profiles!extra_income_user_fk (
+                full_name
+            )
         `)
         .eq('household_id', householdId)
         .order('date', { ascending: false });
@@ -31,11 +33,18 @@ export const load: PageServerLoad = async ({ locals }) => {
         return { entries: [], members: [] };
     }
 
-    // ⭐ Hämta hushållsmedlemmar
-    const { data: members } = await supabase
+    const { data: members, error: membersError } = await supabase
         .from('household_members')
         .select('user_id, profiles(full_name)')
         .eq('household_id', householdId);
+
+    if (membersError) {
+        console.error('load household_members error', membersError);
+        return {
+            entries: entries ?? [],
+            members: []
+        };
+    }
 
     return {
         entries: entries ?? [],
@@ -58,7 +67,7 @@ export const actions: Actions = {
         const title = form.get('title');
         const description = form.get('description');
         const amount = Number(form.get('amount'));
-        const owner = form.get('owner'); // "shared" eller user_id
+        const owner = form.get('owner');
 
         if (!date_raw) return fail(400, { error: 'Datum saknas.' });
         if (!title) return fail(400, { error: 'Titel saknas.' });
