@@ -1,24 +1,13 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { createClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
-export const load: PageServerLoad = async ({ locals, cookies }) => {
+export const load: PageServerLoad = async ({ locals }) => {
     const user = locals.user;
     const householdId = locals.householdId;
+    const supabase = locals.supabase;
 
     if (!user) throw redirect(303, '/login');
     if (!householdId) return { entries: [], members: [] };
-
-    const access_token = cookies.get('sb-access-token');
-
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        global: {
-            headers: {
-                Authorization: `Bearer ${access_token}`
-            }
-        }
-    });
 
     // ⭐ Hämta inkomster
     const { data: entries } = await supabase
@@ -40,22 +29,13 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 };
 
 export const actions: Actions = {
-    create: async ({ request, locals, cookies }) => {
+    create: async ({ request, locals }) => {
         const user = locals.user;
         const householdId = locals.householdId;
+        const supabase = locals.supabase;
 
         if (!user) throw redirect(303, '/login');
         if (!householdId) return fail(400, { error: 'Inget hushåll kopplat.' });
-
-        const access_token = cookies.get('sb-access-token');
-
-        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-            global: {
-                headers: {
-                    Authorization: `Bearer ${access_token}`
-                }
-            }
-        });
 
         const form = await request.formData();
 
@@ -63,7 +43,11 @@ export const actions: Actions = {
         const title = form.get('title');
         const description = form.get('description');
         const amount = Number(form.get('amount'));
-        const owner = form.get('owner'); // ⭐ user_id eller "shared"
+        const owner = form.get('owner'); // user_id eller "shared"
+
+        if (!date_raw) return fail(400, { error: 'Datum saknas' });
+        if (!title) return fail(400, { error: 'Titel saknas' });
+        if (isNaN(amount)) return fail(400, { error: 'Ogiltigt belopp' });
 
         const { error } = await supabase.from('extra_income').insert({
             household_id: householdId,
