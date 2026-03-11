@@ -108,20 +108,36 @@ export const actions: Actions = {
         if (isNaN(amount)) return fail(400, { error: 'Ogiltigt belopp.' });
         if (!start_month) return fail(400, { error: 'Startmånad saknas.' });
 
-        const { error } = await supabase.from('loans').insert({
-            household_id: householdId,
-            user_id: user.id,
-            loan_name,
-            reference,
-            amount,
-            owner,
-            start_month,
-            end_month: null
-        });
+        // ⭐ 1. Skapa posten
+        const { data: inserted, error: insertError } = await supabase
+            .from('loans')
+            .insert({
+                household_id: householdId,
+                user_id: user.id,
+                loan_name,
+                reference,
+                amount,
+                owner,
+                start_month,
+                end_month: null
+            })
+            .select('id')
+            .single();
 
-        if (error) {
-            console.error('create loan error', error);
-            return fail(400, { error: error.message });
+        if (insertError || !inserted) {
+            console.error('create loan error', insertError);
+            return fail(400, { error: insertError?.message });
+        }
+
+        // ⭐ 2. Sätt loan_group_id = id
+        const { error: groupError } = await supabase
+            .from('loans')
+            .update({ loan_group_id: inserted.id })
+            .eq('id', inserted.id);
+
+        if (groupError) {
+            console.error('set group_id error', groupError);
+            return fail(400, { error: groupError.message });
         }
 
         return { success: true };
