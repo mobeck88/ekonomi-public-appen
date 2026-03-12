@@ -31,20 +31,26 @@ export const load: PageServerLoad = async ({ locals }) => {
     return { months: enriched };
 };
 
-function toMonthDate(raw: FormDataEntryValue | null): string | null {
+// ⭐ Konverterar UI-input till en giltig DATE (YYYY-MM-DD)
+function parseMonth(raw: FormDataEntryValue | null): string | null {
     if (!raw) return null;
+
     const s = raw.toString().trim();
-    // Tillåt både "YYYY-MM" och "YYYY-MM-DD"
+
+    // UI skickar "YYYY-MM"
     if (/^\d{4}-\d{2}$/.test(s)) {
         const d = new Date(`${s}-01`);
         if (Number.isNaN(d.getTime())) return null;
-        return d.toISOString().slice(0, 10);
+        return d.toISOString().slice(0, 10); // YYYY-MM-DD
     }
+
+    // UI kan i vissa fall skicka "YYYY-MM-DD"
     if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
         const d = new Date(s);
         if (Number.isNaN(d.getTime())) return null;
         return d.toISOString().slice(0, 10);
     }
+
     return null;
 }
 
@@ -59,17 +65,16 @@ export const actions: Actions = {
 
         const form = await request.formData();
 
-        const month = toMonthDate(form.get('month'));
-        if (!month) {
-            return fail(400, { message: 'Ogiltigt månadsvärde' });
-        }
+        // ⭐ Hård validering — nu 100% kompatibel med DATE
+        const month = parseMonth(form.get('month'));
+        if (!month) return fail(400, { message: 'Ogiltigt månadsvärde' });
 
         const { data: monthRow, error: monthError } = await supabase
             .from('income_months')
             .insert({
                 household_id: householdId,
                 user_id: user.id,
-                month
+                month // alltid YYYY-MM-DD
             })
             .select('id')
             .single();
@@ -78,6 +83,7 @@ export const actions: Actions = {
 
         const income_month_id = monthRow.id;
 
+        // ⭐ Ordinarie arbete
         const primaryPayload = {
             income_month_id,
             user_id: user.id,
@@ -97,6 +103,7 @@ export const actions: Actions = {
             if (error) return fail(400, { message: error.message });
         }
 
+        // ⭐ Extra jobb
         const arbetsgivareArr = form.getAll('extra_arbetsgivare');
         const lonArr = form.getAll('extra_lon_fore_skatt');
         const franvaroArr = form.getAll('extra_franvaro');
@@ -124,6 +131,7 @@ export const actions: Actions = {
             if (error) return fail(400, { message: error.message });
         }
 
+        // ⭐ Försäkringskassan
         const fkPayload = {
             income_month_id,
             user_id: user.id,
@@ -157,7 +165,8 @@ export const actions: Actions = {
         const income_month_id = form.get('income_month_id');
         if (!income_month_id) return fail(400, { message: 'Saknar income_month_id' });
 
-        const month = toMonthDate(form.get('month'));
+        const month = parseMonth(form.get('month'));
+
         if (month) {
             const { error } = await supabase
                 .from('income_months')
@@ -168,6 +177,7 @@ export const actions: Actions = {
             if (error) return fail(400, { message: error.message });
         }
 
+        // ⭐ Ordinarie arbete
         const primaryPayload = {
             lon_fore_skatt: form.get('primary_lon_fore_skatt') || null,
             franvaro: form.get('primary_franvaro') || null,
@@ -205,6 +215,7 @@ export const actions: Actions = {
             if (error) return fail(400, { message: error.message });
         }
 
+        // ⭐ Extra jobb
         await supabase.from('income_extra_jobs').delete().eq('income_month_id', income_month_id);
 
         const arbetsgivareArr = form.getAll('extra_arbetsgivare');
@@ -234,6 +245,7 @@ export const actions: Actions = {
             if (error) return fail(400, { message: error.message });
         }
 
+        // ⭐ Försäkringskassan
         const fkPayload = {
             ersattning_fore_skatt: form.get('fk_ersattning_fore_skatt') || null,
             inbetald_skatt: form.get('fk_inbetald_skatt') || null,
