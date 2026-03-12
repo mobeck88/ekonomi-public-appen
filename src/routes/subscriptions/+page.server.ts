@@ -23,7 +23,7 @@ export const load: PageServerLoad = async ({ locals }) => {
             end_month,
             subscription_group_id,
             created_at,
-            profiles!subscriptions_user_fk(full_name)
+            profiles!subscriptions_user_id_fkey(full_name)
         `)
         .eq('household_id', householdId)
         .is('end_month', null)
@@ -48,7 +48,7 @@ export const load: PageServerLoad = async ({ locals }) => {
             end_month,
             subscription_group_id,
             created_at,
-            profiles!subscriptions_user_fk(full_name)
+            profiles!subscriptions_user_id_fkey(full_name)
         `)
         .eq('household_id', householdId)
         .not('end_month', 'is', null)
