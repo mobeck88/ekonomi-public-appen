@@ -1,18 +1,19 @@
 <script lang="ts">
     export let data;
 
+    let createName = '';
     let createAmount = '';
     let createStart = '';
-    let createTitle = '';
-    let createDescription = '';
     let createOwner = 'shared';
 
+    // Accordion states
     let showActive = false;
     let showCreate = false;
     let showHistory = false;
 
     function ownerLabel(owner: string) {
         if (owner === "shared") return "Gemensamt";
+
         const match = data.members.find(m => m.user_id === owner);
         return match?.profiles?.full_name ?? owner;
     }
@@ -25,7 +26,7 @@
 
 <h1>Abonnemang</h1>
 
-<!-- ⭐ Aktiva -->
+<!-- ⭐ Sektion: Aktiva abonnemang -->
 <div class="section">
     <button class="section-header" on:click={() => showActive = !showActive}>
         <span>Aktiva abonnemang</span>
@@ -33,30 +34,31 @@
     </button>
 
     {#if showActive}
-        {#if data.active.length > 0}
-            {#each data.active as sub}
+        {#if data.active && data.active.length > 0}
+            {#each data.active as c}
                 <div class="card">
                     <div class="row">
                         <div class="info">
-                            <strong>{sub.title}</strong><br />
-                            <span class="label">Belopp:</span> {sub.amount} kr<br />
-                            <span class="label">Ägare:</span> {ownerLabel(sub.owner)}<br />
-                            <span class="label">Start:</span> {toMonth(sub.start_month)}<br />
+                            <strong>{c.subscription_name}</strong><br />
+                            {c.amount} kr/mån<br />
+                            <span class="label">Ägare:</span> {ownerLabel(c.owner)}<br />
+                            <span class="label">Start:</span> {toMonth(c.start_month)}<br />
                             <span class="label">Slut:</span>
-                            {#if sub.end_month}
-                                {toMonth(sub.end_month)}
+                            {#if c.end_month}
+                                {toMonth(c.end_month)}
                             {:else}
                                 aktiv
                             {/if}
                         </div>
 
                         <div class="actions">
+
                             <!-- UPPDATERA -->
                             <form method="post" action="?/update">
-                                <input type="hidden" name="subscription_group_id" value={sub.subscription_group_id} />
+                                <input type="hidden" name="subscription_group_id" value={c.subscription_group_id} />
 
                                 <label>Nytt belopp</label>
-                                <input name="amount" type="number" step="1" required />
+                                <input name="amount" type="number" required />
 
                                 <label>Ny ägare</label>
                                 <select name="owner" required>
@@ -74,13 +76,14 @@
 
                             <!-- AVSLUTA -->
                             <form method="post" action="?/end">
-                                <input type="hidden" name="subscription_group_id" value={sub.subscription_group_id} />
+                                <input type="hidden" name="subscription_group_id" value={c.subscription_group_id} />
 
-                                <label>Avsluta från och med (YYYY-MM)</label>
+                                <label>Avsluta från (YYYY-MM)</label>
                                 <input name="end_month" type="month" required />
 
                                 <button class="danger">Avsluta</button>
                             </form>
+
                         </div>
                     </div>
                 </div>
@@ -91,7 +94,7 @@
     {/if}
 </div>
 
-<!-- ⭐ Skapa nytt -->
+<!-- ⭐ Sektion: Nytt abonnemang -->
 <div class="section">
     <button class="section-header" on:click={() => showCreate = !showCreate}>
         <span>Nytt abonnemang</span>
@@ -100,16 +103,12 @@
 
     {#if showCreate}
         <form method="post" action="?/create" class="create-form">
-            <input type="hidden" name="subscription_group_id" value={crypto.randomUUID()} />
 
-            <label>Rubrik</label>
-            <input name="title" type="text" bind:value={createTitle} required />
+            <label>Abonnemangets namn</label>
+            <input name="subscription_name" type="text" bind:value={createName} required />
 
-            <label>Beskrivning</label>
-            <textarea name="description" rows="2" bind:value={createDescription}></textarea>
-
-            <label>Belopp</label>
-            <input name="amount" type="number" step="1" bind:value={createAmount} required />
+            <label>Belopp per månad</label>
+            <input name="amount" type="number" bind:value={createAmount} required />
 
             <label>Ägare</label>
             <select name="owner" bind:value={createOwner} required>
@@ -127,7 +126,7 @@
     {/if}
 </div>
 
-<!-- ⭐ Historik -->
+<!-- ⭐ Sektion: Historik -->
 <div class="section">
     <button class="section-header" on:click={() => showHistory = !showHistory}>
         <span>Historik</span>
@@ -135,13 +134,13 @@
     </button>
 
     {#if showHistory}
-        {#if data.history.length > 0}
-            {#each data.history as sub}
+        {#if data.history && data.history.length > 0}
+            {#each data.history as c}
                 <div class="history">
-                    <strong>{sub.title}</strong><br />
-                    <span class="label">Belopp:</span> {sub.amount} kr<br />
-                    <span class="label">Ägare:</span> {ownerLabel(sub.owner)}<br />
-                    {toMonth(sub.start_month)} → {toMonth(sub.end_month)}
+                    <strong>{c.subscription_name}</strong><br />
+                    {c.amount} kr/mån<br />
+                    <span class="label">Ägare:</span> {ownerLabel(c.owner)}<br />
+                    {toMonth(c.start_month)} → {toMonth(c.end_month)}
                 </div>
             {/each}
         {:else}
@@ -151,7 +150,6 @@
 </div>
 
 <style>
-    /* exakt samma stil som fixed_cost */
     h1 {
         margin-bottom: 1.2rem;
         color: #1f2937;

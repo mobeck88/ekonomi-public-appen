@@ -16,19 +16,18 @@ export const load: PageServerLoad = async ({ locals }) => {
             id,
             household_id,
             user_id,
-            title,
-            description,
+            subscription_name,
             amount,
             owner,
             start_month,
             end_month,
             subscription_group_id,
             created_at,
-            profiles!subscriptions_user_id_fkey(full_name)
+            profiles!subscriptions_user_fk(full_name)
         `)
         .eq('household_id', householdId)
         .is('end_month', null)
-        .order('title', { ascending: true });
+        .order('subscription_name', { ascending: true });
 
     if (activeError) {
         console.error('load subscriptions active error', activeError);
@@ -42,19 +41,18 @@ export const load: PageServerLoad = async ({ locals }) => {
             id,
             household_id,
             user_id,
-            title,
-            description,
+            subscription_name,
             amount,
             owner,
             start_month,
             end_month,
             subscription_group_id,
             created_at,
-            profiles!subscriptions_user_id_fkey(full_name)
+            profiles!subscriptions_user_fk(full_name)
         `)
         .eq('household_id', householdId)
         .not('end_month', 'is', null)
-        .order('title', { ascending: true })
+        .order('subscription_name', { ascending: true })
         .order('start_month', { ascending: true });
 
     if (historyError) {
@@ -95,25 +93,20 @@ export const actions: Actions = {
 
         const form = await request.formData();
 
-        const title = form.get('title');
-        const description = form.get('description');
+        const subscription_name = form.get('subscription_name');
         const amount = Number(form.get('amount'));
         const owner = form.get('owner');
-        const group_id = form.get('subscription_group_id');
         const raw = form.get('start_month');
         const start_month = raw ? `${raw}-01` : null;
 
-        if (!title) return fail(400, { error: 'Titel saknas.' });
+        if (!subscription_name) return fail(400, { error: 'Namn saknas.' });
         if (isNaN(amount)) return fail(400, { error: 'Ogiltigt belopp.' });
         if (!start_month) return fail(400, { error: 'Startmånad saknas.' });
-        if (!group_id) return fail(400, { error: 'Ingen grupp angiven.' });
 
         const { error } = await supabase.from('subscriptions').insert({
             household_id: householdId,
             user_id: user.id,
-            subscription_group_id: group_id,
-            title,
-            description,
+            subscription_name,
             amount,
             owner,
             start_month,
@@ -147,7 +140,7 @@ export const actions: Actions = {
         if (isNaN(new_amount)) return fail(400, { error: 'Ogiltigt belopp.' });
         if (!new_start) return fail(400, { error: 'Ny startmånad saknas.' });
 
-        // ⭐ Hämta aktiv period
+        // ⭐ Hämta aktiv post i gruppen
         const { data: active, error: activeError } = await supabase
             .from('subscriptions')
             .select('*')
@@ -181,8 +174,7 @@ export const actions: Actions = {
             household_id: householdId,
             user_id: user.id,
             subscription_group_id: group_id,
-            title: active.title,
-            description: active.description,
+            subscription_name: active.subscription_name,
             amount: new_amount,
             owner: new_owner,
             start_month: new_start,
