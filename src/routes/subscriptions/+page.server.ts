@@ -16,18 +16,18 @@ export const load: PageServerLoad = async ({ locals }) => {
             id,
             household_id,
             user_id,
-            subscription_name,
+            cost_name,
             amount,
             owner,
             start_month,
             end_month,
-            subscription_group_id,
+            cost_group_id,
             created_at,
             profiles!subscriptions_user_id_fkey(full_name)
         `)
         .eq('household_id', householdId)
         .is('end_month', null)
-        .order('subscription_name', { ascending: true });
+        .order('cost_name', { ascending: true });
 
     if (activeError) {
         console.error('load subscriptions active error', activeError);
@@ -41,18 +41,18 @@ export const load: PageServerLoad = async ({ locals }) => {
             id,
             household_id,
             user_id,
-            subscription_name,
+            cost_name,
             amount,
             owner,
             start_month,
             end_month,
-            subscription_group_id,
+            cost_group_id,
             created_at,
             profiles!subscriptions_user_id_fkey(full_name)
         `)
         .eq('household_id', householdId)
         .not('end_month', 'is', null)
-        .order('subscription_name', { ascending: true })
+        .order('cost_name', { ascending: true })
         .order('start_month', { ascending: true });
 
     if (historyError) {
@@ -93,20 +93,20 @@ export const actions: Actions = {
 
         const form = await request.formData();
 
-        const subscription_name = form.get('subscription_name');
+        const cost_name = form.get('cost_name');
         const amount = Number(form.get('amount'));
         const owner = form.get('owner');
         const raw = form.get('start_month');
         const start_month = raw ? `${raw}-01` : null;
 
-        if (!subscription_name) return fail(400, { error: 'Namn saknas.' });
+        if (!cost_name) return fail(400, { error: 'Namn saknas.' });
         if (isNaN(amount)) return fail(400, { error: 'Ogiltigt belopp.' });
         if (!start_month) return fail(400, { error: 'Startmånad saknas.' });
 
         const { error } = await supabase.from('subscriptions').insert({
             household_id: householdId,
             user_id: user.id,
-            subscription_name,
+            cost_name,
             amount,
             owner,
             start_month,
@@ -130,13 +130,13 @@ export const actions: Actions = {
         if (!householdId) return fail(400, { error: 'Inget hushåll kopplat.' });
 
         const form = await request.formData();
-        const group_id = form.get('subscription_group_id');
+        const group_id = form.get('cost_group_id');
         const new_amount = Number(form.get('amount'));
         const new_owner = form.get('owner');
         const raw = form.get('start_month');
         const new_start = raw ? `${raw}-01` : null;
 
-        if (!group_id) return fail(400, { error: 'Ingen grupp angiven.' });
+        if (!group_id) return fail(400, { error: 'Ingen kostnadsgrupp angiven.' });
         if (isNaN(new_amount)) return fail(400, { error: 'Ogiltigt belopp.' });
         if (!new_start) return fail(400, { error: 'Ny startmånad saknas.' });
 
@@ -145,7 +145,7 @@ export const actions: Actions = {
             .from('subscriptions')
             .select('*')
             .eq('household_id', householdId)
-            .eq('subscription_group_id', group_id)
+            .eq('cost_group_id', group_id)
             .is('end_month', null)
             .single();
 
@@ -173,8 +173,8 @@ export const actions: Actions = {
         const { error: insertError } = await supabase.from('subscriptions').insert({
             household_id: householdId,
             user_id: user.id,
-            subscription_group_id: group_id,
-            subscription_name: active.subscription_name,
+            cost_group_id: group_id,
+            cost_name: active.cost_name,
             amount: new_amount,
             owner: new_owner,
             start_month: new_start,
@@ -198,18 +198,18 @@ export const actions: Actions = {
         if (!householdId) return fail(400, { error: 'Inget hushåll kopplat.' });
 
         const form = await request.formData();
-        const group_id = form.get('subscription_group_id');
+        const group_id = form.get('cost_group_id');
         const raw = form.get('end_month');
         const end_month = raw ? `${raw}-01` : null;
 
-        if (!group_id) return fail(400, { error: 'Ingen grupp angiven.' });
+        if (!group_id) return fail(400, { error: 'Ingen kostnadsgrupp angiven.' });
         if (!end_month) return fail(400, { error: 'Slutmånad saknas.' });
 
         const { error } = await supabase
             .from('subscriptions')
             .update({ end_month })
             .eq('household_id', householdId)
-            .eq('subscription_group_id', group_id)
+            .eq('cost_group_id', group_id)
             .is('end_month', null);
 
         if (error) {

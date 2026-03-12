@@ -39,7 +39,7 @@
                 <div class="card">
                     <div class="row">
                         <div class="info">
-                            <strong>{c.subscription_name}</strong><br />
+                            <strong>{c.cost_name}</strong><br />
                             {c.amount} kr/mån<br />
                             <span class="label">Ägare:</span> {ownerLabel(c.owner)}<br />
                             <span class="label">Start:</span> {toMonth(c.start_month)}<br />
@@ -55,7 +55,7 @@
 
                             <!-- UPPDATERA -->
                             <form method="post" action="?/update">
-                                <input type="hidden" name="subscription_group_id" value={c.subscription_group_id} />
+                                <input type="hidden" name="cost_group_id" value={c.cost_group_id} />
 
                                 <label>Nytt belopp</label>
                                 <input name="amount" type="number" required />
@@ -76,7 +76,7 @@
 
                             <!-- AVSLUTA -->
                             <form method="post" action="?/end">
-                                <input type="hidden" name="subscription_group_id" value={c.subscription_group_id} />
+                                <input type="hidden" name="cost_group_id" value={c.cost_group_id} />
 
                                 <label>Avsluta från (YYYY-MM)</label>
                                 <input name="end_month" type="month" required />
@@ -105,7 +105,7 @@
         <form method="post" action="?/create" class="create-form">
 
             <label>Abonnemangets namn</label>
-            <input name="subscription_name" type="text" bind:value={createName} required />
+            <input name="cost_name" type="text" bind:value={createName} required />
 
             <label>Belopp per månad</label>
             <input name="amount" type="number" bind:value={createAmount} required />
@@ -137,7 +137,7 @@
         {#if data.history && data.history.length > 0}
             {#each data.history as c}
                 <div class="history">
-                    <strong>{c.subscription_name}</strong><br />
+                    <strong>{c.cost_name}</strong><br />
                     {c.amount} kr/mån<br />
                     <span class="label">Ägare:</span> {ownerLabel(c.owner)}<br />
                     {toMonth(c.start_month)} → {toMonth(c.end_month)}
