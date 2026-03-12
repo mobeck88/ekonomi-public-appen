@@ -101,6 +101,9 @@
 
     {#if showCreate}
         <form method="post" action="?/create" class="create-form">
+            <!-- ⭐ Skapa nytt subscription_group_id -->
+            <input type="hidden" name="subscription_group_id" value={crypto.randomUUID()} />
+
             <label>Rubrik</label>
             <input name="title" type="text" bind:value={createTitle} required />
 
@@ -149,6 +152,7 @@
 </div>
 
 <style>
+    /* (stilen är oförändrad, exakt som du hade den) */
     h1 {
         margin-bottom: 1.2rem;
         color: #1f2937;

@@ -20,23 +20,21 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
         }
     });
 
-    // ⭐ Hämta aktiva prenumerationer
+    // ⭐ Aktiva prenumerationer (RLS filtrerar automatiskt på household_id)
     const { data: active } = await supabase
         .from('subscriptions')
         .select('*')
-        .eq('household_id', householdId)
         .is('end_month', null)
         .order('start_month', { ascending: true });
 
-    // ⭐ Hämta historik
+    // ⭐ Historik
     const { data: history } = await supabase
         .from('subscriptions')
         .select('*')
-        .eq('household_id', householdId)
         .not('end_month', 'is', null)
         .order('start_month', { ascending: true });
 
-    // ⭐ Hämta hushållsmedlemmar + namn
+    // ⭐ Hushållsmedlemmar
     const { data: members } = await supabase
         .from('household_members')
         .select('user_id, profiles(full_name)')
@@ -73,7 +71,7 @@ export const actions: Actions = {
         const start_raw = form.get('start_month');
         const title = form.get('title');
         const description = form.get('description');
-        const owner = form.get('owner'); // ⭐ user_id eller "shared"
+        const owner = form.get('owner');
 
         const start_month = `${start_raw}-01`;
 
@@ -120,11 +118,10 @@ export const actions: Actions = {
 
         const new_start = `${new_start_raw}-01`;
 
-        // ⭐ Hämta aktiv post
+        // ⭐ Hämta aktiv period (RLS filtrerar household automatiskt)
         const { data: active } = await supabase
             .from('subscriptions')
             .select('*')
-            .eq('household_id', householdId)
             .eq('subscription_group_id', group_id)
             .is('end_month', null)
             .single();
@@ -185,7 +182,6 @@ export const actions: Actions = {
         const { error } = await supabase
             .from('subscriptions')
             .update({ end_month })
-            .eq('household_id', householdId)
             .eq('subscription_group_id', group_id)
             .is('end_month', null);
 
