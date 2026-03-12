@@ -11,7 +11,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 
     const selectFields = `
         id,
-        user_id,
         household_id,
         amount,
         start_month,
@@ -20,8 +19,7 @@ export const load: PageServerLoad = async ({ locals }) => {
         description,
         saving_group_id,
         created_at,
-        owner,
-        profiles!fk_savings_user(full_name)
+        owner
     `;
 
     const { data: active } = await supabase
@@ -72,7 +70,6 @@ export const actions: Actions = {
         const { data: inserted, error: insertError } = await supabase
             .from('savings')
             .insert({
-                user_id: user.id,
                 household_id: householdId,
                 amount,
                 start_month,
@@ -143,7 +140,6 @@ export const actions: Actions = {
         }
 
         const { error: insertError } = await supabase.from('savings').insert({
-            user_id: user.id,
             household_id: householdId,
             saving_group_id: group_id,
             amount: new_amount,
