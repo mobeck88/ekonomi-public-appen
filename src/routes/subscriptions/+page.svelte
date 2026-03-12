@@ -7,14 +7,12 @@
     let createDescription = '';
     let createOwner = 'shared';
 
-    // Accordion states
     let showActive = false;
     let showCreate = false;
     let showHistory = false;
 
     function ownerLabel(owner: string) {
         if (owner === "shared") return "Gemensamt";
-
         const match = data.members.find(m => m.user_id === owner);
         return match?.profiles?.full_name ?? owner;
     }
@@ -27,7 +25,7 @@
 
 <h1>Abonnemang</h1>
 
-<!-- ⭐ Sektion: Aktiva abonnemang -->
+<!-- ⭐ Aktiva -->
 <div class="section">
     <button class="section-header" on:click={() => showActive = !showActive}>
         <span>Aktiva abonnemang</span>
@@ -35,12 +33,13 @@
     </button>
 
     {#if showActive}
-        {#if data.active && data.active.length > 0}
+        {#if data.active.length > 0}
             {#each data.active as sub}
                 <div class="card">
                     <div class="row">
                         <div class="info">
-                            <strong>{sub.amount} kr</strong><br />
+                            <strong>{sub.title}</strong><br />
+                            <span class="label">Belopp:</span> {sub.amount} kr<br />
                             <span class="label">Ägare:</span> {ownerLabel(sub.owner)}<br />
                             <span class="label">Start:</span> {toMonth(sub.start_month)}<br />
                             <span class="label">Slut:</span>
@@ -92,7 +91,7 @@
     {/if}
 </div>
 
-<!-- ⭐ Sektion: Nytt abonnemang -->
+<!-- ⭐ Skapa nytt -->
 <div class="section">
     <button class="section-header" on:click={() => showCreate = !showCreate}>
         <span>Nytt abonnemang</span>
@@ -101,7 +100,6 @@
 
     {#if showCreate}
         <form method="post" action="?/create" class="create-form">
-            <!-- ⭐ Skapa nytt subscription_group_id -->
             <input type="hidden" name="subscription_group_id" value={crypto.randomUUID()} />
 
             <label>Rubrik</label>
@@ -129,7 +127,7 @@
     {/if}
 </div>
 
-<!-- ⭐ Sektion: Historik -->
+<!-- ⭐ Historik -->
 <div class="section">
     <button class="section-header" on:click={() => showHistory = !showHistory}>
         <span>Historik</span>
@@ -137,10 +135,11 @@
     </button>
 
     {#if showHistory}
-        {#if data.history && data.history.length > 0}
+        {#if data.history.length > 0}
             {#each data.history as sub}
                 <div class="history">
-                    <strong>{sub.amount} kr</strong><br />
+                    <strong>{sub.title}</strong><br />
+                    <span class="label">Belopp:</span> {sub.amount} kr<br />
                     <span class="label">Ägare:</span> {ownerLabel(sub.owner)}<br />
                     {toMonth(sub.start_month)} → {toMonth(sub.end_month)}
                 </div>
@@ -152,7 +151,7 @@
 </div>
 
 <style>
-    /* (stilen är oförändrad, exakt som du hade den) */
+    /* exakt samma stil som fixed_cost */
     h1 {
         margin-bottom: 1.2rem;
         color: #1f2937;
