@@ -7,14 +7,12 @@
     let createDescription = '';
     let createOwner = 'shared';
 
-    // Accordion states
     let showActive = false;
     let showCreate = false;
     let showHistory = false;
 
     function ownerLabel(owner: string) {
         if (owner === "shared") return "Gemensamt";
-
         const match = data.members.find(m => m.user_id === owner);
         return match?.profiles?.full_name ?? owner;
     }
@@ -27,7 +25,7 @@
 
 <h1>Sparande</h1>
 
-<!-- ⭐ Sektion: Aktiva sparanden -->
+<!-- ⭐ Aktiva sparanden -->
 <div class="section">
     <button class="section-header" on:click={() => showActive = !showActive}>
         <span>Aktiva sparanden</span>
@@ -92,7 +90,7 @@
     {/if}
 </div>
 
-<!-- ⭐ Sektion: Nytt sparande -->
+<!-- ⭐ Nytt sparande -->
 <div class="section">
     <button class="section-header" on:click={() => showCreate = !showCreate}>
         <span>Nytt sparande</span>
@@ -126,7 +124,7 @@
     {/if}
 </div>
 
-<!-- ⭐ Sektion: Historik -->
+<!-- ⭐ Historik -->
 <div class="section">
     <button class="section-header" on:click={() => showHistory = !showHistory}>
         <span>Historik</span>

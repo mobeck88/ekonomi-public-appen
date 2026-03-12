@@ -23,6 +23,7 @@ export const load: PageServerLoad = async ({ locals }) => {
             description,
             saving_group_id,
             created_at,
+            owner,
             profiles!fk_savings_user(full_name)
         `)
         .eq('household_id', householdId)
@@ -48,6 +49,7 @@ export const load: PageServerLoad = async ({ locals }) => {
             description,
             saving_group_id,
             created_at,
+            owner,
             profiles!fk_savings_user(full_name)
         `)
         .eq('household_id', householdId)
