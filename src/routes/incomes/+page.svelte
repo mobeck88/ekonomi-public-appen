@@ -4,6 +4,16 @@
     // Vald månad
     let selected = data.months?.[0] ?? null;
 
+    // Accordion states (saknades tidigare)
+    let showList = true;
+    let showCreate = false;
+    let showPrimary = true;
+    let showExtra = true;
+    let showFK = true;
+
+    // Redigeringsläge för extra jobb
+    let editingExtraId = null;
+
     function toMonthInput(dateString) {
         if (!dateString) return "";
         return dateString.slice(0, 7);
@@ -12,9 +22,6 @@
     function selectMonth(m) {
         selected = m;
     }
-
-    // Redigeringsläge för extra jobb
-    let editingExtraId = null;
 </script>
 
 <h1>Inkomster per månad</h1>
@@ -44,22 +51,14 @@
                     {#each data.months as m}
                         <tr class:selected={selected?.id === m.id} on:click={() => selectMonth(m)}>
                             <td>{toMonthInput(m.month)}</td>
-                            <td>
-                                {m.primary_job
-                                    ? Number(m.primary_job.att_betala_ut ?? 0)
-                                    : 0} kr
-                            </td>
+                            <td>{m.primary_job?.att_betala_ut ?? 0} kr</td>
                             <td>
                                 {(m.extra_jobs ?? []).reduce(
                                     (sum, e) => sum + Number(e.att_betala_ut ?? 0),
                                     0
                                 )} kr
                             </td>
-                            <td>
-                                {m.fk
-                                    ? Number(m.fk.att_betala_ut ?? 0)
-                                    : 0} kr
-                            </td>
+                            <td>{m.fk?.att_betala_ut ?? 0} kr</td>
                             <td>
                                 {(
                                     (m.primary_job?.att_betala_ut ?? 0) +
