@@ -31,6 +31,23 @@ export const load: PageServerLoad = async ({ locals }) => {
     return { months: enriched };
 };
 
+function toMonthDate(raw: FormDataEntryValue | null): string | null {
+    if (!raw) return null;
+    const s = raw.toString().trim();
+    // Tillåt både "YYYY-MM" och "YYYY-MM-DD"
+    if (/^\d{4}-\d{2}$/.test(s)) {
+        const d = new Date(`${s}-01`);
+        if (Number.isNaN(d.getTime())) return null;
+        return d.toISOString().slice(0, 10);
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+        const d = new Date(s);
+        if (Number.isNaN(d.getTime())) return null;
+        return d.toISOString().slice(0, 10);
+    }
+    return null;
+}
+
 export const actions: Actions = {
     create_income: async ({ request, locals }) => {
         const user = locals.user;
@@ -42,14 +59,10 @@ export const actions: Actions = {
 
         const form = await request.formData();
 
-        const rawMonth = form.get('month');
-
-        // ⭐ HÅRD VALIDERING — exakt det som saknades
-        if (!rawMonth || !/^\d{4}-\d{2}$/.test(rawMonth.toString())) {
+        const month = toMonthDate(form.get('month'));
+        if (!month) {
             return fail(400, { message: 'Ogiltigt månadsvärde' });
         }
-
-        const month = `${rawMonth}-01`;
 
         const { data: monthRow, error: monthError } = await supabase
             .from('income_months')
@@ -144,16 +157,8 @@ export const actions: Actions = {
         const income_month_id = form.get('income_month_id');
         if (!income_month_id) return fail(400, { message: 'Saknar income_month_id' });
 
-        const rawMonth = form.get('month');
-
-        // ⭐ Samma validering även vid update
-        if (rawMonth && !/^\d{4}-\d{2}$/.test(rawMonth.toString())) {
-            return fail(400, { message: 'Ogiltigt månadsvärde' });
-        }
-
-        if (rawMonth) {
-            const month = `${rawMonth}-01`;
-
+        const month = toMonthDate(form.get('month'));
+        if (month) {
             const { error } = await supabase
                 .from('income_months')
                 .update({ month })
