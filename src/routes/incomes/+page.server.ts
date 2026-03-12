@@ -9,7 +9,6 @@ export const load: PageServerLoad = async ({ locals }) => {
     if (!user) throw redirect(303, '/login');
     if (!householdId) return { months: [] };
 
-    // Hämta månader
     const { data: months } = await supabase
         .from('income_months')
         .select('*')
@@ -18,12 +17,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 
     if (!months) return { months: [] };
 
-    // Hämta relaterade tabeller
     const { data: primary } = await supabase.from('income_primary_job').select('*');
     const { data: extra } = await supabase.from('income_extra_jobs').select('*');
     const { data: fk } = await supabase.from('income_fk').select('*');
 
-    // Slå ihop allt
     const enriched = months.map((m) => ({
         ...m,
         primary_job: primary?.find((p) => p.income_month_id === m.id) ?? null,
@@ -35,7 +32,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
-    // ⭐ Skapa ny inkomst
     create_income: async ({ request, locals }) => {
         const user = locals.user;
         const householdId = locals.householdId;
@@ -47,11 +43,14 @@ export const actions: Actions = {
         const form = await request.formData();
 
         const rawMonth = form.get('month');
-        if (!rawMonth) return fail(400, { message: 'Månad saknas' });
+
+        // ⭐ HÅRD VALIDERING — exakt det som saknades
+        if (!rawMonth || !/^\d{4}-\d{2}$/.test(rawMonth.toString())) {
+            return fail(400, { message: 'Ogiltigt månadsvärde' });
+        }
 
         const month = `${rawMonth}-01`;
 
-        // Skapa income_month
         const { data: monthRow, error: monthError } = await supabase
             .from('income_months')
             .insert({
@@ -66,7 +65,6 @@ export const actions: Actions = {
 
         const income_month_id = monthRow.id;
 
-        // ⭐ Ordinarie arbete
         const primaryPayload = {
             income_month_id,
             user_id: user.id,
@@ -86,7 +84,6 @@ export const actions: Actions = {
             if (error) return fail(400, { message: error.message });
         }
 
-        // ⭐ Extra jobb
         const arbetsgivareArr = form.getAll('extra_arbetsgivare');
         const lonArr = form.getAll('extra_lon_fore_skatt');
         const franvaroArr = form.getAll('extra_franvaro');
@@ -114,7 +111,6 @@ export const actions: Actions = {
             if (error) return fail(400, { message: error.message });
         }
 
-        // ⭐ Försäkringskassan
         const fkPayload = {
             income_month_id,
             user_id: user.id,
@@ -135,7 +131,6 @@ export const actions: Actions = {
         throw redirect(303, '/incomes');
     },
 
-    // ⭐ Uppdatera inkomst
     update_income: async ({ request, locals }) => {
         const user = locals.user;
         const householdId = locals.householdId;
@@ -150,8 +145,15 @@ export const actions: Actions = {
         if (!income_month_id) return fail(400, { message: 'Saknar income_month_id' });
 
         const rawMonth = form.get('month');
+
+        // ⭐ Samma validering även vid update
+        if (rawMonth && !/^\d{4}-\d{2}$/.test(rawMonth.toString())) {
+            return fail(400, { message: 'Ogiltigt månadsvärde' });
+        }
+
         if (rawMonth) {
             const month = `${rawMonth}-01`;
+
             const { error } = await supabase
                 .from('income_months')
                 .update({ month })
@@ -161,7 +163,6 @@ export const actions: Actions = {
             if (error) return fail(400, { message: error.message });
         }
 
-        // ⭐ Ordinarie arbete
         const primaryPayload = {
             lon_fore_skatt: form.get('primary_lon_fore_skatt') || null,
             franvaro: form.get('primary_franvaro') || null,
@@ -199,7 +200,6 @@ export const actions: Actions = {
             if (error) return fail(400, { message: error.message });
         }
 
-        // ⭐ Extra jobb – ta bort alla och skapa nya
         await supabase.from('income_extra_jobs').delete().eq('income_month_id', income_month_id);
 
         const arbetsgivareArr = form.getAll('extra_arbetsgivare');
@@ -229,7 +229,6 @@ export const actions: Actions = {
             if (error) return fail(400, { message: error.message });
         }
 
-        // ⭐ Försäkringskassan
         const fkPayload = {
             ersattning_fore_skatt: form.get('fk_ersattning_fore_skatt') || null,
             inbetald_skatt: form.get('fk_inbetald_skatt') || null,
