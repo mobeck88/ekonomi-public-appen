@@ -1,5 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import { randomUUID } from 'crypto';
 
 export const load: PageServerLoad = async ({ locals }) => {
     const user = locals.user;
@@ -9,7 +10,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     if (!user) throw redirect(303, '/login');
     if (!householdId) return { active: [], history: [], members: [] };
 
-    // ⭐ Aktiva abonnemang (end_month IS NULL)
+    // Aktiva abonnemang
     const { data: active, error: activeError } = await supabase
         .from('subscriptions')
         .select(`
@@ -34,7 +35,7 @@ export const load: PageServerLoad = async ({ locals }) => {
         return { active: [], history: [], members: [] };
     }
 
-    // ⭐ Historik (end_month IS NOT NULL)
+    // Historik
     const { data: history, error: historyError } = await supabase
         .from('subscriptions')
         .select(`
@@ -60,7 +61,7 @@ export const load: PageServerLoad = async ({ locals }) => {
         return { active: active ?? [], history: [], members: [] };
     }
 
-    // ⭐ Hämta hushållsmedlemmar
+    // Hushållsmedlemmar
     const { data: members, error: membersError } = await supabase
         .from('household_members')
         .select('user_id, profiles(full_name)')
@@ -103,9 +104,13 @@ export const actions: Actions = {
         if (isNaN(amount)) return fail(400, { error: 'Ogiltigt belopp.' });
         if (!start_month) return fail(400, { error: 'Startmånad saknas.' });
 
+        // ⭐ Skapa grupp-ID (precis som fixed_costs)
+        const group_id = randomUUID();
+
         const { error } = await supabase.from('subscriptions').insert({
             household_id: householdId,
             user_id: user.id,
+            subscription_group_id: group_id,
             subscription_name,
             amount,
             owner,
@@ -140,7 +145,7 @@ export const actions: Actions = {
         if (isNaN(new_amount)) return fail(400, { error: 'Ogiltigt belopp.' });
         if (!new_start) return fail(400, { error: 'Ny startmånad saknas.' });
 
-        // ⭐ Hämta aktiv post i gruppen
+        // ⭐ Hämta aktiv period
         const { data: active, error: activeError } = await supabase
             .from('subscriptions')
             .select('*')
