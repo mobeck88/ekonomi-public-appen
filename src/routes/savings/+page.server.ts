@@ -171,12 +171,23 @@ export const actions: Actions = {
 
         const end_month = `${end_raw}-01`;
 
+        const { data: active } = await supabase
+            .from('savings')
+            .select('*')
+            .eq('household_id', householdId)
+            .eq('saving_group_id', group_id)
+            .is('end_month', null)
+            .limit(1)
+            .single();
+
+        if (!active) {
+            return fail(400, { error: 'Ingen aktiv period hittades.' });
+        }
+
         const { error } = await supabase
             .from('savings')
             .update({ end_month })
-            .eq('household_id', householdId)
-            .eq('saving_group_id', group_id)
-            .is('end_month', null);
+            .eq('id', active.id);
 
         if (error) {
             return fail(400, { error: error.message });
