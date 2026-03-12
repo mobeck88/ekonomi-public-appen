@@ -1,96 +1,25 @@
 <script>
     export let data;
 
-    // Om inga inkomster finns
-    let selected = data.incomes?.[0] ?? null;
+    // Vald månad
+    let selected = data.months?.[0] ?? null;
 
-    // Formläge
-    let mode = "add";
-
-    // Formdata
-    let formData = {
-        id: null,
-        month: "",
-        ord_lon_fore_skatt: "",
-        ord_franvaro: "",
-        ord_skatt: "",
-        ord_nettolon: "",
-        ass_lon_fore_skatt: "",
-        ass_skatt: "",
-        ass_frivillig_skatt: "",
-        ass_nettolon: "",
-        fk_lon_fore_skatt: "",
-        fk_skatt: "",
-        fk_nettolon: ""
-    };
-
-    // Konvertera YYYY-MM-01 → YYYY-MM
     function toMonthInput(dateString) {
         if (!dateString) return "";
         return dateString.slice(0, 7);
     }
 
-    function selectMonth(inc) {
-        selected = inc;
+    function selectMonth(m) {
+        selected = m;
     }
 
-    function editMonth(inc) {
-        mode = "update";
-        selected = inc;
-
-        formData = {
-            ...inc,
-            month: toMonthInput(inc.month)
-        };
-
-        showForm = true;
-    }
-
-    // Beräkningar
-    let ordBrutto = 0;
-    let assBrutto = 0;
-    let fkBrutto = 0;
-
-    let totalBrutto = 0;
-    let totalOrdSkatt = 0;
-    let totalAssSkatt = 0;
-    let totalFrivilligSkatt = 0;
-    let totalFKSkatt = 0;
-    let totalSkatt = 0;
-    let totalNetto = 0;
-
-    $: if (selected) {
-        ordBrutto = Number(selected.ord_lon_fore_skatt ?? 0) - Number(selected.ord_franvaro ?? 0);
-        assBrutto = Number(selected.ass_lon_fore_skatt ?? 0);
-        fkBrutto = Number(selected.fk_lon_fore_skatt ?? 0);
-
-        totalBrutto =
-            Number(selected.ord_lon_fore_skatt ?? 0) +
-            Number(selected.ass_lon_fore_skatt ?? 0) +
-            Number(selected.fk_lon_fore_skatt ?? 0);
-
-        totalOrdSkatt = Number(selected.ord_skatt ?? 0);
-        totalAssSkatt = Number(selected.ass_skatt ?? 0);
-        totalFrivilligSkatt = Number(selected.ass_frivillig_skatt ?? 0);
-        totalFKSkatt = Number(selected.fk_skatt ?? 0);
-
-        totalSkatt = totalOrdSkatt + totalAssSkatt + totalFrivilligSkatt + totalFKSkatt;
-
-        totalNetto =
-            Number(selected.ord_nettolon ?? 0) +
-            Number(selected.ass_nettolon ?? 0) +
-            Number(selected.fk_nettolon ?? 0);
-    }
-
-    // Accordion states
-    let showList = true;
-    let showForm = false;
-    let showSummary = false;
+    // Redigeringsläge för extra jobb
+    let editingExtraId = null;
 </script>
 
 <h1>Inkomster per månad</h1>
 
-<!-- ⭐ Sektion: Registrerade månader -->
+<!-- ⭐ Lista månader -->
 <div class="section">
     <button class="section-header" on:click={() => showList = !showList}>
         <span>Registrerade månader</span>
@@ -98,36 +27,48 @@
     </button>
 
     {#if showList}
-        {#if data.incomes.length === 0}
-            <p style="padding: 1rem;">Inga inkomster registrerade ännu.</p>
+        {#if data.months.length === 0}
+            <p style="padding: 1rem;">Inga månader registrerade ännu.</p>
         {:else}
             <table class="month-list">
                 <thead>
                     <tr>
                         <th>Månad</th>
-                        <th>Ord netto</th>
-                        <th>Ass netto</th>
-                        <th>FK netto</th>
-                        <th>Total netto</th>
-                        <th></th>
+                        <th>Ordinarie</th>
+                        <th>Extra jobb</th>
+                        <th>FK</th>
+                        <th>Total</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {#each data.incomes as inc}
-                        <tr class:selected={selected?.id === inc.id}>
-                            <td on:click={() => selectMonth(inc)}>
-                                {toMonthInput(inc.month)}
-                            </td>
-                            <td>{inc.ord_nettolon ?? 0} kr</td>
-                            <td>{inc.ass_nettolon ?? 0} kr</td>
-                            <td>{inc.fk_nettolon ?? 0} kr</td>
+                    {#each data.months as m}
+                        <tr class:selected={selected?.id === m.id} on:click={() => selectMonth(m)}>
+                            <td>{toMonthInput(m.month)}</td>
                             <td>
-                                {(Number(inc.ord_nettolon ?? 0)
-                                + Number(inc.ass_nettolon ?? 0)
-                                + Number(inc.fk_nettolon ?? 0))} kr
+                                {m.primary_job
+                                    ? Number(m.primary_job.att_betala_ut ?? 0)
+                                    : 0} kr
                             </td>
                             <td>
-                                <button type="button" class="small" on:click={() => editMonth(inc)}>Redigera</button>
+                                {(m.extra_jobs ?? []).reduce(
+                                    (sum, e) => sum + Number(e.att_betala_ut ?? 0),
+                                    0
+                                )} kr
+                            </td>
+                            <td>
+                                {m.fk
+                                    ? Number(m.fk.att_betala_ut ?? 0)
+                                    : 0} kr
+                            </td>
+                            <td>
+                                {(
+                                    (m.primary_job?.att_betala_ut ?? 0) +
+                                    (m.fk?.att_betala_ut ?? 0) +
+                                    (m.extra_jobs ?? []).reduce(
+                                        (sum, e) => sum + Number(e.att_betala_ut ?? 0),
+                                        0
+                                    )
+                                )} kr
                             </td>
                         </tr>
                     {/each}
@@ -137,217 +78,253 @@
     {/if}
 </div>
 
-<!-- ⭐ Sektion: Formulär -->
+<!-- ⭐ Skapa månad -->
 <div class="section">
-    <button class="section-header" on:click={() => showForm = !showForm}>
-        <span>{mode === "add" ? "Ny månad" : "Redigera månad"}</span>
-        <span>{showForm ? "▲" : "▼"}</span>
+    <button class="section-header" on:click={() => showCreate = !showCreate}>
+        <span>Ny månad</span>
+        <span>{showCreate ? "▲" : "▼"}</span>
     </button>
 
-    {#if showForm}
-        <form method="POST" action="?/{mode}" class="form">
-
-            {#if mode === "update"}
-                <input type="hidden" name="id" value={formData.id} />
-            {/if}
-
+    {#if showCreate}
+        <form method="POST" action="?/create_month" class="form">
             <label>
                 Månad
-                <input type="month" name="month" bind:value={formData.month} required />
+                <input type="month" name="month" required />
             </label>
-
-            <fieldset>
-                <legend>Ordinarie arbete</legend>
-
-                <input type="number" name="ord_lon_fore_skatt" bind:value={formData.ord_lon_fore_skatt} placeholder="Lön före skatt" />
-                <input type="number" name="ord_franvaro" bind:value={formData.ord_franvaro} placeholder="Frånvaro" />
-                <input type="number" name="ord_skatt" bind:value={formData.ord_skatt} placeholder="Skatt" />
-                <input type="number" name="ord_nettolon" bind:value={formData.ord_nettolon} placeholder="Nettolön" />
-            </fieldset>
-
-            <fieldset>
-                <legend>Assistans</legend>
-
-                <input type="number" name="ass_lon_fore_skatt" bind:value={formData.ass_lon_fore_skatt} placeholder="Lön före skatt" />
-                <input type="number" name="ass_skatt" bind:value={formData.ass_skatt} placeholder="Skatt" />
-                <input type="number" name="ass_frivillig_skatt" bind:value={formData.ass_frivillig_skatt} placeholder="Frivillig skatt" />
-                <input type="number" name="ass_nettolon" bind:value={formData.ass_nettolon} placeholder="Nettolön" />
-            </fieldset>
-
-            <fieldset>
-                <legend>F‑kassan</legend>
-
-                <input type="number" name="fk_lon_fore_skatt" bind:value={formData.fk_lon_fore_skatt} placeholder="Lön före skatt" />
-                <input type="number" name="fk_skatt" bind:value={formData.fk_skatt} placeholder="Skatt" />
-                <input type="number" name="fk_nettolon" bind:value={formData.fk_nettolon} placeholder="Nettolön" />
-            </fieldset>
-
-            <button type="submit">{mode === "add" ? "Spara" : "Uppdatera"}</button>
+            <button type="submit">Skapa månad</button>
         </form>
     {/if}
 </div>
 
-<!-- ⭐ Sektion: Sammanställning -->
 {#if selected}
+<!-- ⭐ Ordinarie arbete -->
 <div class="section">
-    <button class="section-header" on:click={() => showSummary = !showSummary}>
-        <span>Sammanställning för {toMonthInput(selected.month)}</span>
-        <span>{showSummary ? "▲" : "▼"}</span>
+    <button class="section-header" on:click={() => showPrimary = !showPrimary}>
+        <span>Ordinarie arbete – {toMonthInput(selected.month)}</span>
+        <span>{showPrimary ? "▲" : "▼"}</span>
     </button>
 
-    {#if showSummary}
-        <table class="summary">
-            <thead>
-                <tr>
-                    <th>Kategori</th>
-                    <th>Belopp</th>
-                </tr>
-            </thead>
+    {#if showPrimary}
+        <form method="POST" action="?/save_primary_job" class="form">
+            <input type="hidden" name="income_month_id" value={selected.id} />
 
-            <tbody>
-                <tr><td colspan="2"><strong>Ordinarie arbete</strong></td></tr>
-                <tr><td>Lön före skatt</td><td>{selected.ord_lon_fore_skatt} kr</td></tr>
-                <tr><td>Frånvaro</td><td>{selected.ord_franvaro} kr</td></tr>
-                <tr><td>Bruttolön</td><td>{ordBrutto} kr</td></tr>
-                <tr><td>Skatt</td><td>{totalOrdSkatt} kr</td></tr>
+            <label>Lön före skatt
+                <input type="number" name="lon_fore_skatt" step="0.01"
+                    value={selected.primary_job?.lon_fore_skatt ?? ""} />
+            </label>
 
-                <tr><td colspan="2"><strong>Assistans</strong></td></tr>
-                <tr><td>Lön före skatt</td><td>{selected.ass_lon_fore_skatt} kr</td></tr>
-                <tr><td>Skatt</td><td>{totalAssSkatt} kr</td></tr>
-                <tr><td>Frivillig skatt</td><td>{totalFrivilligSkatt} kr</td></tr>
+            <label>Frånvaro
+                <input type="number" name="franvaro" step="0.01"
+                    value={selected.primary_job?.franvaro ?? ""} />
+            </label>
 
-                <tr><td colspan="2"><strong>F‑kassan</strong></td></tr>
-                <tr><td>Lön före skatt</td><td>{selected.fk_lon_fore_skatt} kr</td></tr>
-                <tr><td>Skatt</td><td>{totalFKSkatt} kr</td></tr>
+            <label>Inbetald skatt
+                <input type="number" name="inbetald_skatt" step="0.01"
+                    value={selected.primary_job?.inbetald_skatt ?? ""} />
+            </label>
 
-                <tr><td colspan="2"><strong>Totaler</strong></td></tr>
-                <tr><td>Total bruttolön</td><td>{totalBrutto} kr</td></tr>
-                <tr><td>Total skatt</td><td>{totalSkatt} kr</td></tr>
-                <tr><td>Total nettolön</td><td>{totalNetto} kr</td></tr>
-            </tbody>
-        </table>
+            <label>Frivillig skatt
+                <input type="number" name="frivillig_skatt" step="0.01"
+                    value={selected.primary_job?.frivillig_skatt ?? ""} />
+            </label>
+
+            <label>Att betala ut
+                <input type="number" name="att_betala_ut" step="0.01"
+                    value={selected.primary_job?.att_betala_ut ?? ""} />
+            </label>
+
+            <button type="submit">Spara ordinarie arbete</button>
+        </form>
+    {/if}
+</div>
+
+<!-- ⭐ Extra arbeten -->
+<div class="section">
+    <button class="section-header" on:click={() => showExtra = !showExtra}>
+        <span>Extra arbeten – {toMonthInput(selected.month)}</span>
+        <span>{showExtra ? "▲" : "▼"}</span>
+    </button>
+
+    {#if showExtra}
+        <!-- Lista extra jobb -->
+        {#each selected.extra_jobs as job}
+            <div class="extra-item">
+                {#if editingExtraId === job.id}
+                    <!-- Redigera extra jobb -->
+                    <form method="POST" action="?/update_extra_job" class="form">
+                        <input type="hidden" name="id" value={job.id} />
+
+                        <label>Arbetsgivare
+                            <input type="text" name="arbetsgivare" value={job.arbetsgivare} />
+                        </label>
+
+                        <label>Lön före skatt
+                            <input type="number" name="lon_fore_skatt" step="0.01"
+                                value={job.lon_fore_skatt ?? ""} />
+                        </label>
+
+                        <label>Frånvaro
+                            <input type="number" name="franvaro" step="0.01"
+                                value={job.franvaro ?? ""} />
+                        </label>
+
+                        <label>Inbetald skatt
+                            <input type="number" name="inbetald_skatt" step="0.01"
+                                value={job.inbetald_skatt ?? ""} />
+                        </label>
+
+                        <label>Frivillig skatt
+                            <input type="number" name="frivillig_skatt" step="0.01"
+                                value={job.frivillig_skatt ?? ""} />
+                        </label>
+
+                        <label>Att betala ut
+                            <input type="number" name="att_betala_ut" step="0.01"
+                                value={job.att_betala_ut ?? ""} />
+                        </label>
+
+                        <button type="submit">Spara</button>
+                        <button type="button" on:click={() => editingExtraId = null}>Avbryt</button>
+                    </form>
+
+                    <!-- Ta bort -->
+                    <form method="POST" action="?/delete_extra_job">
+                        <input type="hidden" name="id" value={job.id} />
+                        <button type="submit" class="danger">Ta bort</button>
+                    </form>
+
+                {:else}
+                    <!-- Visa extra jobb -->
+                    <div class="extra-display">
+                        <strong>{job.arbetsgivare}</strong> – {job.att_betala_ut} kr
+                        <button on:click={() => editingExtraId = job.id}>Redigera</button>
+                    </div>
+                {/if}
+            </div>
+        {/each}
+
+        <!-- Lägg till nytt extra jobb -->
+        <form method="POST" action="?/add_extra_job" class="form">
+            <input type="hidden" name="income_month_id" value={selected.id} />
+
+            <label>Arbetsgivare
+                <input type="text" name="arbetsgivare" required />
+            </label>
+
+            <label>Lön före skatt
+                <input type="number" name="lon_fore_skatt" step="0.01" />
+            </label>
+
+            <label>Frånvaro
+                <input type="number" name="franvaro" step="0.01" />
+            </label>
+
+            <label>Inbetald skatt
+                <input type="number" name="inbetald_skatt" step="0.01" />
+            </label>
+
+            <label>Frivillig skatt
+                <input type="number" name="frivillig_skatt" step="0.01" />
+            </label>
+
+            <label>Att betala ut
+                <input type="number" name="att_betala_ut" step="0.01" />
+            </label>
+
+            <button type="submit">Lägg till extra jobb</button>
+        </form>
+    {/if}
+</div>
+
+<!-- ⭐ Försäkringskassan -->
+<div class="section">
+    <button class="section-header" on:click={() => showFK = !showFK}>
+        <span>Försäkringskassan – {toMonthInput(selected.month)}</span>
+        <span>{showFK ? "▲" : "▼"}</span>
+    </button>
+
+    {#if showFK}
+        <form method="POST" action="?/save_fk" class="form">
+            <input type="hidden" name="income_month_id" value={selected.id} />
+
+            <label>Ersättning före skatt
+                <input type="number" name="ersattning_fore_skatt" step="0.01"
+                    value={selected.fk?.ersattning_fore_skatt ?? ""} />
+            </label>
+
+            <label>Inbetald skatt
+                <input type="number" name="inbetald_skatt" step="0.01"
+                    value={selected.fk?.inbetald_skatt ?? ""} />
+            </label>
+
+            <label>Att betala ut
+                <input type="number" name="att_betala_ut" step="0.01"
+                    value={selected.fk?.att_betala_ut ?? ""} />
+            </label>
+
+            <button type="submit">Spara FK</button>
+        </form>
     {/if}
 </div>
 {/if}
 
 <style>
-    h1 {
-        margin-bottom: 1.2rem;
-        color: #1f2937;
-        font-size: 1.6rem;
-        font-weight: 700;
-    }
+    h1 { margin-bottom: 1.2rem; font-size: 1.6rem; font-weight: 700; }
 
     .section {
         margin-bottom: 1.5rem;
         border: 1px solid #e5e7eb;
         border-radius: 12px;
-        overflow: hidden;
-        background: #ffffff;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        background: white;
     }
 
     .section-header {
         width: 100%;
+        padding: 1rem;
         background: #f3f4f6;
         border: none;
-        padding: 1rem 1.2rem;
-        font-size: 1.05rem;
-        font-weight: 600;
         display: flex;
         justify-content: space-between;
         cursor: pointer;
-        color: #111827;
-    }
-
-    .section-header:hover {
-        background: #e5e7eb;
-    }
-
-    table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-
-    th, td {
-        padding: 0.7rem;
-        border-bottom: 1px solid #e5e7eb;
-        text-align: left;
-        font-size: 0.95rem;
-    }
-
-    .month-list tr.selected {
-        background: #dbeafe;
         font-weight: 600;
-    }
-
-    .small {
-        padding: 0.4rem 0.7rem;
-        font-size: 0.8rem;
     }
 
     .form {
         display: grid;
-        gap: 1rem;
+        gap: 0.8rem;
         padding: 1rem;
-        max-width: 600px;
     }
 
-    fieldset {
-        border: 1px solid #e5e7eb;
-        padding: 1rem;
-        border-radius: 8px;
-        background: #f9fafb;
-    }
-
-    legend {
-        font-weight: 600;
-        color: #374151;
-    }
+    label { display: grid; gap: 0.3rem; }
 
     input {
-        padding: 0.65rem;
+        padding: 0.6rem;
         border: 1px solid #d1d5db;
-        border-radius: 8px;
-        font-size: 0.95rem;
-        background: #ffffff;
-    }
-
-    input:focus {
-        outline: none;
-        border-color: #2563eb;
-        box-shadow: 0 0 0 2px #dbeafe;
+        border-radius: 6px;
     }
 
     button {
-        padding: 0.75rem 1rem;
+        padding: 0.7rem 1rem;
         border: none;
         background: #2563eb;
         color: white;
-        border-radius: 8px;
+        border-radius: 6px;
         cursor: pointer;
-        font-size: 0.95rem;
-        font-weight: 600;
-        transition: background 0.15s;
     }
 
-    button:hover {
-        background: #1d4ed8;
+    .danger {
+        background: #dc2626;
+        margin-top: 0.5rem;
     }
 
-    .summary {
-        margin-top: 1rem;
-        width: 100%;
-        border-collapse: collapse;
+    .extra-item {
+        padding: 0.8rem;
+        border-bottom: 1px solid #e5e7eb;
     }
 
-    .summary td, .summary th {
-        border: 1px solid #e5e7eb;
-        padding: 0.7rem;
-    }
-
-    .summary th {
-        background: #f3f4f6;
-        font-weight: 600;
+    .extra-display {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
 </style>

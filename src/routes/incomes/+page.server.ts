@@ -2,141 +2,230 @@ import { redirect, fail } from '@sveltejs/kit';
 import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
+function sb(cookies) {
+    const access_token = cookies.get('sb-access-token');
+    return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        global: { headers: { Authorization: `Bearer ${access_token}` } }
+    });
+}
+
+/* -------------------------------------------------------
+   LOAD – Hämta alla månader + alla tre sektioner
+-------------------------------------------------------- */
 export const load = async ({ locals, cookies }) => {
     const user = locals.user;
     const householdId = locals.householdId;
 
     if (!user) throw redirect(303, '/login');
-    if (!householdId) return { incomes: [] };
+    if (!householdId) return { months: [] };
 
-    const access_token = cookies.get('sb-access-token');
+    const supabase = sb(cookies);
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        global: {
-            headers: {
-                Authorization: `Bearer ${access_token}`
-            }
-        }
-    });
-
-    const { data, error } = await supabase
-        .from('incomes')
+    // Hämta månader
+    const { data: months } = await supabase
+        .from('income_months')
         .select('*')
         .eq('household_id', householdId)
         .order('month', { ascending: false });
 
-    if (error) {
-        console.error('LOAD INCOME ERROR:', error);
-        return { incomes: [] };
-    }
+    if (!months) return { months: [] };
 
-    return { incomes: data };
+    // Hämta alla tre sektioner
+    const { data: primary } = await supabase.from('income_primary_job').select('*');
+    const { data: extra } = await supabase.from('income_extra_jobs').select('*');
+    const { data: fk } = await supabase.from('income_fk').select('*');
+
+    // Slå ihop per månad
+    const enriched = months.map((m) => ({
+        ...m,
+        primary_job: primary?.find((p) => p.income_month_id === m.id) ?? null,
+        extra_jobs: extra?.filter((e) => e.income_month_id === m.id) ?? [],
+        fk: fk?.find((f) => f.income_month_id === m.id) ?? null
+    }));
+
+    return { months: enriched };
 };
 
+/* -------------------------------------------------------
+   ACTIONS
+-------------------------------------------------------- */
 export const actions = {
-    add: async ({ request, locals, cookies }) => {
+    /* -----------------------------------------------
+       Skapa månad
+    ------------------------------------------------ */
+    create_month: async ({ request, locals, cookies }) => {
         const user = locals.user;
         const householdId = locals.householdId;
-
         if (!user) throw redirect(303, '/login');
-        if (!householdId) return fail(400, { message: 'Inget hushåll kopplat.' });
 
-        const access_token = cookies.get('sb-access-token');
-
-        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-            global: {
-                headers: {
-                    Authorization: `Bearer ${access_token}`
-                }
-            }
-        });
-
+        const supabase = sb(cookies);
         const form = await request.formData();
 
-        const rawMonth = form.get('month') as string | null;
+        const rawMonth = form.get('month');
         const month = rawMonth ? `${rawMonth}-01` : null;
 
-        const payload = {
+        const { error } = await supabase.from('income_months').insert({
             household_id: householdId,
-            month,
+            user_id: user.id,
+            month
+        });
 
-            ord_lon_fore_skatt: Number(form.get('ord_lon_fore_skatt')) || null,
-            ord_franvaro: Number(form.get('ord_franvaro')) || null,
-            ord_skatt: Number(form.get('ord_skatt')) || null,
-            ord_nettolon: Number(form.get('ord_nettolon')) || null,
+        if (error) return fail(400, { message: error.message });
+        throw redirect(303, '/incomes');
+    },
 
-            ass_lon_fore_skatt: Number(form.get('ass_lon_fore_skatt')) || null,
-            ass_skatt: Number(form.get('ass_skatt')) || null,
-            ass_frivillig_skatt: Number(form.get('ass_frivillig_skatt')) || null,
-            ass_nettolon: Number(form.get('ass_nettolon')) || null,
+    /* -----------------------------------------------
+       Spara ordinarie arbete
+    ------------------------------------------------ */
+    save_primary_job: async ({ request, locals, cookies }) => {
+        const user = locals.user;
+        const supabase = sb(cookies);
+        const form = await request.formData();
 
-            fk_lon_fore_skatt: Number(form.get('fk_lon_fore_skatt')) || null,
-            fk_skatt: Number(form.get('fk_skatt')) || null,
-            fk_nettolon: Number(form.get('fk_nettolon')) || null
+        const income_month_id = form.get('income_month_id');
+
+        const payload = {
+            lon_fore_skatt: form.get('lon_fore_skatt') || null,
+            franvaro: form.get('franvaro') || null,
+            inbetald_skatt: form.get('inbetald_skatt') || null,
+            frivillig_skatt: form.get('frivillig_skatt') || null,
+            att_betala_ut: form.get('att_betala_ut') || null
         };
 
-        const { error } = await supabase.from('incomes').insert(payload);
+        // Finns redan?
+        const { data: existing } = await supabase
+            .from('income_primary_job')
+            .select('id')
+            .eq('income_month_id', income_month_id)
+            .maybeSingle();
 
-        if (error) {
-            console.error('ADD INCOME ERROR:', error, payload);
-            return fail(400, { message: error.message });
+        let error;
+
+        if (existing) {
+            ({ error } = await supabase
+                .from('income_primary_job')
+                .update(payload)
+                .eq('id', existing.id));
+        } else {
+            ({ error } = await supabase.from('income_primary_job').insert({
+                income_month_id,
+                user_id: user.id,
+                ...payload
+            }));
         }
+
+        if (error) return fail(400, { message: error.message });
+        throw redirect(303, '/incomes');
+    },
+
+    /* -----------------------------------------------
+       Spara FK
+    ------------------------------------------------ */
+    save_fk: async ({ request, locals, cookies }) => {
+        const user = locals.user;
+        const supabase = sb(cookies);
+        const form = await request.formData();
+
+        const income_month_id = form.get('income_month_id');
+
+        const payload = {
+            ersattning_fore_skatt: form.get('ersattning_fore_skatt') || null,
+            inbetald_skatt: form.get('inbetald_skatt') || null,
+            att_betala_ut: form.get('att_betala_ut') || null
+        };
+
+        const { data: existing } = await supabase
+            .from('income_fk')
+            .select('id')
+            .eq('income_month_id', income_month_id)
+            .maybeSingle();
+
+        let error;
+
+        if (existing) {
+            ({ error } = await supabase
+                .from('income_fk')
+                .update(payload)
+                .eq('id', existing.id));
+        } else {
+            ({ error } = await supabase.from('income_fk').insert({
+                income_month_id,
+                user_id: user.id,
+                ...payload
+            }));
+        }
+
+        if (error) return fail(400, { message: error.message });
+        throw redirect(303, '/incomes');
+    },
+
+    /* -----------------------------------------------
+       Lägg till extra jobb
+    ------------------------------------------------ */
+    add_extra_job: async ({ request, locals, cookies }) => {
+        const user = locals.user;
+        const supabase = sb(cookies);
+        const form = await request.formData();
+
+        const payload = {
+            income_month_id: form.get('income_month_id'),
+            user_id: user.id,
+            arbetsgivare: form.get('arbetsgivare'),
+            lon_fore_skatt: form.get('lon_fore_skatt') || null,
+            franvaro: form.get('franvaro') || null,
+            inbetald_skatt: form.get('inbetald_skatt') || null,
+            frivillig_skatt: form.get('frivillig_skatt') || null,
+            att_betala_ut: form.get('att_betala_ut') || null
+        };
+
+        const { error } = await supabase.from('income_extra_jobs').insert(payload);
+        if (error) return fail(400, { message: error.message });
 
         throw redirect(303, '/incomes');
     },
 
-    update: async ({ request, locals, cookies }) => {
-        const user = locals.user;
-        const householdId = locals.householdId;
-
-        if (!user) throw redirect(303, '/login');
-        if (!householdId) return fail(400, { message: 'Inget hushåll kopplat.' });
-
-        const access_token = cookies.get('sb-access-token');
-
-        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-            global: {
-                headers: {
-                    Authorization: `Bearer ${access_token}`
-                }
-            }
-        });
-
+    /* -----------------------------------------------
+       Uppdatera extra jobb
+    ------------------------------------------------ */
+    update_extra_job: async ({ request, locals, cookies }) => {
+        const supabase = sb(cookies);
         const form = await request.formData();
+
         const id = form.get('id');
 
-        const rawMonth = form.get('month') as string | null;
-        const month = rawMonth ? `${rawMonth}-01` : null;
-
         const payload = {
-            month,
-
-            ord_lon_fore_skatt: Number(form.get('ord_lon_fore_skatt')) || null,
-            ord_franvaro: Number(form.get('ord_franvaro')) || null,
-            ord_skatt: Number(form.get('ord_skatt')) || null,
-            ord_nettolon: Number(form.get('ord_nettolon')) || null,
-
-            ass_lon_fore_skatt: Number(form.get('ass_lon_fore_skatt')) || null,
-            ass_skatt: Number(form.get('ass_skatt')) || null,
-            ass_frivillig_skatt: Number(form.get('ass_frivillig_skatt')) || null,
-            ass_nettolon: Number(form.get('ass_nettolon')) || null,
-
-            fk_lon_fore_skatt: Number(form.get('fk_lon_fore_skatt')) || null,
-            fk_skatt: Number(form.get('fk_skatt')) || null,
-            fk_nettolon: Number(form.get('fk_nettolon')) || null
+            arbetsgivare: form.get('arbetsgivare'),
+            lon_fore_skatt: form.get('lon_fore_skatt') || null,
+            franvaro: form.get('franvaro') || null,
+            inbetald_skatt: form.get('inbetald_skatt') || null,
+            frivillig_skatt: form.get('frivillig_skatt') || null,
+            att_betala_ut: form.get('att_betala_ut') || null
         };
 
         const { error } = await supabase
-            .from('incomes')
+            .from('income_extra_jobs')
             .update(payload)
-            .eq('id', id)
-            .eq('household_id', householdId);
+            .eq('id', id);
 
-        if (error) {
-            console.error('UPDATE INCOME ERROR:', error, payload);
-            return fail(400, { message: error.message });
-        }
+        if (error) return fail(400, { message: error.message });
+        throw redirect(303, '/incomes');
+    },
 
+    /* -----------------------------------------------
+       Ta bort extra jobb
+    ------------------------------------------------ */
+    delete_extra_job: async ({ request, locals, cookies }) => {
+        const supabase = sb(cookies);
+        const form = await request.formData();
+
+        const id = form.get('id');
+
+        const { error } = await supabase
+            .from('income_extra_jobs')
+            .delete()
+            .eq('id', id);
+
+        if (error) return fail(400, { message: error.message });
         throw redirect(303, '/incomes');
     }
 };
