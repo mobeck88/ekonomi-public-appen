@@ -1,13 +1,9 @@
 <script>
     export let data;
 
-    // När man klickar på en månad eller "Lägg till inkomst"
     let selected = null;
-
-    // Extra jobb i formuläret
     let extraJobs = [];
 
-    // Accordion states
     let showList = false;
     let showForm = false;
 
@@ -152,7 +148,7 @@
             <h3>Extra arbeten</h3>
 
             {#each extraJobs as job, i}
-                <div class="extra-block">
+                <div class="card">
                     <label>Arbetsgivare</label>
                     <input type="text" name="extra_arbetsgivare" bind:value={job.arbetsgivare} />
 
@@ -285,11 +281,14 @@
         background: #b91c1c;
     }
 
-    .extra-block {
-        padding: 1rem;
+    .card {
         border: 1px solid #e5e7eb;
-        border-radius: 10px;
-        background: #fafafa;
+        border-radius: 12px;
+        padding: 1rem;
+        background: #ffffff;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        display: grid;
+        gap: 0.8rem;
         margin-bottom: 1rem;
     }
 

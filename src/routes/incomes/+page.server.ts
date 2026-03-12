@@ -3,23 +3,28 @@ import type { Actions, PageServerLoad } from './$types';
 import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
-function sb(cookies: any) {
-    const access_token = cookies.get('sb-access-token');
+// ✔ Supabase-klient som fungerar i Vercel Edge + Supabase V2
+function sb(session: any) {
     return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        global: { headers: { Authorization: `Bearer ${access_token}` } }
+        global: {
+            headers: {
+                Authorization: `Bearer ${session?.access_token ?? ''}`
+            }
+        }
     });
 }
 
-export const load: PageServerLoad = async ({ locals, cookies }) => {
+export const load: PageServerLoad = async ({ locals }) => {
     const user = locals.user;
     const householdId = locals.householdId;
+    const session = locals.session;
 
     if (!user) throw redirect(303, '/login');
     if (!householdId) return { months: [] };
 
-    const supabase = sb(cookies);
+    const supabase = sb(session);
 
-    // Hämta månader för hushållet
+    // Hämta månader
     const { data: months, error: monthsError } = await supabase
         .from('income_months')
         .select('*')
@@ -28,11 +33,12 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 
     if (monthsError || !months) return { months: [] };
 
-    // Hämta alla tre sektioner
+    // Hämta relaterade tabeller
     const { data: primary } = await supabase.from('income_primary_job').select('*');
     const { data: extra } = await supabase.from('income_extra_jobs').select('*');
     const { data: fk } = await supabase.from('income_fk').select('*');
 
+    // Slå ihop allt
     const enriched = months.map((m) => ({
         ...m,
         primary_job: primary?.find((p) => p.income_month_id === m.id) ?? null,
@@ -44,14 +50,16 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 };
 
 export const actions: Actions = {
-    // Skapa ny inkomst (månad + alla tre sektioner)
-    create_income: async ({ request, locals, cookies }) => {
+    // ⭐ Skapa ny inkomst
+    create_income: async ({ request, locals }) => {
         const user = locals.user;
         const householdId = locals.householdId;
+        const session = locals.session;
+
         if (!user) throw redirect(303, '/login');
         if (!householdId) return fail(400, { message: 'Saknar hushåll' });
 
-        const supabase = sb(cookies);
+        const supabase = sb(session);
         const form = await request.formData();
 
         // Månad
@@ -70,11 +78,11 @@ export const actions: Actions = {
             .select('id')
             .single();
 
-        if (monthError || !monthRow) return fail(400, { message: monthError?.message ?? 'Kunde inte skapa månad' });
+        if (monthError || !monthRow) return fail(400, { message: monthError?.message });
 
         const income_month_id = monthRow.id;
 
-        // Ordinarie arbete
+        // ⭐ Ordinarie arbete
         const primaryPayload = {
             income_month_id,
             user_id: user.id,
@@ -85,19 +93,14 @@ export const actions: Actions = {
             att_betala_ut: form.get('primary_att_betala_ut') || null
         };
 
-        const hasPrimary =
-            primaryPayload.lon_fore_skatt ||
-            primaryPayload.franvaro ||
-            primaryPayload.inbetald_skatt ||
-            primaryPayload.frivillig_skatt ||
-            primaryPayload.att_betala_ut;
+        const hasPrimary = Object.values(primaryPayload).some((v) => v && v !== income_month_id && v !== user.id);
 
         if (hasPrimary) {
             const { error: primaryError } = await supabase.from('income_primary_job').insert(primaryPayload);
             if (primaryError) return fail(400, { message: primaryError.message });
         }
 
-        // Extra jobb (arrays)
+        // ⭐ Extra jobb
         const arbetsgivareArr = form.getAll('extra_arbetsgivare') as string[];
         const lonArr = form.getAll('extra_lon_fore_skatt') as string[];
         const franvaroArr = form.getAll('extra_franvaro') as string[];
@@ -106,32 +109,24 @@ export const actions: Actions = {
         const attBetalaArr = form.getAll('extra_att_betala_ut') as string[];
 
         const extraRows = arbetsgivareArr
-            .map((arbetsgivare, index) => ({
+            .map((arbetsgivare, i) => ({
                 income_month_id,
                 user_id: user.id,
                 arbetsgivare: arbetsgivare || null,
-                lon_fore_skatt: lonArr[index] || null,
-                franvaro: franvaroArr[index] || null,
-                inbetald_skatt: inbetaldArr[index] || null,
-                frivillig_skatt: frivilligArr[index] || null,
-                att_betala_ut: attBetalaArr[index] || null
+                lon_fore_skatt: lonArr[i] || null,
+                franvaro: franvaroArr[i] || null,
+                inbetald_skatt: inbetaldArr[i] || null,
+                frivillig_skatt: frivilligArr[i] || null,
+                att_betala_ut: attBetalaArr[i] || null
             }))
-            .filter(
-                (row) =>
-                    row.arbetsgivare ||
-                    row.lon_fore_skatt ||
-                    row.franvaro ||
-                    row.inbetald_skatt ||
-                    row.frivillig_skatt ||
-                    row.att_betala_ut
-            );
+            .filter((row) => Object.values(row).some((v) => v && v !== income_month_id && v !== user.id));
 
         if (extraRows.length > 0) {
             const { error: extraError } = await supabase.from('income_extra_jobs').insert(extraRows);
             if (extraError) return fail(400, { message: extraError.message });
         }
 
-        // Försäkringskassan
+        // ⭐ Försäkringskassan
         const fkPayload = {
             income_month_id,
             user_id: user.id,
@@ -140,8 +135,7 @@ export const actions: Actions = {
             att_betala_ut: form.get('fk_att_betala_ut') || null
         };
 
-        const hasFk =
-            fkPayload.ersattning_fore_skatt || fkPayload.inbetald_skatt || fkPayload.att_betala_ut;
+        const hasFk = Object.values(fkPayload).some((v) => v && v !== income_month_id && v !== user.id);
 
         if (hasFk) {
             const { error: fkError } = await supabase.from('income_fk').insert(fkPayload);
@@ -151,14 +145,16 @@ export const actions: Actions = {
         throw redirect(303, '/incomes');
     },
 
-    // Uppdatera befintlig inkomst (månad + alla tre sektioner)
-    update_income: async ({ request, locals, cookies }) => {
+    // ⭐ Uppdatera befintlig inkomst
+    update_income: async ({ request, locals }) => {
         const user = locals.user;
         const householdId = locals.householdId;
+        const session = locals.session;
+
         if (!user) throw redirect(303, '/login');
         if (!householdId) return fail(400, { message: 'Saknar hushåll' });
 
-        const supabase = sb(cookies);
+        const supabase = sb(session);
         const form = await request.formData();
 
         const income_month_id = form.get('income_month_id') as string | null;
@@ -176,7 +172,7 @@ export const actions: Actions = {
             if (monthError) return fail(400, { message: monthError.message });
         }
 
-        // Ordinarie arbete
+        // ⭐ Ordinarie arbete
         const primaryPayload = {
             lon_fore_skatt: form.get('primary_lon_fore_skatt') || null,
             franvaro: form.get('primary_franvaro') || null,
@@ -191,12 +187,7 @@ export const actions: Actions = {
             .eq('income_month_id', income_month_id)
             .maybeSingle();
 
-        const hasPrimary =
-            primaryPayload.lon_fore_skatt ||
-            primaryPayload.franvaro ||
-            primaryPayload.inbetald_skatt ||
-            primaryPayload.frivillig_skatt ||
-            primaryPayload.att_betala_ut;
+        const hasPrimary = Object.values(primaryPayload).some((v) => v);
 
         if (existingPrimary) {
             if (hasPrimary) {
@@ -217,7 +208,7 @@ export const actions: Actions = {
             if (primaryError) return fail(400, { message: primaryError.message });
         }
 
-        // Extra jobb – ta bort alla och skapa nya
+        // ⭐ Extra jobb — ta bort alla och skapa nya
         await supabase.from('income_extra_jobs').delete().eq('income_month_id', income_month_id);
 
         const arbetsgivareArr = form.getAll('extra_arbetsgivare') as string[];
@@ -228,32 +219,24 @@ export const actions: Actions = {
         const attBetalaArr = form.getAll('extra_att_betala_ut') as string[];
 
         const extraRows = arbetsgivareArr
-            .map((arbetsgivare, index) => ({
+            .map((arbetsgivare, i) => ({
                 income_month_id,
                 user_id: user.id,
                 arbetsgivare: arbetsgivare || null,
-                lon_fore_skatt: lonArr[index] || null,
-                franvaro: franvaroArr[index] || null,
-                inbetald_skatt: inbetaldArr[index] || null,
-                frivillig_skatt: frivilligArr[index] || null,
-                att_betala_ut: attBetalaArr[index] || null
+                lon_fore_skatt: lonArr[i] || null,
+                franvaro: franvaroArr[i] || null,
+                inbetald_skatt: inbetaldArr[i] || null,
+                frivillig_skatt: frivilligArr[i] || null,
+                att_betala_ut: attBetalaArr[i] || null
             }))
-            .filter(
-                (row) =>
-                    row.arbetsgivare ||
-                    row.lon_fore_skatt ||
-                    row.franvaro ||
-                    row.inbetald_skatt ||
-                    row.frivillig_skatt ||
-                    row.att_betala_ut
-            );
+            .filter((row) => Object.values(row).some((v) => v && v !== income_month_id && v !== user.id));
 
         if (extraRows.length > 0) {
             const { error: extraError } = await supabase.from('income_extra_jobs').insert(extraRows);
             if (extraError) return fail(400, { message: extraError.message });
         }
 
-        // Försäkringskassan
+        // ⭐ Försäkringskassan
         const fkPayload = {
             ersattning_fore_skatt: form.get('fk_ersattning_fore_skatt') || null,
             inbetald_skatt: form.get('fk_inbetald_skatt') || null,
@@ -266,8 +249,7 @@ export const actions: Actions = {
             .eq('income_month_id', income_month_id)
             .maybeSingle();
 
-        const hasFk =
-            fkPayload.ersattning_fore_skatt || fkPayload.inbetald_skatt || fkPayload.att_betala_ut;
+        const hasFk = Object.values(fkPayload).some((v) => v);
 
         if (existingFk) {
             if (hasFk) {
