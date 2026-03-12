@@ -1,64 +1,86 @@
 <script>
     export let data;
 
-    // Vald månad
-    let selected = data.months?.[0] ?? null;
+    // När man klickar på en månad eller "Lägg till inkomst"
+    let selected = null;
 
-    // Accordion states (saknades tidigare)
-    let showList = true;
-    let showCreate = false;
-    let showPrimary = true;
-    let showExtra = true;
-    let showFK = true;
+    // Extra jobb i formuläret
+    let extraJobs = [];
 
-    // Redigeringsläge för extra jobb
-    let editingExtraId = null;
+    // Accordion states
+    let showList = false;
+    let showForm = false;
+
+    function newIncome() {
+        selected = null;
+        extraJobs = [];
+        showForm = true;
+    }
+
+    function editIncome(m) {
+        selected = structuredClone(m);
+        showForm = true;
+
+        extraJobs = m.extra_jobs
+            ? m.extra_jobs.map(e => ({
+                arbetsgivare: e.arbetsgivare ?? "",
+                lon_fore_skatt: e.lon_fore_skatt ?? "",
+                franvaro: e.franvaro ?? "",
+                inbetald_skatt: e.inbetald_skatt ?? "",
+                frivillig_skatt: e.frivillig_skatt ?? "",
+                att_betala_ut: e.att_betala_ut ?? ""
+            }))
+            : [];
+    }
+
+    function addExtraJob() {
+        extraJobs = [
+            ...extraJobs,
+            {
+                arbetsgivare: "",
+                lon_fore_skatt: "",
+                franvaro: "",
+                inbetald_skatt: "",
+                frivillig_skatt: "",
+                att_betala_ut: ""
+            }
+        ];
+    }
+
+    function removeExtraJob(i) {
+        extraJobs = extraJobs.filter((_, idx) => idx !== i);
+    }
 
     function toMonthInput(dateString) {
         if (!dateString) return "";
         return dateString.slice(0, 7);
     }
-
-    function selectMonth(m) {
-        selected = m;
-    }
 </script>
 
-<h1>Inkomster per månad</h1>
+<h1>Inkomster</h1>
 
-<!-- ⭐ Lista månader -->
+<!-- ⭐ Sektion: Lista månader -->
 <div class="section">
     <button class="section-header" on:click={() => showList = !showList}>
-        <span>Registrerade månader</span>
+        <span>Sparade månader</span>
         <span>{showList ? "▲" : "▼"}</span>
     </button>
 
     {#if showList}
         {#if data.months.length === 0}
-            <p style="padding: 1rem;">Inga månader registrerade ännu.</p>
+            <p class="empty">Inga inkomster registrerade ännu.</p>
         {:else}
             <table class="month-list">
                 <thead>
                     <tr>
                         <th>Månad</th>
-                        <th>Ordinarie</th>
-                        <th>Extra jobb</th>
-                        <th>FK</th>
-                        <th>Total</th>
+                        <th>Summa</th>
                     </tr>
                 </thead>
                 <tbody>
                     {#each data.months as m}
-                        <tr class:selected={selected?.id === m.id} on:click={() => selectMonth(m)}>
+                        <tr on:click={() => editIncome(m)}>
                             <td>{toMonthInput(m.month)}</td>
-                            <td>{m.primary_job?.att_betala_ut ?? 0} kr</td>
-                            <td>
-                                {(m.extra_jobs ?? []).reduce(
-                                    (sum, e) => sum + Number(e.att_betala_ut ?? 0),
-                                    0
-                                )} kr
-                            </td>
-                            <td>{m.fk?.att_betala_ut ?? 0} kr</td>
                             <td>
                                 {(
                                     (m.primary_job?.att_betala_ut ?? 0) +
@@ -77,253 +99,213 @@
     {/if}
 </div>
 
-<!-- ⭐ Skapa månad -->
+<!-- ⭐ Sektion: Ny / Redigera inkomst -->
 <div class="section">
-    <button class="section-header" on:click={() => showCreate = !showCreate}>
-        <span>Ny månad</span>
-        <span>{showCreate ? "▲" : "▼"}</span>
+    <button class="section-header" on:click={() => showForm = !showForm}>
+        <span>{selected ? "Redigera inkomst" : "Ny inkomst"}</span>
+        <span>{showForm ? "▲" : "▼"}</span>
     </button>
 
-    {#if showCreate}
-        <form method="POST" action="?/create_month" class="form">
-            <label>
-                Månad
-                <input type="month" name="month" required />
-            </label>
-            <button type="submit">Skapa månad</button>
+    {#if showForm}
+        <form
+            method="POST"
+            action={selected ? "?/update_income" : "?/create_income"}
+            class="create-form"
+        >
+            {#if selected}
+                <input type="hidden" name="income_month_id" value={selected.id} />
+            {/if}
+
+            <!-- Månad -->
+            <label>Månad</label>
+            <input
+                type="month"
+                name="month"
+                required
+                value={selected ? toMonthInput(selected.month) : ""}
+            />
+
+            <!-- ⭐ Ordinarie arbete -->
+            <h3>Ordinarie arbete</h3>
+
+            <label>Lön före skatt</label>
+            <input type="number" step="0.01" name="primary_lon_fore_skatt"
+                value={selected?.primary_job?.lon_fore_skatt ?? ""} />
+
+            <label>Frånvaro</label>
+            <input type="number" step="0.01" name="primary_franvaro"
+                value={selected?.primary_job?.franvaro ?? ""} />
+
+            <label>Inbetald skatt</label>
+            <input type="number" step="0.01" name="primary_inbetald_skatt"
+                value={selected?.primary_job?.inbetald_skatt ?? ""} />
+
+            <label>Frivillig skatt</label>
+            <input type="number" step="0.01" name="primary_frivillig_skatt"
+                value={selected?.primary_job?.frivillig_skatt ?? ""} />
+
+            <label>Att betala ut</label>
+            <input type="number" step="0.01" name="primary_att_betala_ut"
+                value={selected?.primary_job?.att_betala_ut ?? ""} />
+
+            <!-- ⭐ Extra arbeten -->
+            <h3>Extra arbeten</h3>
+
+            {#each extraJobs as job, i}
+                <div class="extra-block">
+                    <label>Arbetsgivare</label>
+                    <input type="text" name="extra_arbetsgivare" bind:value={job.arbetsgivare} />
+
+                    <label>Lön före skatt</label>
+                    <input type="number" step="0.01" name="extra_lon_fore_skatt" bind:value={job.lon_fore_skatt} />
+
+                    <label>Frånvaro</label>
+                    <input type="number" step="0.01" name="extra_franvaro" bind:value={job.franvaro} />
+
+                    <label>Inbetald skatt</label>
+                    <input type="number" step="0.01" name="extra_inbetald_skatt" bind:value={job.inbetald_skatt} />
+
+                    <label>Frivillig skatt</label>
+                    <input type="number" step="0.01" name="extra_frivillig_skatt" bind:value={job.frivillig_skatt} />
+
+                    <label>Att betala ut</label>
+                    <input type="number" step="0.01" name="extra_att_betala_ut" bind:value={job.att_betala_ut} />
+
+                    <button type="button" class="danger" on:click={() => removeExtraJob(i)}>Ta bort</button>
+                </div>
+            {/each}
+
+            <button type="button" on:click={addExtraJob}>Lägg till extra arbete</button>
+
+            <!-- ⭐ Försäkringskassan -->
+            <h3>Försäkringskassan</h3>
+
+            <label>Ersättning före skatt</label>
+            <input type="number" step="0.01" name="fk_ersattning_fore_skatt"
+                value={selected?.fk?.ersattning_fore_skatt ?? ""} />
+
+            <label>Inbetald skatt</label>
+            <input type="number" step="0.01" name="fk_inbetald_skatt"
+                value={selected?.fk?.inbetald_skatt ?? ""} />
+
+            <label>Att betala ut</label>
+            <input type="number" step="0.01" name="fk_att_betala_ut"
+                value={selected?.fk?.att_betala_ut ?? ""} />
+
+            <!-- ⭐ Spara -->
+            <button type="submit">
+                {selected ? "Spara ändringar" : "Spara inkomst"}
+            </button>
         </form>
     {/if}
 </div>
-
-{#if selected}
-<!-- ⭐ Ordinarie arbete -->
-<div class="section">
-    <button class="section-header" on:click={() => showPrimary = !showPrimary}>
-        <span>Ordinarie arbete – {toMonthInput(selected.month)}</span>
-        <span>{showPrimary ? "▲" : "▼"}</span>
-    </button>
-
-    {#if showPrimary}
-        <form method="POST" action="?/save_primary_job" class="form">
-            <input type="hidden" name="income_month_id" value={selected.id} />
-
-            <label>Lön före skatt
-                <input type="number" name="lon_fore_skatt" step="0.01"
-                    value={selected.primary_job?.lon_fore_skatt ?? ""} />
-            </label>
-
-            <label>Frånvaro
-                <input type="number" name="franvaro" step="0.01"
-                    value={selected.primary_job?.franvaro ?? ""} />
-            </label>
-
-            <label>Inbetald skatt
-                <input type="number" name="inbetald_skatt" step="0.01"
-                    value={selected.primary_job?.inbetald_skatt ?? ""} />
-            </label>
-
-            <label>Frivillig skatt
-                <input type="number" name="frivillig_skatt" step="0.01"
-                    value={selected.primary_job?.frivillig_skatt ?? ""} />
-            </label>
-
-            <label>Att betala ut
-                <input type="number" name="att_betala_ut" step="0.01"
-                    value={selected.primary_job?.att_betala_ut ?? ""} />
-            </label>
-
-            <button type="submit">Spara ordinarie arbete</button>
-        </form>
-    {/if}
-</div>
-
-<!-- ⭐ Extra arbeten -->
-<div class="section">
-    <button class="section-header" on:click={() => showExtra = !showExtra}>
-        <span>Extra arbeten – {toMonthInput(selected.month)}</span>
-        <span>{showExtra ? "▲" : "▼"}</span>
-    </button>
-
-    {#if showExtra}
-        <!-- Lista extra jobb -->
-        {#each selected.extra_jobs as job}
-            <div class="extra-item">
-                {#if editingExtraId === job.id}
-                    <!-- Redigera extra jobb -->
-                    <form method="POST" action="?/update_extra_job" class="form">
-                        <input type="hidden" name="id" value={job.id} />
-
-                        <label>Arbetsgivare
-                            <input type="text" name="arbetsgivare" value={job.arbetsgivare} />
-                        </label>
-
-                        <label>Lön före skatt
-                            <input type="number" name="lon_fore_skatt" step="0.01"
-                                value={job.lon_fore_skatt ?? ""} />
-                        </label>
-
-                        <label>Frånvaro
-                            <input type="number" name="franvaro" step="0.01"
-                                value={job.franvaro ?? ""} />
-                        </label>
-
-                        <label>Inbetald skatt
-                            <input type="number" name="inbetald_skatt" step="0.01"
-                                value={job.inbetald_skatt ?? ""} />
-                        </label>
-
-                        <label>Frivillig skatt
-                            <input type="number" name="frivillig_skatt" step="0.01"
-                                value={job.frivillig_skatt ?? ""} />
-                        </label>
-
-                        <label>Att betala ut
-                            <input type="number" name="att_betala_ut" step="0.01"
-                                value={job.att_betala_ut ?? ""} />
-                        </label>
-
-                        <button type="submit">Spara</button>
-                        <button type="button" on:click={() => editingExtraId = null}>Avbryt</button>
-                    </form>
-
-                    <!-- Ta bort -->
-                    <form method="POST" action="?/delete_extra_job">
-                        <input type="hidden" name="id" value={job.id} />
-                        <button type="submit" class="danger">Ta bort</button>
-                    </form>
-
-                {:else}
-                    <!-- Visa extra jobb -->
-                    <div class="extra-display">
-                        <strong>{job.arbetsgivare}</strong> – {job.att_betala_ut} kr
-                        <button on:click={() => editingExtraId = job.id}>Redigera</button>
-                    </div>
-                {/if}
-            </div>
-        {/each}
-
-        <!-- Lägg till nytt extra jobb -->
-        <form method="POST" action="?/add_extra_job" class="form">
-            <input type="hidden" name="income_month_id" value={selected.id} />
-
-            <label>Arbetsgivare
-                <input type="text" name="arbetsgivare" required />
-            </label>
-
-            <label>Lön före skatt
-                <input type="number" name="lon_fore_skatt" step="0.01" />
-            </label>
-
-            <label>Frånvaro
-                <input type="number" name="franvaro" step="0.01" />
-            </label>
-
-            <label>Inbetald skatt
-                <input type="number" name="inbetald_skatt" step="0.01" />
-            </label>
-
-            <label>Frivillig skatt
-                <input type="number" name="frivillig_skatt" step="0.01" />
-            </label>
-
-            <label>Att betala ut
-                <input type="number" name="att_betala_ut" step="0.01" />
-            </label>
-
-            <button type="submit">Lägg till extra jobb</button>
-        </form>
-    {/if}
-</div>
-
-<!-- ⭐ Försäkringskassan -->
-<div class="section">
-    <button class="section-header" on:click={() => showFK = !showFK}>
-        <span>Försäkringskassan – {toMonthInput(selected.month)}</span>
-        <span>{showFK ? "▲" : "▼"}</span>
-    </button>
-
-    {#if showFK}
-        <form method="POST" action="?/save_fk" class="form">
-            <input type="hidden" name="income_month_id" value={selected.id} />
-
-            <label>Ersättning före skatt
-                <input type="number" name="ersattning_fore_skatt" step="0.01"
-                    value={selected.fk?.ersattning_fore_skatt ?? ""} />
-            </label>
-
-            <label>Inbetald skatt
-                <input type="number" name="inbetald_skatt" step="0.01"
-                    value={selected.fk?.inbetald_skatt ?? ""} />
-            </label>
-
-            <label>Att betala ut
-                <input type="number" name="att_betala_ut" step="0.01"
-                    value={selected.fk?.att_betala_ut ?? ""} />
-            </label>
-
-            <button type="submit">Spara FK</button>
-        </form>
-    {/if}
-</div>
-{/if}
 
 <style>
-    h1 { margin-bottom: 1.2rem; font-size: 1.6rem; font-weight: 700; }
+    h1 {
+        margin-bottom: 1.2rem;
+        color: #1f2937;
+        font-size: 1.6rem;
+        font-weight: 700;
+    }
 
     .section {
         margin-bottom: 1.5rem;
         border: 1px solid #e5e7eb;
         border-radius: 12px;
-        background: white;
+        overflow: hidden;
+        background: #ffffff;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
 
     .section-header {
         width: 100%;
-        padding: 1rem;
         background: #f3f4f6;
         border: none;
+        padding: 1rem 1.2rem;
+        font-size: 1.05rem;
+        font-weight: 600;
         display: flex;
         justify-content: space-between;
         cursor: pointer;
-        font-weight: 600;
+        color: #111827;
     }
 
-    .form {
-        display: grid;
-        gap: 0.8rem;
+    .section-header:hover {
+        background: #e5e7eb;
+    }
+
+    .empty {
         padding: 1rem;
+        color: #6b7280;
     }
 
-    label { display: grid; gap: 0.3rem; }
+    .create-form {
+        display: grid;
+        gap: 0.9rem;
+        padding: 1rem;
+        max-width: 420px;
+    }
 
-    input {
-        padding: 0.6rem;
+    input, select {
+        padding: 0.65rem;
         border: 1px solid #d1d5db;
-        border-radius: 6px;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        background: #f9fafb;
+    }
+
+    input:focus, select:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 2px #dbeafe;
+        background: #ffffff;
     }
 
     button {
-        padding: 0.7rem 1rem;
+        padding: 0.75rem 1rem;
         border: none;
         background: #2563eb;
         color: white;
-        border-radius: 6px;
+        border-radius: 8px;
         cursor: pointer;
+        font-size: 0.95rem;
+        font-weight: 600;
+        transition: background 0.15s;
     }
 
-    .danger {
+    button:hover {
+        background: #1d4ed8;
+    }
+
+    button.danger {
         background: #dc2626;
-        margin-top: 0.5rem;
     }
 
-    .extra-item {
-        padding: 0.8rem;
+    button.danger:hover {
+        background: #b91c1c;
+    }
+
+    .extra-block {
+        padding: 1rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        background: #fafafa;
+        margin-bottom: 1rem;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    td, th {
+        padding: 0.75rem;
         border-bottom: 1px solid #e5e7eb;
+        font-size: 0.95rem;
     }
 
-    .extra-display {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+    tr:hover {
+        background: #f3f4f6;
+        cursor: pointer;
     }
 </style>
