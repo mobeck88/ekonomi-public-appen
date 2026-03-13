@@ -59,11 +59,11 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         loansRes,
         expensesRes
     ] = await Promise.all([
-        // electricity_monthly har INTE household_id
+        // electricity_monthly har inte household_id
         supabase.from('electricity_monthly').select('*'),
         supabase.from('fixed_costs').select('*').eq('household_id', householdId),
         supabase.from('subscriptions').select('*').eq('household_id', householdId),
-        // saving_streams har INTE household_id
+        // saving_streams har inte household_id
         supabase.from('saving_streams').select('*'),
         supabase.from('allowance').select('*').eq('household_id', householdId),
         supabase.from('kids_allowance').select('*').eq('household_id', householdId),
@@ -87,7 +87,18 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     // Hjälpare
     const toYM = (value: any) => {
         if (!value) return null;
-        return new Date(value).toISOString().slice(0, 7);
+
+        // Om värdet redan är YYYY-MM
+        if (typeof value === 'string' && /^\d{4}-\d{2}$/.test(value)) return value;
+
+        // Om värdet är YYYY-MM-DD
+        if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+            return value.slice(0, 7);
+        }
+
+        const d = new Date(value);
+        if (isNaN(d.getTime())) return null;
+        return d.toISOString().slice(0, 7);
     };
 
     const isActive = (row: any, ym: string) => {
