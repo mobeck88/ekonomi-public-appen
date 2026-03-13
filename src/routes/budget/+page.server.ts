@@ -59,12 +59,15 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         loansRes,
         expensesRes
     ] = await Promise.all([
-        // electricity_monthly har inte household_id
-        supabase.from('electricity_monthly').select('*'),
+        // RÄTT TABELL FÖR EL
+        supabase.from('electricity').select('*').eq('household_id', householdId),
+
         supabase.from('fixed_costs').select('*').eq('household_id', householdId),
         supabase.from('subscriptions').select('*').eq('household_id', householdId),
-        // saving_streams har inte household_id
+
+        // saving_streams saknar household_id → hämtas utan filter
         supabase.from('saving_streams').select('*'),
+
         supabase.from('allowance').select('*').eq('household_id', householdId),
         supabase.from('kids_allowance').select('*').eq('household_id', householdId),
         supabase.from('unexpected_expenses').select('*').eq('household_id', householdId),
@@ -73,7 +76,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         supabase.from('expenses').select('*').eq('household_id', householdId)
     ]);
 
-    const electricity = electricityRes.data ?? [];
+    const electricityRows = electricityRes.data ?? [];
     const fixed = fixedRes.data ?? [];
     const subscriptions = subscriptionsRes.data ?? [];
     const savingsRows = savingsRes.data ?? [];
@@ -84,21 +87,10 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     const loans = loansRes.data ?? [];
     const expenses = expensesRes.data ?? [];
 
-    // Hjälpare
+    // Robust YYYY-MM extraktion
     const toYM = (value: any) => {
         if (!value) return null;
-
-        // Om värdet redan är YYYY-MM
-        if (typeof value === 'string' && /^\d{4}-\d{2}$/.test(value)) return value;
-
-        // Om värdet är YYYY-MM-DD
-        if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
-            return value.slice(0, 7);
-        }
-
-        const d = new Date(value);
-        if (isNaN(d.getTime())) return null;
-        return d.toISOString().slice(0, 7);
+        return String(value).slice(0, 7); // "2026-01-01" → "2026-01"
     };
 
     const isActive = (row: any, ym: string) => {
@@ -126,14 +118,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         for (const member of memberList) {
             result[member.name] = active
                 .filter((r) => {
-                    // Om owner finns och inte är 'shared' → använd owner
-                    if (r.owner && r.owner !== 'shared') {
-                        return r.owner === member.id;
-                    }
-                    // Om owner saknas → använd user_id
-                    if (!r.owner && r.user_id) {
-                        return r.user_id === member.id;
-                    }
+                    if (r.owner && r.owner !== 'shared') return r.owner === member.id;
+                    if (!r.owner && r.user_id) return r.user_id === member.id;
                     return false;
                 })
                 .reduce((a, r) => a + Number(r.amount ?? 0), 0);
@@ -146,14 +132,20 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         return result;
     };
 
-    // El – summera alla rader per månad
+    // ⭐ EL – summera eon_amount + tibber_amount per månad
     const electricityPerMonth = months.map((m) =>
-        electricity
+        electricityRows
             .filter((e) => toYM(e.month) === m)
-            .reduce((acc, e) => acc + Number(e.amount ?? 0), 0)
+            .reduce(
+                (acc, e) =>
+                    acc +
+                    Number(e.eon_amount ?? 0) +
+                    Number(e.tibber_amount ?? 0),
+                0
+            )
     );
 
-    // Fasta kostnader (en rad per kostnad, totalsumma per månad)
+    // Fasta kostnader
     const fixedGroups = [...new Set(fixed.map((f) => f.cost_name as string))];
 
     const fixedPerGroup = Object.fromEntries(
@@ -167,19 +159,16 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         ])
     );
 
-    // Owner-map för fasta kostnader (om du vill visa koppling i UI)
     const ownerMap: Record<string, string> = {};
     for (const f of fixed) {
         const key = f.cost_name as string;
-        if (!ownerMap[key]) {
-            ownerMap[key] = f.owner ?? f.user_id ?? 'shared';
-        }
+        if (!ownerMap[key]) ownerMap[key] = f.owner ?? f.user_id ?? 'shared';
     }
 
     // Abonnemang
     const subs = months.map((m) => perUserOrShared(subscriptions, m));
 
-    // Sparande (ingen shared)
+    // Sparande
     const savings = months.map((m) => {
         const active = savingsRows.filter((r) => isActive(r, m));
         const result: Record<string, number> = {};
@@ -192,7 +181,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         return result;
     });
 
-    // Fickpengar (ingen shared)
+    // Fickpengar
     const allowanceUser = months.map((m) => {
         const active = allowance.filter((r) => isActive(r, m));
         const result: Record<string, number> = {};
@@ -205,7 +194,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         return result;
     });
 
-    // Barn (per barn)
+    // Barn
     const childNames = [...new Set(kids.map((k) => k.child_name as string))];
 
     const kidsPerMonth = Object.fromEntries(
@@ -219,7 +208,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         ])
     );
 
-    // Lån (per person + shared)
+    // Lån
     const loansPerMonth = months.map((m) => perUserOrShared(loans, m));
 
     // Oförutsägbara
