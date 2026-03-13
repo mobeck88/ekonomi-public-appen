@@ -46,9 +46,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         return `${selectedYear}-${m}`;
     });
 
-    const yearStart = `${selectedYear}-01-01`;
-    const yearEnd = `${selectedYear}-12-31`;
-
     // Hämta alla tabeller
     const [
         electricityRes,
@@ -62,10 +59,12 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         loansRes,
         expensesRes
     ] = await Promise.all([
-        supabase.from('electricity_monthly').select('*').eq('household_id', householdId),
+        // electricity_monthly har INTE household_id
+        supabase.from('electricity_monthly').select('*'),
         supabase.from('fixed_costs').select('*').eq('household_id', householdId),
         supabase.from('subscriptions').select('*').eq('household_id', householdId),
-        supabase.from('saving_streams').select('*').eq('household_id', householdId),
+        // saving_streams har INTE household_id
+        supabase.from('saving_streams').select('*'),
         supabase.from('allowance').select('*').eq('household_id', householdId),
         supabase.from('kids_allowance').select('*').eq('household_id', householdId),
         supabase.from('unexpected_expenses').select('*').eq('household_id', householdId),
@@ -120,7 +119,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
                     if (r.owner && r.owner !== 'shared') {
                         return r.owner === member.id;
                     }
-                    // Annars, om owner saknas → använd user_id
+                    // Om owner saknas → använd user_id
                     if (!r.owner && r.user_id) {
                         return r.user_id === member.id;
                     }
@@ -157,7 +156,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         ])
     );
 
-    // Owner-map för fasta kostnader (för ev. visning i UI)
+    // Owner-map för fasta kostnader (om du vill visa koppling i UI)
     const ownerMap: Record<string, string> = {};
     for (const f of fixed) {
         const key = f.cost_name as string;
