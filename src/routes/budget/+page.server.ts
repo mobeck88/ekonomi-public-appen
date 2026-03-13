@@ -22,7 +22,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             kidsPerMonth: {},
             unexpectedPerMonth: [],
             extraPerMonth: [],
-            fixedGroups: []
+            fixedGroups: [],
+            ownerMap: {}
         };
     }
 
@@ -107,18 +108,24 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         return diff >= 0 && diff % Number(row.interval_months ?? 1) === 0;
     };
 
-    // Per person + shared
+    // Per person + shared – utan dubbelräkning
     const perUserOrShared = (rows: any[], ym: string) => {
         const active = rows.filter((r) => isActive(r, ym));
         const result: Record<string, number> = {};
 
         for (const member of memberList) {
             result[member.name] = active
-                .filter(
-                    (r) =>
-                        r.owner === member.id ||
-                        r.user_id === member.id
-                )
+                .filter((r) => {
+                    // Om owner finns och inte är 'shared' → använd owner
+                    if (r.owner && r.owner !== 'shared') {
+                        return r.owner === member.id;
+                    }
+                    // Annars, om owner saknas → använd user_id
+                    if (!r.owner && r.user_id) {
+                        return r.user_id === member.id;
+                    }
+                    return false;
+                })
                 .reduce((a, r) => a + Number(r.amount ?? 0), 0);
         }
 
@@ -129,13 +136,14 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         return result;
     };
 
-    // El
-    const electricityPerMonth = months.map((m) => {
-        const row = electricity.find((e) => toYM(e.month) === m);
-        return Number(row?.amount ?? 0);
-    });
+    // El – summera alla rader per månad
+    const electricityPerMonth = months.map((m) =>
+        electricity
+            .filter((e) => toYM(e.month) === m)
+            .reduce((acc, e) => acc + Number(e.amount ?? 0), 0)
+    );
 
-    // Fasta kostnader (en rad per kostnad)
+    // Fasta kostnader (en rad per kostnad, totalsumma per månad)
     const fixedGroups = [...new Set(fixed.map((f) => f.cost_name as string))];
 
     const fixedPerGroup = Object.fromEntries(
@@ -148,6 +156,15 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             )
         ])
     );
+
+    // Owner-map för fasta kostnader (för ev. visning i UI)
+    const ownerMap: Record<string, string> = {};
+    for (const f of fixed) {
+        const key = f.cost_name as string;
+        if (!ownerMap[key]) {
+            ownerMap[key] = f.owner ?? f.user_id ?? 'shared';
+        }
+    }
 
     // Abonnemang
     const subs = months.map((m) => perUserOrShared(subscriptions, m));
@@ -216,6 +233,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         electricityPerMonth,
         fixedPerGroup,
         fixedGroups,
+        ownerMap,
         subs,
         savings,
         allowanceUser,
