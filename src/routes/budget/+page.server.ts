@@ -6,15 +6,13 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     const householdId = locals.householdId;
     const supabase = locals.supabase;
 
-    if (!user) {
-        return redirect(303, '/login');
-    }
+    if (!user) return redirect(303, '/login');
 
     if (!householdId) {
         return {
             selectedYear: null,
             months: [],
-            incomePerMonth: [],
+            members: [],
             electricityPerMonth: [],
             fixedPerGroup: {},
             loansPerMonth: [],
@@ -24,15 +22,11 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             kidsPerMonth: {},
             unexpectedPerMonth: [],
             extraPerMonth: [],
-            fixedGroups: [],
-            ownerMap: {},
-            intervalMap: {},
-            fixedNames: [],
-            members: []
+            fixedGroups: []
         };
     }
 
-    // Hushållets medlemmar
+    // Hämta hushållets medlemmar
     const { data: members } = await supabase
         .from('household_members')
         .select('user_id, profiles(full_name)')
@@ -54,10 +48,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     const yearStart = `${selectedYear}-01-01`;
     const yearEnd = `${selectedYear}-12-31`;
 
-    const endFilter = `end_month.gte.${yearStart},end_month.is.null`;
-
+    // Hämta alla tabeller
     const [
-        incomesRes,
         electricityRes,
         fixedRes,
         subscriptionsRes,
@@ -69,85 +61,18 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         loansRes,
         expensesRes
     ] = await Promise.all([
-        supabase
-            .from('monthly_income')
-            .select('*')
-            .eq('household_id', householdId)
-            .gte('month', yearStart)
-            .lte('month', yearEnd),
-
-        supabase
-            .from('electricity_monthly')
-            .select('*')
-            .eq('household_id', householdId)
-            .gte('month', yearStart)
-            .lte('month', yearEnd),
-
-        supabase
-            .from('fixed_costs')
-            .select('*')
-            .eq('household_id', householdId)
-            .lte('start_month', yearEnd)
-            .or(endFilter),
-
-        supabase
-            .from('subscriptions')
-            .select('*')
-            .eq('household_id', householdId)
-            .lte('start_month', yearEnd)
-            .or(endFilter),
-
-        supabase
-            .from('saving_streams')
-            .select('*')
-            .eq('household_id', householdId)
-            .lte('start_date', yearEnd)
-            .or(`end_date.gte.${yearStart},end_date.is.null`),
-
-        supabase
-            .from('allowance')
-            .select('*')
-            .eq('household_id', householdId)
-            .lte('start_month', yearEnd)
-            .or(endFilter),
-
-        supabase
-            .from('kids_allowance')
-            .select('*')
-            .eq('household_id', householdId)
-            .lte('start_month', yearEnd)
-            .or(endFilter),
-
-        supabase
-            .from('unexpected_expenses')
-            .select('*')
-            .eq('household_id', householdId)
-            .gte('date', yearStart)
-            .lte('date', yearEnd),
-
-        supabase
-            .from('extra_income')
-            .select('*')
-            .eq('household_id', householdId)
-            .gte('date', yearStart)
-            .lte('date', yearEnd),
-
-        supabase
-            .from('loans')
-            .select('*')
-            .eq('household_id', householdId)
-            .lte('start_month', yearEnd)
-            .or(endFilter),
-
-        supabase
-            .from('expenses')
-            .select('*')
-            .eq('household_id', householdId)
-            .lte('start_month', yearEnd)
-            .or(endFilter)
+        supabase.from('electricity_monthly').select('*').eq('household_id', householdId),
+        supabase.from('fixed_costs').select('*').eq('household_id', householdId),
+        supabase.from('subscriptions').select('*').eq('household_id', householdId),
+        supabase.from('saving_streams').select('*').eq('household_id', householdId),
+        supabase.from('allowance').select('*').eq('household_id', householdId),
+        supabase.from('kids_allowance').select('*').eq('household_id', householdId),
+        supabase.from('unexpected_expenses').select('*').eq('household_id', householdId),
+        supabase.from('extra_income').select('*').eq('household_id', householdId),
+        supabase.from('loans').select('*').eq('household_id', householdId),
+        supabase.from('expenses').select('*').eq('household_id', householdId)
     ]);
 
-    const incomes = incomesRes.data ?? [];
     const electricity = electricityRes.data ?? [];
     const fixed = fixedRes.data ?? [];
     const subscriptions = subscriptionsRes.data ?? [];
@@ -159,20 +84,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     const loans = loansRes.data ?? [];
     const expenses = expensesRes.data ?? [];
 
-    const sortedExpenses = expenses.sort((a, b) => {
-        const order: Record<string, number> = { shared: 0 };
-        memberList.forEach((m, i) => (order[m.id] = i + 1));
-        return (order[a.owner] ?? 99) - (order[b.owner] ?? 99);
-    });
-
-    const ownerMap = Object.fromEntries(sortedExpenses.map((e) => [e.title ?? 'Okänd', e.owner]));
-
-    const fixedNames = [...new Set(fixed.map((f) => f.cost_name as string))];
-
-    const intervalMap = Object.fromEntries(
-        sortedExpenses.map((e) => [e.title ?? 'Okänd', e.interval_months])
-    );
-
+    // Hjälpare
     const toYM = (value: any) => {
         if (!value) return null;
         return new Date(value).toISOString().slice(0, 7);
@@ -191,36 +103,11 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         const [startY, startM] = start.split('-').map(Number);
         const [curY, curM] = ym.split('-').map(Number);
 
-        const monthsDiff = (curY - startY) * 12 + (curM - startM);
-
-        return monthsDiff >= 0 && monthsDiff % Number(row.interval_months ?? 1) === 0;
+        const diff = (curY - startY) * 12 + (curM - startM);
+        return diff >= 0 && diff % Number(row.interval_months ?? 1) === 0;
     };
 
-    const sum = (rows: any[], ym: string) =>
-        rows
-            .filter((r) => isActive(r, ym))
-            .reduce((acc, r) => acc + Number(r.amount ?? 0), 0);
-
-    // Inkomster – vi använder dem inte i UI just nu, men räknar ändå ut totalen
-    const incomePerMonth = months.map((m) =>
-        incomes
-            .filter((i) => toYM(i.month) === m)
-            .reduce(
-                (sum, i) =>
-                    sum +
-                    Number(i.ord_nettolon ?? 0) +
-                    Number(i.ass_nettolon ?? 0) +
-                    Number(i.fk_nettolon ?? 0),
-                0
-            )
-    );
-
-    const electricityPerMonth = months.map((m) => {
-        const row = electricity.find((e) => toYM(e.month) === m);
-        return Number(row?.amount ?? 0);
-    });
-
-    // Generisk helper: per användare + gemensamt (owner='shared')
+    // Per person + shared
     const perUserOrShared = (rows: any[], ym: string) => {
         const active = rows.filter((r) => isActive(r, ym));
         const result: Record<string, number> = {};
@@ -230,8 +117,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
                 .filter(
                     (r) =>
                         r.owner === member.id ||
-                        r.user_id === member.id ||
-                        r.person_id === member.id
+                        r.user_id === member.id
                 )
                 .reduce((a, r) => a + Number(r.amount ?? 0), 0);
         }
@@ -243,86 +129,99 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         return result;
     };
 
-    // Abonnemang per användare + gemensamt
-    const subs = months.map((m) => perUserOrShared(subscriptions, m));
+    // El
+    const electricityPerMonth = months.map((m) => {
+        const row = electricity.find((e) => toYM(e.month) === m);
+        return Number(row?.amount ?? 0);
+    });
 
-    // Sparande per användare (ev. gemensamt om owner='shared' skulle införas)
-    const savingsPerUser = months.map((m) => perUserOrShared(savingsRows, m));
-
-    // Fickpengar per användare + gemensamt
-    const allowanceUser = months.map((m) => perUserOrShared(allowance, m));
-
-    // Fasta kostnader + expenses
-    const fixedGroups = [
-        ...new Set([
-            ...fixed.map((f) => f.cost_name as string),
-            ...sortedExpenses.map((e) => e.title as string)
-        ])
-    ];
+    // Fasta kostnader (en rad per kostnad)
+    const fixedGroups = [...new Set(fixed.map((f) => f.cost_name as string))];
 
     const fixedPerGroup = Object.fromEntries(
         fixedGroups.map((name) => [
             name,
-            months.map((m) => {
-                const fixedSum = fixed
+            months.map((m) =>
+                fixed
                     .filter((f) => f.cost_name === name && isActive(f, m))
-                    .reduce((acc, f) => acc + Number(f.amount ?? 0), 0);
-
-                const expenseSum = sortedExpenses
-                    .filter((e) => e.title === name && occursThisMonth(e, m))
-                    .reduce((acc, e) => acc + Number(e.amount ?? 0), 0);
-
-                return fixedSum + expenseSum;
-            })
+                    .reduce((acc, f) => acc + Number(f.amount ?? 0), 0)
+            )
         ])
     );
 
-    // Lån – total per månad (inte per person)
-    const loansPerMonth = months.map((m) => sum(loans, m));
+    // Abonnemang
+    const subs = months.map((m) => perUserOrShared(subscriptions, m));
 
-    // Barn – per barn, per månad (ingen shared här)
+    // Sparande (ingen shared)
+    const savings = months.map((m) => {
+        const active = savingsRows.filter((r) => isActive(r, m));
+        const result: Record<string, number> = {};
+        for (const member of memberList) {
+            result[member.name] = active
+                .filter((r) => r.user_id === member.id || r.person_id === member.id)
+                .reduce((a, r) => a + Number(r.amount ?? 0), 0);
+        }
+        result.shared = 0;
+        return result;
+    });
+
+    // Fickpengar (ingen shared)
+    const allowanceUser = months.map((m) => {
+        const active = allowance.filter((r) => isActive(r, m));
+        const result: Record<string, number> = {};
+        for (const member of memberList) {
+            result[member.name] = active
+                .filter((r) => r.user_id === member.id)
+                .reduce((a, r) => a + Number(r.amount ?? 0), 0);
+        }
+        result.shared = 0;
+        return result;
+    });
+
+    // Barn (per barn)
     const childNames = [...new Set(kids.map((k) => k.child_name as string))];
 
     const kidsPerMonth = Object.fromEntries(
         childNames.map((name) => [
             name,
             months.map((m) =>
-                sum(kids.filter((k) => k.child_name === name), m)
+                kids
+                    .filter((k) => k.child_name === name && isActive(k, m))
+                    .reduce((acc, k) => acc + Number(k.amount ?? 0), 0)
             )
         ])
+    );
+
+    // Lån (per person + shared)
+    const loansPerMonth = months.map((m) => perUserOrShared(loans, m));
+
+    // Oförutsägbara
+    const unexpectedPerMonth = months.map((m) =>
+        unexpected
+            .filter((u) => toYM(u.date) === m)
+            .reduce((acc, u) => acc + Number(u.amount ?? 0), 0)
+    );
+
+    // Extra inkomster
+    const extraPerMonth = months.map((m) =>
+        extra
+            .filter((x) => toYM(x.date) === m)
+            .reduce((acc, x) => acc + Number(x.amount ?? 0), 0)
     );
 
     return {
         selectedYear,
         months,
-
-        incomePerMonth,
+        members: memberList,
         electricityPerMonth,
         fixedPerGroup,
-        loansPerMonth,
-
-        subs,
-        savings: savingsPerUser,
-        allowanceUser,
-
-        kidsPerMonth,
-
-        unexpectedPerMonth: months.map((m) =>
-            unexpected
-                .filter((u) => toYM(u.date) === m)
-                .reduce((acc, u) => acc + Number(u.amount ?? 0), 0)
-        ),
-
-        extraPerMonth: months.map((m) =>
-            extra
-                .filter((x) => toYM(x.date) === m)
-                .reduce((acc, x) => acc + Number(x.amount ?? 0), 0)
-        ),
-
         fixedGroups,
-        ownerMap,
-        intervalMap,
-        fixedNames,
-        members: memberList
+        subs,
+        savings,
+        allowanceUser,
+        kidsPerMonth,
+        loansPerMonth,
+        unexpectedPerMonth,
+        extraPerMonth
     };
 };

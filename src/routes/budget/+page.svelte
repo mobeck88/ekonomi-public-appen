@@ -6,18 +6,10 @@
     const years = Array.from({ length: 2100 - 2010 + 1 }, (_, i) => (2010 + i).toString());
     const monthLabels = ['Jan','Feb','Mar','Apr','Maj','Jun','Jul','Aug','Sep','Okt','Nov','Dec'];
 
-    // Dynamiska användare
     const members = data.members;
 
-    // Färgpalett (ingen grön för utgifter)
     const userColorClasses = [
-        'andreas',  // blå
-        'hanna',    // rosa
-        'purple',   // lila
-        'orange',   // orange
-        'yellow',   // gul
-        'teal',     // turkos
-        'red'       // röd
+        'andreas', 'hanna', 'purple', 'orange', 'yellow', 'teal', 'red'
     ];
 
     function colorClassForUser(userId) {
@@ -28,9 +20,8 @@
         return userColorClasses[hash % userColorClasses.length];
     }
 
-    // UTGIFTER – sektioner
     const expenseSections = [
-        { title: 'Lån', key: 'loansPerMonth', type: 'simple' },
+        { title: 'Lån', key: 'loansPerMonth', type: 'perUser' },
         { title: 'El', key: 'electricityPerMonth', type: 'simple' },
         { title: 'Fasta kostnader', key: 'fixedPerGroup', type: 'fixed' },
         { title: 'Abonnemang', key: 'subs', type: 'perUser' },
@@ -49,14 +40,12 @@
         return `${num.toLocaleString('sv-SE')} kr`;
     }
 
-    // Finns det någon shared-data i en sektion?
     function hasShared(sectionKey) {
         const arr = data[sectionKey];
         if (!arr || !Array.isArray(arr)) return false;
         return arr.some((m) => (m?.shared ?? 0) > 0);
     }
 
-    // In – just nu bara extra inkomster (tills inkomsterna är definierade)
     function sumIn(i) {
         return data.extraPerMonth[i];
     }
@@ -64,33 +53,26 @@
     function sumOut(i) {
         let total = 0;
 
-        // Fasta kostnader
         for (const name of data.fixedGroups) {
             total += data.fixedPerGroup[name][i];
         }
 
-        // Abonnemang
         for (const m of members) total += data.subs[i][m.name] ?? 0;
         total += data.subs[i].shared ?? 0;
 
-        // Sparande
         for (const m of members) total += data.savings[i][m.name] ?? 0;
 
-        // Fickpengar
         for (const m of members) total += data.allowanceUser[i][m.name] ?? 0;
 
-        // Barn
         for (const name of Object.keys(data.kidsPerMonth)) {
             total += data.kidsPerMonth[name][i];
         }
 
-        // Lån
-        total += data.loansPerMonth[i];
+        for (const m of members) total += data.loansPerMonth[i][m.name] ?? 0;
+        total += data.loansPerMonth[i].shared ?? 0;
 
-        // El
         total += data.electricityPerMonth[i];
 
-        // Oförutsägbara
         total += data.unexpectedPerMonth[i];
 
         return total;
@@ -135,7 +117,6 @@
         </thead>
 
         <tbody>
-            <!-- UTGIFTER -->
             <tr><td colspan="13" class="section">UTGIFTER</td></tr>
 
             {#each expenseSections as section}
@@ -190,7 +171,6 @@
                 {/if}
             {/each}
 
-            <!-- ÖVRIGT -->
             <tr><td colspan="13" class="section">ÖVRIGT</td></tr>
 
             {#each otherSections as oc}
@@ -202,7 +182,6 @@
                 </tr>
             {/each}
 
-            <!-- SUMMERING -->
             <tr><td colspan="13" class="section">SUMMERING</td></tr>
 
             <tr class="sum">
@@ -274,32 +253,4 @@
         font-weight: bold;
     }
 
-    /* Dynamiska färger för användare */
-    .andreas { background: #e0ecff; }
-    .hanna { background: #ffe0e6; }
-    .purple { background: #f0e6ff; }
-    .orange { background: #ffe8d1; }
-    .yellow { background: #fff9cc; }
-    .teal { background: #d9f7f5; }
-    .red { background: #ffd6d6; }
-
-    .joint td { background: #f4f4f4; }
-
-    .fixed td { background: #fff2cc; }
-
-    .annual td { border-left: 4px solid #8b5cf6; }
-    .quarterly td { border-left: 4px solid #10b981; }
-
-    tr.sum td {
-        background: #e0e0e0 !important;
-        font-weight: bold;
-    }
-
-    tr.diff td {
-        background: #d0ffd0 !important;
-    }
-
-    tr.buffer td {
-        background: #c9e7ff !important;
-    }
-</style>
+    .and
