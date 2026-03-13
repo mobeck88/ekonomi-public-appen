@@ -59,15 +59,10 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         loansRes,
         expensesRes
     ] = await Promise.all([
-        // RÄTT TABELL FÖR EL
         supabase.from('electricity').select('*').eq('household_id', householdId),
-
         supabase.from('fixed_costs').select('*').eq('household_id', householdId),
         supabase.from('subscriptions').select('*').eq('household_id', householdId),
-
-        // saving_streams saknar household_id → hämtas utan filter
-        supabase.from('saving_streams').select('*'),
-
+        supabase.from('savings').select('*').eq('household_id', householdId),
         supabase.from('allowance').select('*').eq('household_id', householdId),
         supabase.from('kids_allowance').select('*').eq('household_id', householdId),
         supabase.from('unexpected_expenses').select('*').eq('household_id', householdId),
@@ -90,7 +85,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     // Robust YYYY-MM extraktion
     const toYM = (value: any) => {
         if (!value) return null;
-        return String(value).slice(0, 7); // "2026-01-01" → "2026-01"
+        return String(value).slice(0, 7);
     };
 
     const isActive = (row: any, ym: string) => {
@@ -168,16 +163,37 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     // Abonnemang
     const subs = months.map((m) => perUserOrShared(subscriptions, m));
 
-    // Sparande
+    // ⭐ SPARANDE – korrekt user_id‑baserad logik
     const savings = months.map((m) => {
-        const active = savingsRows.filter((r) => isActive(r, m));
         const result: Record<string, number> = {};
+
+        // Initiera alla användare + shared
         for (const member of memberList) {
-            result[member.name] = active
-                .filter((r) => r.user_id === member.id || r.person_id === member.id)
-                .reduce((a, r) => a + Number(r.amount ?? 0), 0);
+            result[member.name] = 0;
         }
         result.shared = 0;
+
+        // Filtrera aktiva sparrader
+        const active = savingsRows.filter((r) => {
+            const start = toYM(r.start_month);
+            const end = toYM(r.end_month);
+            return start && start <= m && (!end || end >= m);
+        });
+
+        // Summera per ägare
+        for (const row of active) {
+            const amount = Number(row.amount ?? 0);
+
+            if (row.owner === 'shared') {
+                result.shared += amount;
+            } else {
+                const ownerMember = memberList.find((mem) => mem.id === row.owner);
+                if (ownerMember) {
+                    result[ownerMember.name] += amount;
+                }
+            }
+        }
+
         return result;
     });
 
