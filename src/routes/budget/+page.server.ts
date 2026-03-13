@@ -2,10 +2,13 @@ import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ url, locals }) => {
-    if (!locals.user) throw redirect(303, '/login');
-
-    const supabase = locals.supabase;
+    const user = locals.user;
     const householdId = locals.householdId;
+    const supabase = locals.supabase;
+
+    if (!user) {
+        return redirect(303, '/login');
+    }
 
     if (!householdId) {
         return {
@@ -24,9 +27,21 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             fixedGroups: [],
             ownerMap: {},
             intervalMap: {},
-            fixedNames: []
+            fixedNames: [],
+            members: []
         };
     }
+
+    // 🔥 HÄMTA ALLA ANVÄNDARE I HUSHÅLLET
+    const { data: members } = await supabase
+        .from('household_members')
+        .select('user_id, profiles(full_name)')
+        .eq('household_id', householdId);
+
+    const memberList = members?.map((m) => ({
+        id: m.user_id,
+        name: m.profiles.full_name
+    })) ?? [];
 
     const selectedYear =
         url.searchParams.get('year') ?? new Date().getFullYear().toString();
@@ -85,9 +100,9 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         supabase
             .from('saving_streams')
             .select('*')
-            .eq('household_id', householdId)
-            .lte('start_month', yearEnd)
-            .or(endFilter),
+            .eq('person_id', user.id)
+            .lte('start_date', yearEnd)
+            .or(`end_date.gte.${yearStart},end_date.is.null`),
 
         supabase
             .from('allowance')
@@ -145,18 +160,19 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     const expenses = expensesRes.data ?? [];
 
     const sortedExpenses = expenses.sort((a, b) => {
-        const order: Record<string, number> = { shared: 0, [locals.user.id]: 1 };
-        return (order[a.owner] ?? 2) - (order[b.owner] ?? 2);
+        const order: Record<string, number> = { shared: 0 };
+        memberList.forEach((m, i) => (order[m.id] = i + 1));
+        return (order[a.owner] ?? 99) - (order[b.owner] ?? 99);
     });
 
     const ownerMap = Object.fromEntries(
-        sortedExpenses.map((e) => [e.title, e.owner])
+        sortedExpenses.map((e) => [e.title ?? 'Okänd', e.owner])
     );
 
     const fixedNames = [...new Set(fixed.map((f) => f.cost_name as string))];
 
     const intervalMap = Object.fromEntries(
-        sortedExpenses.map((e) => [e.title, e.interval_months])
+        sortedExpenses.map((e) => [e.title ?? 'Okänd', e.interval_months])
     );
 
     const toYM = (value: any) => {
@@ -165,8 +181,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     };
 
     const isActive = (row: any, ym: string) => {
-        const start = toYM(row.start_month);
-        const end = toYM(row.end_month);
+        const start = toYM(row.start_month ?? row.start_date);
+        const end = toYM(row.end_month ?? row.end_date);
         return start && start <= ym && (!end || end >= ym);
     };
 
@@ -202,7 +218,53 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
     const electricityPerMonth = months.map((m) => {
         const row = electricity.find((e) => toYM(e.month) === m);
-        return Number(row?.eon_amount ?? 0) + Number(row?.tibber_amount ?? 0);
+        return Number(row?.amount ?? 0);
+    });
+
+    // 🔥 DYNAMISKA ABONNEMANG PER ANVÄNDARE
+    const subs = months.map((m) => {
+        const rows = subscriptions.filter((s) => isActive(s, m));
+        const result: Record<string, number> = {};
+
+        for (const member of memberList) {
+            result[member.name] = rows
+                .filter((r) => r.user_id === member.id)
+                .reduce((a, r) => a + Number(r.amount), 0);
+        }
+
+        result.shared = rows
+            .filter((r) => r.owner === 'shared')
+            .reduce((a, r) => a + Number(r.amount), 0);
+
+        return result;
+    });
+
+    // 🔥 DYNAMISKT SPARANDE PER ANVÄNDARE
+    const savingsPerUser = months.map((m) => {
+        const rows = savings.filter((s) => isActive(s, m));
+        const result: Record<string, number> = {};
+
+        for (const member of memberList) {
+            result[member.name] = rows
+                .filter((r) => r.person_id === member.id)
+                .reduce((a, r) => a + Number(r.amount ?? 0), 0);
+        }
+
+        return result;
+    });
+
+    // 🔥 DYNAMISKA FICKPENGAR PER ANVÄNDARE
+    const allowanceUser = months.map((m) => {
+        const rows = allowance.filter((a) => isActive(a, m));
+        const result: Record<string, number> = {};
+
+        for (const member of memberList) {
+            result[member.name] = rows
+                .filter((r) => r.user_id === member.id)
+                .reduce((a, r) => a + Number(r.amount), 0);
+        }
+
+        return result;
     });
 
     const fixedGroups = [
@@ -231,7 +293,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
     const loansPerMonth = months.map((m) => sum(loans, m));
 
-    // Dynamiska barnnamn från Rubrik/child_name
     const childNames = [...new Set(kids.map((k) => k.child_name as string))];
 
     const kidsPerMonth = Object.fromEntries(
@@ -252,11 +313,9 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         fixedPerGroup,
         loansPerMonth,
 
-        subs: months.map((m) => sum(subscriptions, m)),
-
-        savings: months.map((m) => sum(savings, m)),
-
-        allowanceUser: months.map((m) => sum(allowance, m)),
+        subs,
+        savings: savingsPerUser,
+        allowanceUser,
 
         kidsPerMonth,
 
@@ -275,6 +334,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         fixedGroups,
         ownerMap,
         intervalMap,
-        fixedNames
+        fixedNames,
+        members: memberList
     };
 };
