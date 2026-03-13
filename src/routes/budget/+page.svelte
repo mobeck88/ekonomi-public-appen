@@ -6,42 +6,30 @@
     const years = Array.from({ length: 2100 - 2010 + 1 }, (_, i) => (2010 + i).toString());
     const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
 
-    // Dynamiska barnkategorier
-    const childCategories = Object.keys(data.kidsPerMonth).map(name => `MånadsPeng ${name}`);
+    // 🔥 Dynamiska användare
+    const members = data.members.map(m => m.name);
 
-    // Dynamiska fasta kostnader + expenses
-    const fixedGroups = data.fixedGroups;
-
-    // Dynamiska abonnemang (owner)
-    const subscriptionCategories = [
-        'Tjänster o abonnemang A',
-        'Tjänster o abonnemang H'
+    // 🔥 INKOMSTER – en rad per användare + gemensam
+    const incomeCategories = [
+        ...members.map(name => `Inkomst ${name}`),
+        'Gemensam inkomst'
     ];
 
-    // Dynamiska sparande (owner)
-    const savingCategories = [
-        'Sparande A',
-        'Sparande H'
+    // 🔥 UTGIFTER – dynamiska grupper
+    const expenseGroups = [
+        { title: 'Lån', key: 'loansPerMonth' },
+        { title: 'El', key: 'electricityPerMonth' },
+        { title: 'Fasta kostnader', key: 'fixedPerGroup', dynamic: true },
+        { title: 'Abonnemang', key: 'subs', dynamic: true },
+        { title: 'Sparande', key: 'savings', dynamic: true },
+        { title: 'Fickpengar', key: 'allowanceUser', dynamic: true },
+        { title: 'Barn', key: 'kidsPerMonth', dynamic: true }
     ];
 
-    // Dynamiska fickpengar (owner)
-    const allowanceCategories = [
-        'Fickpengar Andreas',
-        'Fickpengar Hanna'
-    ];
-
-    // Alla kategorier i rätt ordning
-    const categories = [
-        'Gemensam inkomst',
-        'Lån',
-        'El',
-        ...fixedGroups,
-        ...subscriptionCategories,
-        ...savingCategories,
-        ...allowanceCategories,
-        ...childCategories,
-        'Oförutsägbara utgifter',
-        'Extra inkomster'
+    // 🔥 ÖVRIGT
+    const otherCategories = [
+        { title: 'Oförutsägbara utgifter', key: 'unexpectedPerMonth' },
+        { title: 'Extra inkomster', key: 'extraPerMonth' }
     ];
 
     function formatKr(v) {
@@ -49,42 +37,35 @@
         return `${num.toLocaleString('sv-SE')} kr`;
     }
 
-    function getAmount(category, index) {
-        // Inkomster
+    function getIncomeAmount(category, index) {
         if (category === 'Gemensam inkomst') return data.incomePerMonth[index];
 
-        // Lån
-        if (category === 'Lån') return data.loansPerMonth[index];
+        const name = category.replace('Inkomst ', '');
+        const user = data.members.find(m => m.name === name);
+        if (!user) return 0;
 
-        // El
-        if (category === 'El') return data.electricityPerMonth[index];
+        return data.incomePerMonth[index] * 0.5; // placeholder tills vi bygger individuell inkomst
+    }
 
-        // Abonnemang
-        if (category === 'Tjänster o abonnemang A') return data.subs[index].A ?? 0;
-        if (category === 'Tjänster o abonnemang H') return data.subs[index].H ?? 0;
+    function getDynamicAmount(groupKey, category, index) {
+        const group = data[groupKey];
 
-        // Sparande
-        if (category === 'Sparande A') return data.savings[index].A ?? 0;
-        if (category === 'Sparande H') return data.savings[index].H ?? 0;
+        if (!group) return 0;
 
-        // Fickpengar
-        if (category === 'Fickpengar Andreas') return data.allowanceUser[index].A ?? 0;
-        if (category === 'Fickpengar Hanna') return data.allowanceUser[index].H ?? 0;
-
-        // Barn
-        if (category.startsWith('MånadsPeng ')) {
-            const name = category.replace('MånadsPeng ', '');
-            return data.kidsPerMonth[name][index] ?? 0;
+        // Fasta kostnader
+        if (groupKey === 'fixedPerGroup') {
+            return group[category]?.[index] ?? 0;
         }
 
-        // Oförutsägbara
-        if (category === 'Oförutsägbara utgifter') return data.unexpectedPerMonth[index];
+        // Abonnemang / Sparande / Fickpengar
+        if (groupKey === 'subs' || groupKey === 'savings' || groupKey === 'allowanceUser') {
+            return group[index]?.[category] ?? 0;
+        }
 
-        // Extra inkomster
-        if (category === 'Extra inkomster') return data.extraPerMonth[index];
-
-        // Fasta kostnader / expenses
-        if (data.fixedPerGroup[category]) return data.fixedPerGroup[category][index];
+        // Barn
+        if (groupKey === 'kidsPerMonth') {
+            return group[category]?.[index] ?? 0;
+        }
 
         return 0;
     }
@@ -94,9 +75,38 @@
     }
 
     function sumOut(i) {
-        return categories
-            .filter((c) => c !== 'Gemensam inkomst' && c !== 'Extra inkomster')
-            .reduce((a, c) => a + getAmount(c, i), 0);
+        let total = 0;
+
+        // Fasta kostnader
+        for (const name of data.fixedGroups) {
+            total += data.fixedPerGroup[name][i];
+        }
+
+        // Abonnemang
+        for (const m of members) total += data.subs[i][m] ?? 0;
+        total += data.subs[i].shared ?? 0;
+
+        // Sparande
+        for (const m of members) total += data.savings[i][m] ?? 0;
+
+        // Fickpengar
+        for (const m of members) total += data.allowanceUser[i][m] ?? 0;
+
+        // Barn
+        for (const name of Object.keys(data.kidsPerMonth)) {
+            total += data.kidsPerMonth[name][i];
+        }
+
+        // Lån
+        total += data.loansPerMonth[i];
+
+        // El
+        total += data.electricityPerMonth[i];
+
+        // Oförutsägbara
+        total += data.unexpectedPerMonth[i];
+
+        return total;
     }
 
     function sumDiff(i) {
@@ -138,22 +148,58 @@
         </thead>
 
         <tbody>
-            {#each categories as cat}
-                <tr
-                    data-cat={cat}
-                    class:fixed={data.fixedNames.includes(cat)}
-                    class:hanna={data.ownerMap[cat] === 'H'}
-                    class:andreas={data.ownerMap[cat] === 'A'}
-                    class:joint={data.ownerMap[cat] === 'shared'}
-                    class:annual={data.intervalMap[cat] === 12}
-                    class:quarterly={data.intervalMap[cat] === 3}
-                >
+
+            <!-- 🔥 INKOMSTER -->
+            <tr><td colspan="13" class="section">INKOMSTER</td></tr>
+
+            {#each incomeCategories as cat}
+                <tr>
                     <td>{cat}</td>
                     {#each data.months as _, i}
-                        <td>{formatKr(getAmount(cat, i))}</td>
+                        <td>{formatKr(getIncomeAmount(cat, i))}</td>
                     {/each}
                 </tr>
             {/each}
+
+            <!-- 🔥 UTGIFTER -->
+            <tr><td colspan="13" class="section">UTGIFTER</td></tr>
+
+            {#each expenseGroups as group}
+                <tr><td colspan="13" class="subsection">{group.title}</td></tr>
+
+                {#if group.dynamic}
+                    {#each Object.keys(data[group.key]) as cat}
+                        <tr>
+                            <td>{cat}</td>
+                            {#each data.months as _, i}
+                                <td>{formatKr(getDynamicAmount(group.key, cat, i))}</td>
+                            {/each}
+                        </tr>
+                    {/each}
+                {:else}
+                    <tr>
+                        <td>{group.title}</td>
+                        {#each data.months as _, i}
+                            <td>{formatKr(data[group.key][i])}</td>
+                        {/each}
+                    </tr>
+                {/if}
+            {/each}
+
+            <!-- 🔥 ÖVRIGT -->
+            <tr><td colspan="13" class="section">ÖVRIGT</td></tr>
+
+            {#each otherCategories as oc}
+                <tr>
+                    <td>{oc.title}</td>
+                    {#each data.months as _, i}
+                        <td>{formatKr(data[oc.key][i])}</td>
+                    {/each}
+                </tr>
+            {/each}
+
+            <!-- 🔥 SUMMERING -->
+            <tr><td colspan="13" class="section">SUMMERING</td></tr>
 
             <tr class="sum">
                 <td>In</td>
@@ -182,14 +228,29 @@
                     <td>{formatKr(b)}</td>
                 {/each}
             </tr>
+
         </tbody>
     </table>
 </div>
 
 <style>
+    .section {
+        background: #333;
+        color: white;
+        font-weight: bold;
+        text-align: left;
+        padding: 0.5rem;
+    }
+
+    .subsection {
+        background: #ddd;
+        font-weight: bold;
+        text-align: left;
+        padding: 0.4rem;
+    }
+
     .table-wrapper {
         overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
     }
 
     table {
@@ -205,34 +266,10 @@
         white-space: nowrap;
     }
 
-    thead th {
-        background: #f5f5f5;
-    }
-
     th:first-child, td:first-child {
         text-align: left;
         font-weight: bold;
     }
-
-    tr.fixed td { background: #fff2cc; }
-    tr.hanna td { background: #ffe0e6; }
-    tr.andreas td { background: #e0ecff; }
-    tr.joint td { background: #f4f4f4; }
-
-    tr[data-cat='Gemensam inkomst'] td { background: #d9ead3; }
-    tr[data-cat='Lån'] td { background: #f4cccc; }
-    tr[data-cat='El'] td { background: #cfe2f3; }
-
-    tr[data-cat^='Tjänster o abonnemang'] td { background: #c9daf8; }
-    tr[data-cat^='Sparande'] td { background: #fff2cc; }
-    tr[data-cat^='Fickpengar'] td { background: #ead1dc; }
-    tr[data-cat^='MånadsPeng'] td { background: #d9d2e9; }
-
-    tr[data-cat='Oförutsägbara utgifter'] td { background: #fce5cd; }
-    tr[data-cat='Extra inkomster'] td { background: #d9ead3; }
-
-    tr.annual td { border-left: 4px solid #8b5cf6; }
-    tr.quarterly td { border-left: 4px solid #10b981; }
 
     tr.sum td {
         background: #e0e0e0 !important;
