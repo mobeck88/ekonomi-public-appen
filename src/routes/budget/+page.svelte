@@ -253,4 +253,27 @@
         font-weight: bold;
     }
 
-    .and
+    .andreas { background: #e0ecff; }
+    .hanna { background: #ffe0e6; }
+    .purple { background: #f0e6ff; }
+    .orange { background: #ffe8d1; }
+    .yellow { background: #fff9cc; }
+    .teal { background: #d9f7f5; }
+    .red { background: #ffd6d6; }
+
+    .joint td { background: #f4f4f4; }
+    .fixed td { background: #fff2cc; }
+
+    tr.sum td {
+        background: #e0e0e0 !important;
+        font-weight: bold;
+    }
+
+    tr.diff td {
+        background: #d0ffd0 !important;
+    }
+
+    tr.buffer td {
+        background: #c9e7ff !important;
+    }
+</style>
