@@ -6,10 +6,10 @@
     const years = Array.from({ length: 2100 - 2010 + 1 }, (_, i) => (2010 + i).toString());
     const monthLabels = ['Jan','Feb','Mar','Apr','Maj','Jun','Jul','Aug','Sep','Okt','Nov','Dec'];
 
-    // 🔥 Dynamiska användare
+    // Dynamiska användare
     const members = data.members;
 
-    // 🔥 Färgpalett (ingen grön)
+    // Färgpalett (ingen grön för utgifter)
     const userColorClasses = [
         'andreas',  // blå
         'hanna',    // rosa
@@ -28,7 +28,7 @@
         return userColorClasses[hash % userColorClasses.length];
     }
 
-    // 🔥 UTGIFTER – dynamiska sektioner
+    // UTGIFTER – sektioner
     const expenseSections = [
         { title: 'Lån', key: 'loansPerMonth', type: 'simple' },
         { title: 'El', key: 'electricityPerMonth', type: 'simple' },
@@ -49,8 +49,16 @@
         return `${num.toLocaleString('sv-SE')} kr`;
     }
 
+    // Finns det någon shared-data i en sektion?
+    function hasShared(sectionKey) {
+        const arr = data[sectionKey];
+        if (!arr || !Array.isArray(arr)) return false;
+        return arr.some((m) => (m?.shared ?? 0) > 0);
+    }
+
+    // In – just nu bara extra inkomster (tills inkomsterna är definierade)
     function sumIn(i) {
-        return data.extraPerMonth[i]; // inkomster hoppar vi över tills vidare
+        return data.extraPerMonth[i];
     }
 
     function sumOut(i) {
@@ -127,8 +135,7 @@
         </thead>
 
         <tbody>
-
-            <!-- 🔥 UTGIFTER -->
+            <!-- UTGIFTER -->
             <tr><td colspan="13" class="section">UTGIFTER</td></tr>
 
             {#each expenseSections as section}
@@ -162,12 +169,14 @@
                         </tr>
                     {/each}
 
-                    <tr class="joint">
-                        <td>{section.title} (delat)</td>
-                        {#each data.months as _, i}
-                            <td>{formatKr(data[section.key][i].shared ?? 0)}</td>
-                        {/each}
-                    </tr>
+                    {#if hasShared(section.key)}
+                        <tr class="joint">
+                            <td>{section.title} – gemensamt</td>
+                            {#each data.months as _, i}
+                                <td>{formatKr(data[section.key][i].shared ?? 0)}</td>
+                            {/each}
+                        </tr>
+                    {/if}
 
                 {:else if section.type === 'kids'}
                     {#each Object.keys(data.kidsPerMonth) as name}
@@ -181,7 +190,7 @@
                 {/if}
             {/each}
 
-            <!-- 🔥 ÖVRIGT -->
+            <!-- ÖVRIGT -->
             <tr><td colspan="13" class="section">ÖVRIGT</td></tr>
 
             {#each otherSections as oc}
@@ -193,7 +202,7 @@
                 </tr>
             {/each}
 
-            <!-- 🔥 SUMMERING -->
+            <!-- SUMMERING -->
             <tr><td colspan="13" class="section">SUMMERING</td></tr>
 
             <tr class="sum">
@@ -223,22 +232,21 @@
                     <td>{formatKr(b)}</td>
                 {/each}
             </tr>
-
         </tbody>
     </table>
 </div>
 
 <style>
     .section {
-        background: #333;
-        color: white;
+        background: #e8eef7;
+        color: #111827;
         font-weight: bold;
         text-align: left;
         padding: 0.5rem;
     }
 
     .subsection {
-        background: #ddd;
+        background: #f3f6fb;
         font-weight: bold;
         text-align: left;
         padding: 0.4rem;
@@ -266,7 +274,7 @@
         font-weight: bold;
     }
 
-    /* 🔥 DYNAMISKA FÄRGER */
+    /* Dynamiska färger för användare */
     .andreas { background: #e0ecff; }
     .hanna { background: #ffe0e6; }
     .purple { background: #f0e6ff; }

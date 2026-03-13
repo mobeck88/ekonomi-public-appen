@@ -32,19 +32,19 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         };
     }
 
-    // 🔥 HÄMTA ALLA ANVÄNDARE I HUSHÅLLET
+    // Hushållets medlemmar
     const { data: members } = await supabase
         .from('household_members')
         .select('user_id, profiles(full_name)')
         .eq('household_id', householdId);
 
-    const memberList = members?.map((m) => ({
-        id: m.user_id,
-        name: m.profiles.full_name
-    })) ?? [];
+    const memberList =
+        members?.map((m) => ({
+            id: m.user_id,
+            name: m.profiles.full_name
+        })) ?? [];
 
-    const selectedYear =
-        url.searchParams.get('year') ?? new Date().getFullYear().toString();
+    const selectedYear = url.searchParams.get('year') ?? new Date().getFullYear().toString();
 
     const months = Array.from({ length: 12 }, (_, i) => {
         const m = (i + 1).toString().padStart(2, '0');
@@ -100,7 +100,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         supabase
             .from('saving_streams')
             .select('*')
-            .eq('person_id', user.id)
+            .eq('household_id', householdId)
             .lte('start_date', yearEnd)
             .or(`end_date.gte.${yearStart},end_date.is.null`),
 
@@ -151,7 +151,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     const electricity = electricityRes.data ?? [];
     const fixed = fixedRes.data ?? [];
     const subscriptions = subscriptionsRes.data ?? [];
-    const savings = savingsRes.data ?? [];
+    const savingsRows = savingsRes.data ?? [];
     const allowance = allowanceRes.data ?? [];
     const kids = kidsRes.data ?? [];
     const unexpected = unexpectedRes.data ?? [];
@@ -165,9 +165,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         return (order[a.owner] ?? 99) - (order[b.owner] ?? 99);
     });
 
-    const ownerMap = Object.fromEntries(
-        sortedExpenses.map((e) => [e.title ?? 'Okänd', e.owner])
-    );
+    const ownerMap = Object.fromEntries(sortedExpenses.map((e) => [e.title ?? 'Okänd', e.owner]));
 
     const fixedNames = [...new Set(fixed.map((f) => f.cost_name as string))];
 
@@ -203,6 +201,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             .filter((r) => isActive(r, ym))
             .reduce((acc, r) => acc + Number(r.amount ?? 0), 0);
 
+    // Inkomster – vi använder dem inte i UI just nu, men räknar ändå ut totalen
     const incomePerMonth = months.map((m) =>
         incomes
             .filter((i) => toYM(i.month) === m)
@@ -221,52 +220,39 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         return Number(row?.amount ?? 0);
     });
 
-    // 🔥 DYNAMISKA ABONNEMANG PER ANVÄNDARE
-    const subs = months.map((m) => {
-        const rows = subscriptions.filter((s) => isActive(s, m));
+    // Generisk helper: per användare + gemensamt (owner='shared')
+    const perUserOrShared = (rows: any[], ym: string) => {
+        const active = rows.filter((r) => isActive(r, ym));
         const result: Record<string, number> = {};
 
         for (const member of memberList) {
-            result[member.name] = rows
-                .filter((r) => r.user_id === member.id)
-                .reduce((a, r) => a + Number(r.amount), 0);
-        }
-
-        result.shared = rows
-            .filter((r) => r.owner === 'shared')
-            .reduce((a, r) => a + Number(r.amount), 0);
-
-        return result;
-    });
-
-    // 🔥 DYNAMISKT SPARANDE PER ANVÄNDARE
-    const savingsPerUser = months.map((m) => {
-        const rows = savings.filter((s) => isActive(s, m));
-        const result: Record<string, number> = {};
-
-        for (const member of memberList) {
-            result[member.name] = rows
-                .filter((r) => r.person_id === member.id)
+            result[member.name] = active
+                .filter(
+                    (r) =>
+                        r.owner === member.id ||
+                        r.user_id === member.id ||
+                        r.person_id === member.id
+                )
                 .reduce((a, r) => a + Number(r.amount ?? 0), 0);
         }
 
-        return result;
-    });
-
-    // 🔥 DYNAMISKA FICKPENGAR PER ANVÄNDARE
-    const allowanceUser = months.map((m) => {
-        const rows = allowance.filter((a) => isActive(a, m));
-        const result: Record<string, number> = {};
-
-        for (const member of memberList) {
-            result[member.name] = rows
-                .filter((r) => r.user_id === member.id)
-                .reduce((a, r) => a + Number(r.amount), 0);
-        }
+        result.shared = active
+            .filter((r) => r.owner === 'shared')
+            .reduce((a, r) => a + Number(r.amount ?? 0), 0);
 
         return result;
-    });
+    };
 
+    // Abonnemang per användare + gemensamt
+    const subs = months.map((m) => perUserOrShared(subscriptions, m));
+
+    // Sparande per användare (ev. gemensamt om owner='shared' skulle införas)
+    const savingsPerUser = months.map((m) => perUserOrShared(savingsRows, m));
+
+    // Fickpengar per användare + gemensamt
+    const allowanceUser = months.map((m) => perUserOrShared(allowance, m));
+
+    // Fasta kostnader + expenses
     const fixedGroups = [
         ...new Set([
             ...fixed.map((f) => f.cost_name as string),
@@ -291,8 +277,10 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         ])
     );
 
+    // Lån – total per månad (inte per person)
     const loansPerMonth = months.map((m) => sum(loans, m));
 
+    // Barn – per barn, per månad (ingen shared här)
     const childNames = [...new Set(kids.map((k) => k.child_name as string))];
 
     const kidsPerMonth = Object.fromEntries(
