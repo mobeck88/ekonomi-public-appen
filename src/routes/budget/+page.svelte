@@ -4,30 +4,42 @@
     let year = data.selectedYear;
 
     const years = Array.from({ length: 2100 - 2010 + 1 }, (_, i) => (2010 + i).toString());
-    const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
+    const monthLabels = ['Jan','Feb','Mar','Apr','Maj','Jun','Jul','Aug','Sep','Okt','Nov','Dec'];
 
     // 🔥 Dynamiska användare
-    const members = data.members.map(m => m.name);
+    const members = data.members;
 
-    // 🔥 INKOMSTER – en rad per användare + gemensam
-    const incomeCategories = [
-        ...members.map(name => `Inkomst ${name}`),
-        'Gemensam inkomst'
+    // 🔥 Färgpalett (ingen grön)
+    const userColorClasses = [
+        'andreas',  // blå
+        'hanna',    // rosa
+        'purple',   // lila
+        'orange',   // orange
+        'yellow',   // gul
+        'teal',     // turkos
+        'red'       // röd
     ];
 
-    // 🔥 UTGIFTER – dynamiska grupper
-    const expenseGroups = [
-        { title: 'Lån', key: 'loansPerMonth' },
-        { title: 'El', key: 'electricityPerMonth' },
-        { title: 'Fasta kostnader', key: 'fixedPerGroup', dynamic: true },
-        { title: 'Abonnemang', key: 'subs', dynamic: true },
-        { title: 'Sparande', key: 'savings', dynamic: true },
-        { title: 'Fickpengar', key: 'allowanceUser', dynamic: true },
-        { title: 'Barn', key: 'kidsPerMonth', dynamic: true }
+    function colorClassForUser(userId) {
+        let hash = 0;
+        for (let i = 0; i < userId.length; i++) {
+            hash = (hash * 31 + userId.charCodeAt(i)) % 100000;
+        }
+        return userColorClasses[hash % userColorClasses.length];
+    }
+
+    // 🔥 UTGIFTER – dynamiska sektioner
+    const expenseSections = [
+        { title: 'Lån', key: 'loansPerMonth', type: 'simple' },
+        { title: 'El', key: 'electricityPerMonth', type: 'simple' },
+        { title: 'Fasta kostnader', key: 'fixedPerGroup', type: 'fixed' },
+        { title: 'Abonnemang', key: 'subs', type: 'perUser' },
+        { title: 'Sparande', key: 'savings', type: 'perUser' },
+        { title: 'Fickpengar', key: 'allowanceUser', type: 'perUser' },
+        { title: 'Barn', key: 'kidsPerMonth', type: 'kids' }
     ];
 
-    // 🔥 ÖVRIGT
-    const otherCategories = [
+    const otherSections = [
         { title: 'Oförutsägbara utgifter', key: 'unexpectedPerMonth' },
         { title: 'Extra inkomster', key: 'extraPerMonth' }
     ];
@@ -37,41 +49,8 @@
         return `${num.toLocaleString('sv-SE')} kr`;
     }
 
-    function getIncomeAmount(category, index) {
-        if (category === 'Gemensam inkomst') return data.incomePerMonth[index];
-
-        const name = category.replace('Inkomst ', '');
-        const user = data.members.find(m => m.name === name);
-        if (!user) return 0;
-
-        return data.incomePerMonth[index] * 0.5; // placeholder tills vi bygger individuell inkomst
-    }
-
-    function getDynamicAmount(groupKey, category, index) {
-        const group = data[groupKey];
-
-        if (!group) return 0;
-
-        // Fasta kostnader
-        if (groupKey === 'fixedPerGroup') {
-            return group[category]?.[index] ?? 0;
-        }
-
-        // Abonnemang / Sparande / Fickpengar
-        if (groupKey === 'subs' || groupKey === 'savings' || groupKey === 'allowanceUser') {
-            return group[index]?.[category] ?? 0;
-        }
-
-        // Barn
-        if (groupKey === 'kidsPerMonth') {
-            return group[category]?.[index] ?? 0;
-        }
-
-        return 0;
-    }
-
     function sumIn(i) {
-        return data.incomePerMonth[i] + data.extraPerMonth[i];
+        return data.extraPerMonth[i]; // inkomster hoppar vi över tills vidare
     }
 
     function sumOut(i) {
@@ -83,14 +62,14 @@
         }
 
         // Abonnemang
-        for (const m of members) total += data.subs[i][m] ?? 0;
+        for (const m of members) total += data.subs[i][m.name] ?? 0;
         total += data.subs[i].shared ?? 0;
 
         // Sparande
-        for (const m of members) total += data.savings[i][m] ?? 0;
+        for (const m of members) total += data.savings[i][m.name] ?? 0;
 
         // Fickpengar
-        for (const m of members) total += data.allowanceUser[i][m] ?? 0;
+        for (const m of members) total += data.allowanceUser[i][m.name] ?? 0;
 
         // Barn
         for (const name of Object.keys(data.kidsPerMonth)) {
@@ -149,47 +128,63 @@
 
         <tbody>
 
-            <!-- 🔥 INKOMSTER -->
-            <tr><td colspan="13" class="section">INKOMSTER</td></tr>
-
-            {#each incomeCategories as cat}
-                <tr>
-                    <td>{cat}</td>
-                    {#each data.months as _, i}
-                        <td>{formatKr(getIncomeAmount(cat, i))}</td>
-                    {/each}
-                </tr>
-            {/each}
-
             <!-- 🔥 UTGIFTER -->
             <tr><td colspan="13" class="section">UTGIFTER</td></tr>
 
-            {#each expenseGroups as group}
-                <tr><td colspan="13" class="subsection">{group.title}</td></tr>
+            {#each expenseSections as section}
+                <tr><td colspan="13" class="subsection">{section.title}</td></tr>
 
-                {#if group.dynamic}
-                    {#each Object.keys(data[group.key]) as cat}
-                        <tr>
-                            <td>{cat}</td>
+                {#if section.type === 'simple'}
+                    <tr>
+                        <td>{section.title}</td>
+                        {#each data.months as _, i}
+                            <td>{formatKr(data[section.key][i])}</td>
+                        {/each}
+                    </tr>
+
+                {:else if section.type === 'fixed'}
+                    {#each Object.keys(data.fixedPerGroup) as name}
+                        <tr class="fixed">
+                            <td>{name}</td>
                             {#each data.months as _, i}
-                                <td>{formatKr(getDynamicAmount(group.key, cat, i))}</td>
+                                <td>{formatKr(data.fixedPerGroup[name][i])}</td>
                             {/each}
                         </tr>
                     {/each}
-                {:else}
-                    <tr>
-                        <td>{group.title}</td>
+
+                {:else if section.type === 'perUser'}
+                    {#each members as member}
+                        <tr class={colorClassForUser(member.id)}>
+                            <td>{section.title} {member.name}</td>
+                            {#each data.months as _, i}
+                                <td>{formatKr(data[section.key][i][member.name] ?? 0)}</td>
+                            {/each}
+                        </tr>
+                    {/each}
+
+                    <tr class="joint">
+                        <td>{section.title} (delat)</td>
                         {#each data.months as _, i}
-                            <td>{formatKr(data[group.key][i])}</td>
+                            <td>{formatKr(data[section.key][i].shared ?? 0)}</td>
                         {/each}
                     </tr>
+
+                {:else if section.type === 'kids'}
+                    {#each Object.keys(data.kidsPerMonth) as name}
+                        <tr class="kids">
+                            <td>{name}</td>
+                            {#each data.months as _, i}
+                                <td>{formatKr(data.kidsPerMonth[name][i])}</td>
+                            {/each}
+                        </tr>
+                    {/each}
                 {/if}
             {/each}
 
             <!-- 🔥 ÖVRIGT -->
             <tr><td colspan="13" class="section">ÖVRIGT</td></tr>
 
-            {#each otherCategories as oc}
+            {#each otherSections as oc}
                 <tr>
                     <td>{oc.title}</td>
                     {#each data.months as _, i}
@@ -270,6 +265,22 @@
         text-align: left;
         font-weight: bold;
     }
+
+    /* 🔥 DYNAMISKA FÄRGER */
+    .andreas { background: #e0ecff; }
+    .hanna { background: #ffe0e6; }
+    .purple { background: #f0e6ff; }
+    .orange { background: #ffe8d1; }
+    .yellow { background: #fff9cc; }
+    .teal { background: #d9f7f5; }
+    .red { background: #ffd6d6; }
+
+    .joint td { background: #f4f4f4; }
+
+    .fixed td { background: #fff2cc; }
+
+    .annual td { border-left: 4px solid #8b5cf6; }
+    .quarterly td { border-left: 4px solid #10b981; }
 
     tr.sum td {
         background: #e0e0e0 !important;
