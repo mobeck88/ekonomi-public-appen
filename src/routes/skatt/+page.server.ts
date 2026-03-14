@@ -82,7 +82,31 @@ export const load: PageServerLoad = async ({ locals, url }) => {
         .select('*')
         .in('income_month_id', monthIds);
 
-    // Gruppéring per användare
+    // 5. Hämta globala skatteinställningar (statlig skatt-gräns)
+    const { data: taxSettings } = await supabase
+        .from('tax_settings')
+        .select('*')
+        .eq('year', year)
+        .maybeSingle();
+
+    const statligSkattGräns = taxSettings?.statlig_skatt_grans ?? 660400;
+
+    // Hjälpfunktion: slå upp rätt skatt för ordinarie arbete i tax_table
+    const lookupTax = async (bruttolön: number) => {
+        if (!bruttolön || bruttolön <= 0) return 0;
+
+        const { data: row } = await supabase
+            .from('tax_table')
+            .select('tax_amount')
+            .eq('year', year)
+            .lte('income_min', bruttolön)
+            .gte('income_max', bruttolön)
+            .maybeSingle();
+
+        return row?.tax_amount ?? 0;
+    };
+
+    // Gruppéring per användare: bygg "rows" i samma form som gamla monthly_income
     const usersMap = new Map<string, any[]>();
 
     for (const m of months) {
@@ -134,63 +158,89 @@ export const load: PageServerLoad = async ({ locals, url }) => {
         usersMap.get(m.user_id)!.push(row);
     }
 
-    const people = [];
+    // Portad logik från din "korrekta" serverfil
+    const calculateSummary = async (rows: any[], isMemberOfChurch: boolean) => {
+        if (!rows || rows.length === 0) return null;
 
-    for (const [user_id, months] of usersMap.entries()) {
-        const actual = months.filter((m) => m.ord_lon_fore_skatt !== null);
-        if (actual.length === 0) continue;
+        let årsinkomstHittills = 0;      // brutto hittills
+        let totalSkattHittills = 0;      // rad 34 i Excel (total skatt hittills)
 
-        const last = actual[actual.length - 1];
+        rows.forEach((row) => {
+            const bruttoOrd = Number(row.ord_lon_fore_skatt ?? 0);
+            const bruttoAssist = Number(row.ass_lon_fore_skatt ?? 0);
+            const bruttoFK = Number(row.fk_lon_fore_skatt ?? 0);
 
-        const actualTotals = {
-            ord: actual.reduce((s, m) => s + Number(m.ord_skatt ?? 0), 0),
-            ass: actual.reduce((s, m) => s + Number(m.ass_skatt ?? 0), 0),
-            fk: actual.reduce((s, m) => s + Number(m.fk_skatt ?? 0), 0),
-            netto: actual.reduce(
-                (s, m) =>
-                    s +
-                    Number(m.ord_nettolon ?? 0) +
-                    Number(m.ass_nettolon ?? 0) +
-                    Number(m.fk_nettolon ?? 0),
-                0
-            )
+            årsinkomstHittills += bruttoOrd + bruttoAssist + bruttoFK;
+
+            const månadensSkatt =
+                Number(row.ord_skatt ?? 0) +
+                Number(row.ass_skatt ?? 0) +
+                Number(row.ass_frivillig_skatt ?? 0) +
+                Number(row.fk_skatt ?? 0);
+
+            totalSkattHittills += månadensSkatt;
+        });
+
+        const monthsCount = rows.length; // månadens nummer
+        const årsprognos = (årsinkomstHittills / monthsCount) * 12;
+
+        const last = rows[rows.length - 1];
+
+        const lastOrdBrutto =
+            Number(last.ord_lon_fore_skatt ?? 0) -
+            Number(last.ord_franvaro ?? 0);
+
+        const lastAssistBrutto = Number(last.ass_lon_fore_skatt ?? 0);
+        const lastFKBrutto = Number(last.fk_lon_fore_skatt ?? 0);
+
+        const rightTaxOrd = await lookupTax(lastOrdBrutto);
+        const rightTaxAssist = lastAssistBrutto * 0.30;
+        const rightTaxFK = Number(last.fk_skatt ?? 0);
+
+        const rightTaxTotal = rightTaxOrd + rightTaxAssist + rightTaxFK;
+
+        const årsskattMedKyrko = rightTaxTotal * 12;
+        const kyrkoavgiftÅr = isMemberOfChurch ? 0 : årsprognos * 0.01;
+        const kommunalSkattÅr = årsskattMedKyrko - kyrkoavgiftÅr;
+
+        const statligSkatt = Math.max(0, (årsprognos - statligSkattGräns) * 0.20);
+
+        const totalSkattBorde = kommunalSkattÅr + statligSkatt;
+
+        // Förväntad inbetald årsskatt = 34 / månadens nummer * 12
+        const expectedPaidTax = (totalSkattHittills / monthsCount) * 12;
+
+        const diff = expectedPaidTax - totalSkattBorde;
+
+        return {
+            årsinkomstHittills,
+            årsprognos,
+            rightTaxOrd,
+            rightTaxAssist,
+            rightTaxFK,
+            rightTaxTotal,
+            kommunalSkattÅr,
+            statligSkatt,
+            totalSkattBorde,
+            expectedPaidTax,
+            diff
         };
+    };
 
-        const remaining = 12 - actual.length;
+    const people: { user_id: string; name: string; summary: any | null }[] = [];
 
-        const forecastTotals = {
-            ord: remaining * Number(last.ord_skatt ?? 0),
-            ass: remaining * Number(last.ass_skatt ?? 0),
-            fk: remaining * Number(last.fk_skatt ?? 0),
-            netto:
-                remaining *
-                (Number(last.ord_nettolon ?? 0) +
-                    Number(last.ass_nettolon ?? 0) +
-                    Number(last.fk_nettolon ?? 0))
-        };
+    for (const [user_id, rows] of usersMap.entries()) {
+        // Hämta användarens skatteinställningar (kyrkoavgift)
+        const { data: userTaxSettings } = await supabase
+            .from('tax_user_settings')
+            .select('is_member_of_church')
+            .eq('user_id', user_id)
+            .eq('year', year)
+            .maybeSingle();
 
-        const total = {
-            ord: actualTotals.ord + forecastTotals.ord,
-            ass: actualTotals.ass + forecastTotals.ass,
-            fk: actualTotals.fk + forecastTotals.fk,
-            netto: actualTotals.netto + forecastTotals.netto
-        };
+        const isMemberOfChurch = userTaxSettings?.is_member_of_church ?? true;
 
-        const summary = {
-            årsinkomstHittills: actualTotals.netto,
-            årsprognos: total.netto,
-            rightTaxOrd: total.ord,
-            rightTaxAssist: total.ass,
-            rightTaxFK: total.fk,
-            rightTaxTotal: total.ord + total.ass + total.fk,
-            kommunalSkattÅr: total.ord + total.ass + total.fk,
-            statligSkatt: 0,
-            totalSkattBorde: total.ord + total.ass + total.fk,
-            expectedPaidTax: actualTotals.ord + actualTotals.ass + actualTotals.fk,
-            diff:
-                (actualTotals.ord + actualTotals.ass + actualTotals.fk) -
-                (total.ord + total.ass + total.fk)
-        };
+        const summary = await calculateSummary(rows, isMemberOfChurch);
 
         people.push({
             user_id,
