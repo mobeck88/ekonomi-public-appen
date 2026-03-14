@@ -14,7 +14,7 @@
 
 <!-- Hushåll -->
 <div class="section">
-    <button class="section-header" on:click={() => showHousehold = !showHousehold}>
+    <button class="section-header" on:click={() => (showHousehold = !showHousehold)}>
         <span>Hushåll</span>
         <span>{showHousehold ? "▲" : "▼"}</span>
     </button>
@@ -31,14 +31,13 @@
 
 <!-- Kyrkotillhörighet -->
 <div class="section">
-    <button class="section-header" on:click={() => showChurch = !showChurch}>
+    <button class="section-header" on:click={() => (showChurch = !showChurch)}>
         <span>Kyrkotillhörighet</span>
         <span>{showChurch ? "▲" : "▼"}</span>
     </button>
 
     {#if showChurch}
-        <!-- ⭐ KRITISK FIX: ABSOLUT URL -->
-        <form method="POST" action="/settings?/updateChurch" class="form">
+        <form method="POST" action="/settings/updateChurch" class="form">
             <label class="checkbox-row">
                 <input type="checkbox" name="isMember" bind:checked={isMember}>
                 Jag är medlem i Svenska kyrkan
@@ -51,13 +50,13 @@
 
 <!-- Byt lösenord -->
 <div class="section">
-    <button class="section-header" on:click={() => showPassword = !showPassword}>
+    <button class="section-header" on:click={() => (showPassword = !showPassword)}>
         <span>Byt lösenord</span>
         <span>{showPassword ? "▲" : "▼"}</span>
     </button>
 
     {#if showPassword}
-        <form method="POST" action="/settings?/changePassword" class="form">
+        <form method="POST" action="/settings/changePassword" class="form">
             <label for="newPassword">Nytt lösenord</label>
             <input type="password" id="newPassword" name="newPassword" required>
 
@@ -68,7 +67,7 @@
 
 <!-- Logga ut -->
 <div class="section">
-    <button class="section-header" on:click={() => showLogout = !showLogout}>
+    <button class="section-header" on:click={() => (showLogout = !showLogout)}>
         <span>Logga ut</span>
         <span>{showLogout ? "▲" : "▼"}</span>
     </button>
@@ -98,7 +97,7 @@
         border: 1px solid #e5e7eb;
         border-radius: 12px;
         background: #ffffff;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
 
     .section-header {
@@ -150,7 +149,8 @@
         background: #f9fafb;
     }
 
-    input:focus, textarea:focus {
+    input:focus,
+    textarea:focus {
         outline: none;
         border-color: #2563eb;
         box-shadow: 0 0 0 2px #dbeafe;

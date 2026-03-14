@@ -1,6 +1,7 @@
 import { fail, redirect } from "@sveltejs/kit";
+import type { Actions, PageServerLoad } from "./$types";
 
-export const load = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals }) => {
     const user = locals.user;
     if (!user) return { isMemberOfChurch: true };
 
@@ -18,7 +19,7 @@ export const load = async ({ locals }) => {
     };
 };
 
-export const actions = {
+export const actions: Actions = {
     updateChurch: async ({ request, locals }) => {
         const user = locals.user;
         if (!user) throw redirect(303, "/login");
