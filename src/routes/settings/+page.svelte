@@ -37,7 +37,7 @@
     </button>
 
     {#if showChurch}
-        <form method="POST" action="/settings/updateChurch" class="form">
+        <form method="POST" action="?/updateChurch" class="form">
             <label class="checkbox-row">
                 <input type="checkbox" name="isMember" bind:checked={isMember}>
                 Jag är medlem i Svenska kyrkan
@@ -56,7 +56,7 @@
     </button>
 
     {#if showPassword}
-        <form method="POST" action="/settings/changePassword" class="form">
+        <form method="POST" action="?/changePassword" class="form">
             <label for="newPassword">Nytt lösenord</label>
             <input type="password" id="newPassword" name="newPassword" required>
 
