@@ -7,7 +7,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     const supabase = locals.supabase;
 
     if (!user) throw redirect(303, '/login');
-    if (!householdId) return { months: [] };
+    if (!householdId) return { months: [], employers: [] };
 
     const { data: months } = await supabase
         .from('income_months')
@@ -15,19 +15,59 @@ export const load: PageServerLoad = async ({ locals }) => {
         .eq('household_id', householdId)
         .order('month_date', { ascending: false });
 
-    if (!months) return { months: [] };
+    if (!months || months.length === 0) {
+        const { data: employers } = await supabase
+            .from('income_employers')
+            .select('*')
+            .eq('household_id', householdId)
+            .order('name', { ascending: true });
 
-    const { data: primary } = await supabase.from('income_primary_job').select('*');
-    const { data: extra } = await supabase.from('income_extra_jobs').select('*');
-    const { data: fk } = await supabase.from('income_fk').select('*');
+        return { months: [], employers: employers ?? [] };
+    }
+
+    const { data: primary } = await supabase
+        .from('income_primary_job')
+        .select('*')
+        .eq('household_id', householdId);
+
+    const { data: extra } = await supabase
+        .from('income_extra_jobs')
+        .select('*')
+        .eq('household_id', householdId);
+
+    const { data: fk } = await supabase
+        .from('income_fk')
+        .select('*')
+        .eq('household_id', householdId);
+
+    const { data: employers } = await supabase
+        .from('income_employers')
+        .select('*')
+        .eq('household_id', householdId)
+        .order('name', { ascending: true });
+
+    const employersMap = new Map<string, { id: string; name: string }>();
+    (employers ?? []).forEach((e: any) => {
+        if (e.id) {
+            employersMap.set(e.id, { id: e.id, name: e.name });
+        }
+    });
 
     const enriched = months.map((m) => {
         const p = primary?.find((p) => p.income_month_id === m.id) ?? null;
-        const e = extra?.filter((e) => e.income_month_id === m.id) ?? [];
-        const f = fk?.filter((f) => f.income_month_id === m.id) ?? [];
+        const e = (extra ?? []).filter((e) => e.income_month_id === m.id);
+        const f = (fk ?? []).filter((f) => f.income_month_id === m.id);
+
+        const extraWithEmployer = e.map((row) => {
+            const employer = row.employer_id ? employersMap.get(row.employer_id) : undefined;
+            return {
+                ...row,
+                employer_name: employer?.name ?? null
+            };
+        });
 
         const primary_netto = p?.att_betala_ut ? Number(p.att_betala_ut) : 0;
-        const extra_netto = e.reduce(
+        const extra_netto = extraWithEmployer.reduce(
             (sum, row) => sum + (row.att_betala_ut ? Number(row.att_betala_ut) : 0),
             0
         );
@@ -40,7 +80,7 @@ export const load: PageServerLoad = async ({ locals }) => {
             ...m,
             month: m.month_date.slice(0, 7),
             primary_job: p,
-            extra_jobs: e,
+            extra_jobs: extraWithEmployer,
             fk_list: f,
             primary_netto,
             extra_netto,
@@ -49,7 +89,7 @@ export const load: PageServerLoad = async ({ locals }) => {
         };
     });
 
-    return { months: enriched };
+    return { months: enriched, employers: employers ?? [] };
 };
 
 // ⭐ Konverterar UI-input till en giltig DATE (YYYY-MM-DD)
@@ -74,6 +114,39 @@ function parseMonth(raw: FormDataEntryValue | null): string | null {
 }
 
 export const actions: Actions = {
+
+    // ⭐ NY ACTION – exakt det UI:t behöver
+    create_employer: async ({ request, locals }) => {
+        const user = locals.user;
+        const householdId = locals.householdId;
+        const supabase = locals.supabase;
+
+        if (!user) throw redirect(303, '/login');
+        if (!householdId) return fail(400, { message: 'Saknar hushåll' });
+
+        const form = await request.formData();
+        const name = form.get('name')?.toString().trim();
+
+        if (!name) return fail(400, { message: 'Namn saknas' });
+
+        const { data, error } = await supabase
+            .from('income_employers')
+            .insert({
+                household_id: householdId,
+                user_id: user.id,
+                name
+            })
+            .select('*')
+            .single();
+
+        if (error) return fail(400, { message: error.message });
+
+        return new Response(JSON.stringify(data), {
+            headers: { 'Content-Type': 'application/json' }
+        });
+    },
+
+    // ⭐ Resten av dina actions är oförändrade
     create_income: async ({ request, locals }) => {
         const user = locals.user;
         const householdId = locals.householdId;
@@ -122,31 +195,38 @@ export const actions: Actions = {
             if (error) return fail(400, { message: error.message });
         }
 
-        // ⭐ Extra jobb
-        const arbetsgivareArr = form.getAll('extra_arbetsgivare');
+        // ⭐ Extra jobb — nu med employer_id från UI
+        const employerIdArr = form.getAll('extra_employer_id');
         const lonArr = form.getAll('extra_lon_fore_skatt');
         const franvaroArr = form.getAll('extra_franvaro');
         const inbetaldArr = form.getAll('extra_inbetald_skatt');
         const frivilligArr = form.getAll('extra_frivillig_skatt');
         const attBetalaArr = form.getAll('extra_att_betala_ut');
 
-        const extraRows = arbetsgivareArr
-            .map((arbetsgivare, i) => ({
-                income_month_id,
-                household_id: householdId,
-                user_id: user.id,
-                arbetsgivare_namn: arbetsgivare || null,
-                lon_fore_skatt: lonArr[i] || null,
-                franvaro: franvaroArr[i] || null,
-                inbetald_skatt: inbetaldArr[i] || null,
-                frivillig_skatt: frivilligArr[i] || null,
-                att_betala_ut: attBetalaArr[i] || null
-            }))
+        const extraRows = employerIdArr
+            .map((employerId, i) => {
+                const employer_id = employerId?.toString().trim() || null;
+
+                const row = {
+                    income_month_id,
+                    household_id: householdId,
+                    user_id: user.id,
+                    employer_id,
+                    lon_fore_skatt: lonArr[i] || null,
+                    franvaro: franvaroArr[i] || null,
+                    inbetald_skatt: inbetaldArr[i] || null,
+                    frivillig_skatt: frivilligArr[i] || null,
+                    att_betala_ut: attBetalaArr[i] || null
+                };
+
+                return row;
+            })
             .filter((row) =>
                 Object.values(row).some(
                     (v) => v && v !== income_month_id && v !== householdId && v !== user.id
                 )
-            );
+            )
+            .filter((row) => row.employer_id);
 
         if (extraRows.length > 0) {
             const { error } = await supabase.from('income_extra_jobs').insert(extraRows);
@@ -173,11 +253,7 @@ export const actions: Actions = {
             }))
             .filter((row) =>
                 Object.values(row).some(
-                    (v) =>
-                        v &&
-                        v !== income_month_id &&
-                        v !== householdId &&
-                        v !== user.id
+                    (v) => v && v !== income_month_id && v !== householdId && v !== user.id
                 )
             );
 
@@ -253,29 +329,36 @@ export const actions: Actions = {
             if (error) return fail(400, { message: error.message });
         }
 
-        // ⭐ Extra jobb
+        // ⭐ Extra jobb — rensa och skriv om med employer_id
         await supabase.from('income_extra_jobs').delete().eq('income_month_id', income_month_id);
 
-        const arbetsgivareArr = form.getAll('extra_arbetsgivare');
+        const employerIdArr = form.getAll('extra_employer_id');
         const lonArr = form.getAll('extra_lon_fore_skatt');
         const franvaroArr = form.getAll('extra_franvaro');
         const inbetaldArr = form.getAll('extra_inbetald_skatt');
         const frivilligArr = form.getAll('extra_frivillig_skatt');
         const attBetalaArr = form.getAll('extra_att_betala_ut');
 
-        const extraRows = arbetsgivareArr
-            .map((arbetsgivare, i) => ({
-                income_month_id,
-                household_id: householdId,
-                user_id: user.id,
-                arbetsgivare_namn: arbetsgivare || null,
-                lon_fore_skatt: lonArr[i] || null,
-                franvaro: franvaroArr[i] || null,
-                inbetald_skatt: inbetaldArr[i] || null,
-                frivillig_skatt: frivilligArr[i] || null,
-                att_betala_ut: attBetalaArr[i] || null
-            }))
-            .filter((row) => Object.values(row).some((v) => v));
+        const extraRows = employerIdArr
+            .map((employerId, i) => {
+                const employer_id = employerId?.toString().trim() || null;
+
+                const row = {
+                    income_month_id,
+                    household_id: householdId,
+                    user_id: user.id,
+                    employer_id,
+                    lon_fore_skatt: lonArr[i] || null,
+                    franvaro: franvaroArr[i] || null,
+                    inbetald_skatt: inbetaldArr[i] || null,
+                    frivillig_skatt: frivilligArr[i] || null,
+                    att_betala_ut: attBetalaArr[i] || null
+                };
+
+                return row;
+            })
+            .filter((row) => Object.values(row).some((v) => v))
+            .filter((row) => row.employer_id);
 
         if (extraRows.length > 0) {
             const { error } = await supabase.from('income_extra_jobs').insert(extraRows);
