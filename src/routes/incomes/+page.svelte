@@ -19,7 +19,7 @@
 
         extraJobs = m.extra_jobs
             ? m.extra_jobs.map(e => ({
-                arbetsgivare: e.arbetsgivare ?? "",
+                arbetsgivare: e.arbetsgivare_namn ?? "",
                 lon_fore_skatt: e.lon_fore_skatt ?? "",
                 franvaro: e.franvaro ?? "",
                 inbetald_skatt: e.inbetald_skatt ?? "",
@@ -51,6 +51,10 @@
         if (!dateString) return "";
         return dateString.slice(0, 7);
     }
+
+    // ⭐ Dynamiskt antal extra-jobb kolumner
+    const maxExtraJobs = Math.max(...data.months.map(m => m.extra_jobs.length));
+    const hasFK = data.months.some(m => m.fk);
 </script>
 
 <h1>Inkomster</h1>
@@ -70,23 +74,46 @@
                 <thead>
                     <tr>
                         <th>Månad</th>
-                        <th>Summa</th>
+                        <th>Ordinarie netto</th>
+
+                        {#each Array(maxExtraJobs) as _, i}
+                            <th>Extra {i + 1} netto</th>
+                        {/each}
+
+                        {#if hasFK}
+                            <th>FK netto</th>
+                        {/if}
+
+                        <th>Total</th>
                     </tr>
                 </thead>
+
                 <tbody>
                     {#each data.months as m}
                         <tr on:click={() => editIncome(m)}>
                             <td>{toMonthInput(m.month)}</td>
-                            <td>
-                                {(
-                                    (m.primary_job?.att_betala_ut ?? 0) +
-                                    (m.fk?.att_betala_ut ?? 0) +
-                                    (m.extra_jobs ?? []).reduce(
-                                        (sum, e) => sum + Number(e.att_betala_ut ?? 0),
-                                        0
-                                    )
-                                )} kr
-                            </td>
+
+                            <!-- Ordinarie netto -->
+                            <td>{m.primary_netto} kr</td>
+
+                            <!-- Extra-jobb netto -->
+                            {#each Array(maxExtraJobs) as _, i}
+                                <td>
+                                    {#if m.extra_jobs[i]}
+                                        {Number(m.extra_jobs[i].att_betala_ut ?? 0)} kr
+                                    {:else}
+                                        0 kr
+                                    {/if}
+                                </td>
+                            {/each}
+
+                            <!-- FK netto -->
+                            {#if hasFK}
+                                <td>{m.fk?.att_betala_ut ? Number(m.fk.att_betala_ut) : 0} kr</td>
+                            {/if}
+
+                            <!-- Total -->
+                            <td>{m.total} kr</td>
                         </tr>
                     {/each}
                 </tbody>
@@ -94,6 +121,7 @@
         {/if}
     {/if}
 </div>
+
 
 <!-- ⭐ Sektion: Ny / Redigera inkomst -->
 <div class="section">

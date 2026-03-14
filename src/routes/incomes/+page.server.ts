@@ -21,12 +21,29 @@ export const load: PageServerLoad = async ({ locals }) => {
     const { data: extra } = await supabase.from('income_extra_jobs').select('*');
     const { data: fk } = await supabase.from('income_fk').select('*');
 
-    const enriched = months.map((m) => ({
-        ...m,
-        primary_job: primary?.find((p) => p.income_month_id === m.id) ?? null,
-        extra_jobs: extra?.filter((e) => e.income_month_id === m.id) ?? [],
-        fk: fk?.find((f) => f.income_month_id === m.id) ?? null
-    }));
+    const enriched = months.map((m) => {
+        const p = primary?.find((p) => p.income_month_id === m.id) ?? null;
+        const e = extra?.filter((e) => e.income_month_id === m.id) ?? [];
+        const f = fk?.find((f) => f.income_month_id === m.id) ?? null;
+
+        const primary_netto = p?.att_betala_ut ? Number(p.att_betala_ut) : 0;
+        const extra_netto = e.reduce(
+            (sum, row) => sum + (row.att_betala_ut ? Number(row.att_betala_ut) : 0),
+            0
+        );
+        const fk_netto = f?.att_betala_ut ? Number(f.att_betala_ut) : 0;
+
+        return {
+            ...m,
+            month: m.month_date.slice(0, 7), // YYYY-MM för UI
+            primary_job: p,
+            extra_jobs: e,
+            fk: f,
+            primary_netto,
+            extra_netto,
+            total: primary_netto + extra_netto + fk_netto
+        };
+    });
 
     return { months: enriched };
 };
@@ -37,14 +54,12 @@ function parseMonth(raw: FormDataEntryValue | null): string | null {
 
     const s = raw.toString().trim();
 
-    // UI skickar "YYYY-MM"
     if (/^\d{4}-\d{2}$/.test(s)) {
         const d = new Date(`${s}-01`);
         if (Number.isNaN(d.getTime())) return null;
-        return d.toISOString().slice(0, 10); // YYYY-MM-DD
+        return d.toISOString().slice(0, 10);
     }
 
-    // UI kan i vissa fall skicka "YYYY-MM-DD"
     if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
         const d = new Date(s);
         if (Number.isNaN(d.getTime())) return null;
@@ -65,7 +80,6 @@ export const actions: Actions = {
 
         const form = await request.formData();
 
-        // ⭐ Hård validering — nu 100% kompatibel med DATE
         const month = parseMonth(form.get('month'));
         if (!month) return fail(400, { message: 'Ogiltigt månadsvärde' });
 
@@ -74,7 +88,7 @@ export const actions: Actions = {
             .insert({
                 household_id: householdId,
                 user_id: user.id,
-                month_date: month // alltid YYYY-MM-DD
+                month_date: month
             })
             .select('id')
             .single();
