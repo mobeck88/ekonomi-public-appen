@@ -27,7 +27,6 @@ export const actions = {
         const isMember = form.get("isMember") === "on";
         const year = new Date().getFullYear();
 
-        // ⭐ UPSERT löser problemet när raden saknas
         const { error } = await locals.supabase
             .from("tax_user_settings")
             .upsert({
@@ -40,7 +39,8 @@ export const actions = {
             return fail(500, { message: "Kunde inte uppdatera kyrkotillhörighet." });
         }
 
-        return { message: "Kyrkotillhörighet uppdaterad" };
+        // ⭐ Viktigt: redirect så load() körs om och rätt värde visas
+        throw redirect(303, "/settings");
     },
 
     changePassword: async ({ request, locals }) => {
