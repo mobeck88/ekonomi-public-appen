@@ -39,7 +39,7 @@ export const actions = {
             return fail(500, { message: "Kunde inte uppdatera kyrkotillhörighet." });
         }
 
-        // ⭐ Viktigt: redirect så load() körs om och rätt värde visas
+        // ⭐ Kritisk fix: load() måste köras om
         throw redirect(303, "/settings");
     },
 
