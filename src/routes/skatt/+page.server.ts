@@ -7,17 +7,20 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     const supabase = locals.supabase;
 
     if (!user) throw redirect(303, '/login');
+
+    const currentYear = new Date().getFullYear();
+
     if (!householdId) {
         return {
-            year: null,
-            currentYear: new Date().getFullYear(),
+            year: currentYear,
+            currentYear,
             people: []
         };
     }
 
     // År
     const yearParam = url.searchParams.get('year');
-    const year = yearParam ? Number(yearParam) : new Date().getFullYear();
+    const year = yearParam ? Number(yearParam) : currentYear;
 
     // Hämta monthly_income
     const { data: rows } = await supabase
@@ -31,7 +34,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     if (!rows || rows.length === 0) {
         return {
             year,
-            currentYear: new Date().getFullYear(),
+            currentYear,
             people: []
         };
     }
@@ -52,12 +55,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
         usersMap.get(r.user_id)!.push(r);
     }
 
-    // Bygg people[]
     const people = [];
 
     for (const [user_id, months] of usersMap.entries()) {
         const actual = months.filter((m) => m.ord_lon_fore_skatt !== null);
-
         if (actual.length === 0) continue;
 
         const last = actual[actual.length - 1];
@@ -96,7 +97,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
             netto: actualTotals.netto + forecastTotals.netto
         };
 
-        // Bygg summary exakt som UI:n kräver
         const summary = {
             årsinkomstHittills: actualTotals.netto,
             årsprognos: total.netto,
@@ -104,8 +104,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
             rightTaxAssist: total.ass,
             rightTaxFK: total.fk,
             rightTaxTotal: total.ord + total.ass + total.fk,
-            kommunalSkattÅr: total.ord + total.ass + total.fk, // du kan ändra formel
-            statligSkatt: 0, // lägg in din logik här
+            kommunalSkattÅr: total.ord + total.ass + total.fk,
+            statligSkatt: 0,
             totalSkattBorde: total.ord + total.ass + total.fk,
             expectedPaidTax: actualTotals.ord + actualTotals.ass + actualTotals.fk,
             diff:
@@ -122,7 +122,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
     return {
         year,
-        currentYear: new Date().getFullYear(),
+        currentYear,
         people
     };
 };
