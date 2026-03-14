@@ -46,8 +46,9 @@
         return arr.some((m) => (m?.shared ?? 0) > 0);
     }
 
+    // Inkomster in i summeringen
     function sumIn(i) {
-        return data.extraPerMonth[i];
+        return data.incomeTotal?.[i] ?? 0;
     }
 
     function sumOut(i) {
@@ -93,6 +94,11 @@
         }
         return result;
     })();
+
+    // Visa inte lånerad om alla månader är 0
+    function hasAnyLoanForMember(memberName) {
+        return data.months.some((_, i) => (data.loansPerMonth[i][memberName] ?? 0) !== 0);
+    }
 </script>
 
 <h1>Budget {year}</h1>
@@ -117,6 +123,26 @@
         </thead>
 
         <tbody>
+            <!-- INKOMSTER -->
+            <tr><td colspan="13" class="section income-section">INKOMSTER</td></tr>
+
+            {#each members as member}
+                <tr class="income-person">
+                    <td>Inkomst {member.name}</td>
+                    {#each data.months as _, i}
+                        <td>{formatKr(data.incomePerUser?.[member.name]?.[i] ?? 0)}</td>
+                    {/each}
+                </tr>
+            {/each}
+
+            <tr class="sum income-total">
+                <td>Totalt hushåll</td>
+                {#each data.months as _, i}
+                    <td>{formatKr(data.incomeTotal?.[i] ?? 0)}</td>
+                {/each}
+            </tr>
+
+            <!-- UTGIFTER -->
             <tr><td colspan="13" class="section">UTGIFTER</td></tr>
 
             {#each expenseSections as section}
@@ -142,12 +168,14 @@
 
                 {:else if section.type === 'perUser'}
                     {#each members as member}
-                        <tr class={colorClassForUser(member.id)}>
-                            <td>{section.title} {member.name}</td>
-                            {#each data.months as _, i}
-                                <td>{formatKr(data[section.key][i][member.name] ?? 0)}</td>
-                            {/each}
-                        </tr>
+                        {#if section.key !== 'loansPerMonth' || hasAnyLoanForMember(member.name)}
+                            <tr class={colorClassForUser(member.id)}>
+                                <td>{section.title} {member.name}</td>
+                                {#each data.months as _, i}
+                                    <td>{formatKr(data[section.key][i][member.name] ?? 0)}</td>
+                                {/each}
+                            </tr>
+                        {/if}
                     {/each}
 
                     {#if hasShared(section.key)}
@@ -224,6 +252,10 @@
         padding: 0.5rem;
     }
 
+    .income-section {
+        background: #d9fbe0;
+    }
+
     .subsection {
         background: #f3f6fb;
         font-weight: bold;
@@ -267,6 +299,10 @@
     tr.sum td {
         background: #e0e0e0 !important;
         font-weight: bold;
+    }
+
+    tr.sum.income-total td {
+        background: #c9f7c9 !important;
     }
 
     tr.diff td {

@@ -23,7 +23,9 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             unexpectedPerMonth: [],
             extraPerMonth: [],
             fixedGroups: [],
-            ownerMap: {}
+            ownerMap: {},
+            incomePerUser: {},
+            incomeTotal: []
         };
     }
 
@@ -57,7 +59,11 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         unexpectedRes,
         extraRes,
         loansRes,
-        expensesRes
+        expensesRes,
+        incomeMonthsRes,
+        primaryRes,
+        extraJobsRes,
+        fkRes
     ] = await Promise.all([
         supabase.from('electricity').select('*').eq('household_id', householdId),
         supabase.from('fixed_costs').select('*').eq('household_id', householdId),
@@ -68,7 +74,16 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         supabase.from('unexpected_expenses').select('*').eq('household_id', householdId),
         supabase.from('extra_income').select('*').eq('household_id', householdId),
         supabase.from('loans').select('*').eq('household_id', householdId),
-        supabase.from('expenses').select('*').eq('household_id', householdId)
+        supabase.from('expenses').select('*').eq('household_id', householdId),
+        supabase
+            .from('income_months')
+            .select('id, month_date')
+            .eq('household_id', householdId)
+            .gte('month_date', `${selectedYear}-01-01`)
+            .lte('month_date', `${selectedYear}-12-31`),
+        supabase.from('income_primary_job').select('*').eq('household_id', householdId),
+        supabase.from('income_extra_jobs').select('*').eq('household_id', householdId),
+        supabase.from('income_fk').select('*').eq('household_id', householdId)
     ]);
 
     const electricityRows = electricityRes.data ?? [];
@@ -81,6 +96,11 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     const extra = extraRes.data ?? [];
     const loans = loansRes.data ?? [];
     const expenses = expensesRes.data ?? [];
+
+    const incomeMonths = incomeMonthsRes.data ?? [];
+    const primary = primaryRes.data ?? [];
+    const extraJobs = extraJobsRes.data ?? [];
+    const fk = fkRes.data ?? [];
 
     // Robust YYYY-MM extraktion
     const toYM = (value: any) => {
@@ -234,11 +254,57 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             .reduce((acc, u) => acc + Number(u.amount ?? 0), 0)
     );
 
-    // Extra inkomster
+    // Extra inkomster (separat rad, inte kopplad till income-systemet)
     const extraPerMonth = months.map((m) =>
         extra
             .filter((x) => toYM(x.date) === m)
             .reduce((acc, x) => acc + Number(x.amount ?? 0), 0)
+    );
+
+    // ⭐ INKOMSTER – per person och total hushåll
+    const incomePerUser: Record<string, number[]> = {};
+    for (const member of memberList) {
+        incomePerUser[member.name] = months.map(() => 0);
+    }
+
+    const monthIdToYm = new Map<any, string>();
+    for (const im of incomeMonths) {
+        const ym = toYM(im.month_date);
+        if (ym) monthIdToYm.set(im.id, ym);
+    }
+
+    const addIncome = (userId: any, income_month_id: any, amount: any) => {
+        const ym = monthIdToYm.get(income_month_id);
+        if (!ym) return;
+        const idx = months.indexOf(ym);
+        if (idx === -1) return;
+
+        const member = memberList.find((m) => m.id === userId);
+        if (!member) return;
+
+        const val = Number(amount ?? 0);
+        if (!Number.isFinite(val)) return;
+
+        incomePerUser[member.name][idx] += val;
+    };
+
+    for (const row of primary) {
+        addIncome(row.user_id, row.income_month_id, row.att_betala_ut);
+    }
+
+    for (const row of extraJobs) {
+        addIncome(row.user_id, row.income_month_id, row.att_betala_ut);
+    }
+
+    for (const row of fk) {
+        addIncome(row.user_id, row.income_month_id, row.att_betala_ut);
+    }
+
+    const incomeTotal = months.map((_, i) =>
+        memberList.reduce(
+            (sum, member) => sum + (incomePerUser[member.name]?.[i] ?? 0),
+            0
+        )
     );
 
     return {
@@ -255,6 +321,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         kidsPerMonth,
         loansPerMonth,
         unexpectedPerMonth,
-        extraPerMonth
+        extraPerMonth,
+        incomePerUser,
+        incomeTotal
     };
 };
