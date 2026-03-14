@@ -8,10 +8,6 @@
     let showList = false;
     let showForm = false;
 
-    // Inline-form för att skapa arbetsgivare
-    let showEmployerForm = false;
-    let newEmployerName = "";
-
     const FK_TYPES = [
         "Sjukpenning",
         "Tillfällig föräldrapenning (VAB)",
@@ -33,6 +29,27 @@
         "Övrigt"
     ];
 
+    // De typer vi behandlar som "bidrag" där bara "Att betala ut" ska fyllas i
+    const FK_BENEFIT_TYPES = [
+        "Barnbidrag",
+        "Förlängt barnbidrag",
+        "Studiebidrag (CSN)",
+        "Bostadsbidrag",
+        "Bostadstillägg",
+        "Underhållsstöd"
+    ];
+
+    function isBenefitType(t) {
+        return FK_BENEFIT_TYPES.includes(t ?? "");
+    }
+
+    function onFkTypeChange(fk) {
+        if (isBenefitType(fk.fk_typ)) {
+            fk.ersattning_fore_skatt = "";
+            fk.inbetald_skatt = "";
+        }
+    }
+
     function newIncome() {
         selected = null;
         extraJobs = [];
@@ -44,7 +61,7 @@
         selected = structuredClone(m);
         showForm = true;
 
-        // Extra jobb med employer_id
+        // Extra jobb med employer_id + per-rad state för ny arbetsgivare
         extraJobs = m.extra_jobs
             ? m.extra_jobs.map(e => ({
                 employer_id: e.employer_id ?? "",
@@ -52,7 +69,9 @@
                 franvaro: e.franvaro ?? "",
                 inbetald_skatt: e.inbetald_skatt ?? "",
                 frivillig_skatt: e.frivillig_skatt ?? "",
-                att_betala_ut: e.att_betala_ut ?? ""
+                att_betala_ut: e.att_betala_ut ?? "",
+                isAddingEmployer: false,
+                newEmployerName: ""
             }))
             : [];
 
@@ -77,7 +96,9 @@
                 franvaro: "",
                 inbetald_skatt: "",
                 frivillig_skatt: "",
-                att_betala_ut: ""
+                att_betala_ut: "",
+                isAddingEmployer: false,
+                newEmployerName: ""
             }
         ];
     }
@@ -109,12 +130,33 @@
         return dateString.slice(0, 7);
     }
 
-    // Skapa arbetsgivare inline
-    async function createEmployer() {
-        if (!newEmployerName.trim()) return;
+    // När man väljer arbetsgivare i dropdownen
+    function handleEmployerSelect(index, event) {
+        const value = event.target.value;
+        const job = extraJobs[index];
+
+        if (value === "__new__") {
+            // Växla till "lägg till ny"-läge
+            job.isAddingEmployer = true;
+            job.newEmployerName = "";
+            job.employer_id = "";
+        } else {
+            job.employer_id = value;
+            job.isAddingEmployer = false;
+            job.newEmployerName = "";
+        }
+
+        extraJobs = [...extraJobs];
+    }
+
+    // Skapa arbetsgivare för en specifik extra-jobb-rad
+    async function createEmployerForIndex(index) {
+        const job = extraJobs[index];
+        const name = job.newEmployerName?.trim();
+        if (!name) return;
 
         const form = new FormData();
-        form.append("name", newEmployerName);
+        form.append("name", name);
 
         const res = await fetch("?/create_employer", {
             method: "POST",
@@ -125,14 +167,21 @@
             const emp = await res.json();
             data.employers = [...data.employers, emp];
 
-            // Välj den nya arbetsgivaren i senaste extra-jobbet
-            if (extraJobs.length > 0) {
-                extraJobs[extraJobs.length - 1].employer_id = emp.id;
-            }
+            // Sätt den nya arbetsgivaren på raden
+            job.employer_id = emp.id;
+            job.isAddingEmployer = false;
+            job.newEmployerName = "";
 
-            newEmployerName = "";
-            showEmployerForm = false;
+            extraJobs = [...extraJobs];
         }
+    }
+
+    function cancelNewEmployer(index) {
+        const job = extraJobs[index];
+        job.isAddingEmployer = false;
+        job.newEmployerName = "";
+        job.employer_id = "";
+        extraJobs = [...extraJobs];
     }
 </script>
 
@@ -218,19 +267,44 @@
             <h3>Ordinarie arbete</h3>
 
             <label>Lön före skatt</label>
-            <input type="number" step="0.01" name="primary_lon_fore_skatt" value={selected?.primary_job?.lon_fore_skatt ?? ""} />
+            <input
+                type="number"
+                step="0.01"
+                name="primary_lon_fore_skatt"
+                value={selected?.primary_job?.lon_fore_skatt ?? ""}
+            />
 
             <label>Frånvaro</label>
-            <input type="number" step="0.01" name="primary_franvaro" value={selected?.primary_job?.franvaro ?? ""} />
+            <input
+                type="number"
+                step="0.01"
+                name="primary_franvaro"
+                value={selected?.primary_job?.franvaro ?? ""}
+            />
 
             <label>Inbetald skatt</label>
-            <input type="number" step="0.01" name="primary_inbetald_skatt" value={selected?.primary_job?.inbetald_skatt ?? ""} />
+            <input
+                type="number"
+                step="0.01"
+                name="primary_inbetald_skatt"
+                value={selected?.primary_job?.inbetald_skatt ?? ""}
+            />
 
             <label>Frivillig skatt</label>
-            <input type="number" step="0.01" name="primary_frivillig_skatt" value={selected?.primary_job?.frivillig_skatt ?? ""} />
+            <input
+                type="number"
+                step="0.01"
+                name="primary_frivillig_skatt"
+                value={selected?.primary_job?.frivillig_skatt ?? ""}
+            />
 
             <label>Att betala ut</label>
-            <input type="number" step="0.01" name="primary_att_betala_ut" value={selected?.primary_job?.att_betala_ut ?? ""} />
+            <input
+                type="number"
+                step="0.01"
+                name="primary_att_betala_ut"
+                value={selected?.primary_job?.att_betala_ut ?? ""}
+            />
 
             <!-- ⭐ Extra arbeten -->
             <h3>Extra arbeten</h3>
@@ -238,43 +312,80 @@
             {#each extraJobs as job, i}
                 <div class="card">
 
-                    <!-- Dropdown -->
                     <label>Arbetsgivare</label>
-                    <select name="extra_employer_id" bind:value={job.employer_id}>
-                        <option value="">Välj arbetsgivare…</option>
-                        {#each data.employers as emp}
-                            <option value={emp.id}>{emp.name}</option>
-                        {/each}
-                    </select>
 
-                    <!-- Inline-form -->
-                    <button type="button" on:click={() => showEmployerForm = !showEmployerForm}>
-                        Lägg till arbetsgivare
-                    </button>
-
-                    {#if showEmployerForm}
-                        <div class="card">
-                            <label>Ny arbetsgivare</label>
-                            <input type="text" bind:value={newEmployerName} placeholder="Namn…" />
-                            <button type="button" on:click={createEmployer}>Spara</button>
+                    {#if job.isAddingEmployer}
+                        <input
+                            type="text"
+                            placeholder="Ny arbetsgivare…"
+                            bind:value={job.newEmployerName}
+                        />
+                        <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                            <button type="button" on:click={() => createEmployerForIndex(i)}>
+                                Spara
+                            </button>
+                            <button
+                                type="button"
+                                class="danger"
+                                on:click={() => cancelNewEmployer(i)}
+                            >
+                                Ångra
+                            </button>
                         </div>
+                    {:else}
+                        <select
+                            name="extra_employer_id"
+                            value={job.employer_id}
+                            on:change={(e) => handleEmployerSelect(i, e)}
+                        >
+                            <option value="">Välj arbetsgivare…</option>
+                            {#each data.employers as emp}
+                                <option value={emp.id}>{emp.name}</option>
+                            {/each}
+                            <option value="__new__">Lägg till ny…</option>
+                        </select>
                     {/if}
 
                     <!-- Övriga fält -->
                     <label>Lön före skatt</label>
-                    <input type="number" step="0.01" name="extra_lon_fore_skatt" bind:value={job.lon_fore_skatt} />
+                    <input
+                        type="number"
+                        step="0.01"
+                        name="extra_lon_fore_skatt"
+                        bind:value={job.lon_fore_skatt}
+                    />
 
                     <label>Frånvaro</label>
-                    <input type="number" step="0.01" name="extra_franvaro" bind:value={job.franvaro} />
+                    <input
+                        type="number"
+                        step="0.01"
+                        name="extra_franvaro"
+                        bind:value={job.franvaro}
+                    />
 
                     <label>Inbetald skatt</label>
-                    <input type="number" step="0.01" name="extra_inbetald_skatt" bind:value={job.inbetald_skatt} />
+                    <input
+                        type="number"
+                        step="0.01"
+                        name="extra_inbetald_skatt"
+                        bind:value={job.inbetald_skatt}
+                    />
 
                     <label>Frivillig skatt</label>
-                    <input type="number" step="0.01" name="extra_frivillig_skatt" bind:value={job.frivillig_skatt} />
+                    <input
+                        type="number"
+                        step="0.01"
+                        name="extra_frivillig_skatt"
+                        bind:value={job.frivillig_skatt}
+                    />
 
                     <label>Att betala ut</label>
-                    <input type="number" step="0.01" name="extra_att_betala_ut" bind:value={job.att_betala_ut} />
+                    <input
+                        type="number"
+                        step="0.01"
+                        name="extra_att_betala_ut"
+                        bind:value={job.att_betala_ut}
+                    />
 
                     <button type="button" class="danger" on:click={() => removeExtraJob(i)}>
                         Ta bort
@@ -290,7 +401,11 @@
             {#each fkList as fk, i}
                 <div class="card">
                     <label>Typ av ersättning</label>
-                    <select name="fk_typ" bind:value={fk.fk_typ}>
+                    <select
+                        name="fk_typ"
+                        bind:value={fk.fk_typ}
+                        on:change={() => onFkTypeChange(fk)}
+                    >
                         <option value="">Välj typ…</option>
                         {#each FK_TYPES as t}
                             <option value={t}>{t}</option>
@@ -299,17 +414,38 @@
 
                     {#if fk.fk_typ === "Övrigt"}
                         <label>Beskrivning</label>
-                        <input type="text" name="fk_typ_ovrigt" bind:value={fk.fk_typ_ovrigt} />
+                        <input
+                            type="text"
+                            name="fk_typ_ovrigt"
+                            bind:value={fk.fk_typ_ovrigt}
+                        />
                     {/if}
 
-                    <label>Ersättning före skatt</label>
-                    <input type="number" step="0.01" name="fk_ersattning_fore_skatt" bind:value={fk.ersattning_fore_skatt} />
+                    {#if !isBenefitType(fk.fk_typ)}
+                        <label>Ersättning före skatt</label>
+                        <input
+                            type="number"
+                            step="0.01"
+                            name="fk_ersattning_fore_skatt"
+                            bind:value={fk.ersattning_fore_skatt}
+                        />
 
-                    <label>Inbetald skatt</label>
-                    <input type="number" step="0.01" name="fk_inbetald_skatt" bind:value={fk.inbetald_skatt} />
+                        <label>Inbetald skatt</label>
+                        <input
+                            type="number"
+                            step="0.01"
+                            name="fk_inbetald_skatt"
+                            bind:value={fk.inbetald_skatt}
+                        />
+                    {/if}
 
                     <label>Att betala ut</label>
-                    <input type="number" step="0.01" name="fk_att_betala_ut" bind:value={fk.att_betala_ut} />
+                    <input
+                        type="number"
+                        step="0.01"
+                        name="fk_att_betala_ut"
+                        bind:value={fk.att_betala_ut}
+                    />
 
                     <button type="button" class="danger" on:click={() => removeFk(i)}>
                         Ta bort
