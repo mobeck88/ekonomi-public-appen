@@ -47,16 +47,16 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     const nameMap = new Map<string, string>();
     profiles?.forEach((p) => nameMap.set(p.id, p.full_name ?? 'Okänd'));
 
-    // 3. Hämta monthly_income för hushållets användare
-    const { data: rows } = await supabase
-        .from('monthly_income')
-        .select('*')
+    // 3. Hämta income_months för året
+    const { data: months } = await supabase
+        .from('income_months')
+        .select('id, user_id, month_date')
         .in('user_id', userIds)
-        .gte('month', `${year}-01-01`)
-        .lte('month', `${year}-12-31`)
-        .order('month', { ascending: true });
+        .gte('month_date', `${year}-01-01`)
+        .lte('month_date', `${year}-12-31`)
+        .order('month_date', { ascending: true });
 
-    if (!rows || rows.length === 0) {
+    if (!months || months.length === 0) {
         return {
             year,
             currentYear,
@@ -64,11 +64,74 @@ export const load: PageServerLoad = async ({ locals, url }) => {
         };
     }
 
-    // Gruppéra per användare
+    const monthIds = months.map((m) => m.id);
+
+    // 4. Hämta primary, extra och FK för dessa månader
+    const { data: primary } = await supabase
+        .from('income_primary_job')
+        .select('*')
+        .in('income_month_id', monthIds);
+
+    const { data: extra } = await supabase
+        .from('income_extra_jobs')
+        .select('*')
+        .in('income_month_id', monthIds);
+
+    const { data: fk } = await supabase
+        .from('income_fk')
+        .select('*')
+        .in('income_month_id', monthIds);
+
+    // Gruppéring per användare
     const usersMap = new Map<string, any[]>();
-    for (const r of rows) {
-        if (!usersMap.has(r.user_id)) usersMap.set(r.user_id, []);
-        usersMap.get(r.user_id)!.push(r);
+
+    for (const m of months) {
+        const p = primary?.find((r) => r.income_month_id === m.id) ?? null;
+        const e = (extra ?? []).filter((r) => r.income_month_id === m.id);
+        const f = (fk ?? []).filter((r) => r.income_month_id === m.id);
+
+        // Summera ordinarie
+        const ord_lon_fore_skatt = p?.lon_fore_skatt ? Number(p.lon_fore_skatt) : 0;
+        const ord_franvaro = p?.franvaro ? Number(p.franvaro) : 0;
+        const ord_skatt = p?.inbetald_skatt ? Number(p.inbetald_skatt) : 0;
+        const ord_nettolon = p?.att_betala_ut ? Number(p.att_betala_ut) : 0;
+
+        // Summera extra jobb
+        const ass_lon_fore_skatt = e.reduce((s, r) => s + Number(r.lon_fore_skatt || 0), 0);
+        const ass_skatt = e.reduce((s, r) => s + Number(r.inbetald_skatt || 0), 0);
+        const ass_frivillig_skatt = e.reduce((s, r) => s + Number(r.frivillig_skatt || 0), 0);
+        const ass_nettolon = e.reduce((s, r) => s + Number(r.att_betala_ut || 0), 0);
+
+        // Summera FK
+        const fk_lon_fore_skatt = f.reduce((s, r) => s + Number(r.ersattning_fore_skatt || 0), 0);
+
+        // FK-regel: endast rader med skatt > 0 ska räknas i skatteberäkningen
+        const fk_skatt = f.reduce(
+            (s, r) => s + (Number(r.inbetald_skatt) > 0 ? Number(r.inbetald_skatt) : 0),
+            0
+        );
+
+        // Netto ska alltid inkludera alla FK-rader
+        const fk_nettolon = f.reduce((s, r) => s + Number(r.att_betala_ut || 0), 0);
+
+        const row = {
+            user_id: m.user_id,
+            month: m.month_date,
+            ord_lon_fore_skatt,
+            ord_franvaro,
+            ord_skatt,
+            ord_nettolon,
+            ass_lon_fore_skatt,
+            ass_skatt,
+            ass_frivillig_skatt,
+            ass_nettolon,
+            fk_lon_fore_skatt,
+            fk_skatt,
+            fk_nettolon
+        };
+
+        if (!usersMap.has(m.user_id)) usersMap.set(m.user_id, []);
+        usersMap.get(m.user_id)!.push(row);
     }
 
     const people = [];
