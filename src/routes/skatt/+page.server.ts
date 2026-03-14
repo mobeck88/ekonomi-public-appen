@@ -22,11 +22,27 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     const yearParam = url.searchParams.get('year');
     const year = yearParam ? Number(yearParam) : currentYear;
 
-    // Hämta monthly_income
+    // Hämta profiler i hushållet
+    const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .eq('household_id', householdId);
+
+    if (!profiles || profiles.length === 0) {
+        return {
+            year,
+            currentYear,
+            people: []
+        };
+    }
+
+    const userIds = profiles.map((p) => p.id);
+
+    // Hämta monthly_income baserat på user_id (inte household_id)
     const { data: rows } = await supabase
         .from('monthly_income')
         .select('*')
-        .eq('household_id', householdId)
+        .in('user_id', userIds)
         .gte('month', `${year}-01-01`)
         .lte('month', `${year}-12-31`)
         .order('month', { ascending: true });
@@ -39,14 +55,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
         };
     }
 
-    // Hämta namn från profiles
-    const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .eq('household_id', householdId);
-
+    // Namnmap
     const nameMap = new Map<string, string>();
-    profiles?.forEach((p) => nameMap.set(p.id, p.full_name ?? 'Okänd'));
+    profiles.forEach((p) => nameMap.set(p.id, p.full_name ?? 'Okänd'));
 
     // Gruppéra per användare
     const usersMap = new Map<string, any[]>();

@@ -8,7 +8,6 @@
         window.location.href = `/budget?year=${year}`;
     };
 
-    // Rätt nycklar enligt nya loadern
     const rows = [
         { key: "årsinkomstHittills", label: "Årsinkomst hittills" },
         { key: "årsprognos", label: "Förväntad årsinkomst (prognos)" },
