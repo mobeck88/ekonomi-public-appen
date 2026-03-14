@@ -74,7 +74,7 @@ export const actions: Actions = {
             .insert({
                 household_id: householdId,
                 user_id: user.id,
-                month_date: month // <-- rätt kolumn
+                month_date: month // alltid YYYY-MM-DD
             })
             .select('id')
             .single();
@@ -86,6 +86,7 @@ export const actions: Actions = {
         // ⭐ Ordinarie arbete
         const primaryPayload = {
             income_month_id,
+            household_id: householdId,
             user_id: user.id,
             lon_fore_skatt: form.get('primary_lon_fore_skatt') || null,
             franvaro: form.get('primary_franvaro') || null,
@@ -95,7 +96,7 @@ export const actions: Actions = {
         };
 
         const hasPrimary = Object.values(primaryPayload).some(
-            (v) => v && v !== income_month_id && v !== user.id
+            (v) => v && v !== income_month_id && v !== householdId && v !== user.id
         );
 
         if (hasPrimary) {
@@ -114,8 +115,9 @@ export const actions: Actions = {
         const extraRows = arbetsgivareArr
             .map((arbetsgivare, i) => ({
                 income_month_id,
+                household_id: householdId,
                 user_id: user.id,
-                arbetsgivare: arbetsgivare || null,
+                arbetsgivare_namn: arbetsgivare || null,
                 lon_fore_skatt: lonArr[i] || null,
                 franvaro: franvaroArr[i] || null,
                 inbetald_skatt: inbetaldArr[i] || null,
@@ -123,7 +125,9 @@ export const actions: Actions = {
                 att_betala_ut: attBetalaArr[i] || null
             }))
             .filter((row) =>
-                Object.values(row).some((v) => v && v !== income_month_id && v !== user.id)
+                Object.values(row).some(
+                    (v) => v && v !== income_month_id && v !== householdId && v !== user.id
+                )
             );
 
         if (extraRows.length > 0) {
@@ -134,6 +138,7 @@ export const actions: Actions = {
         // ⭐ Försäkringskassan
         const fkPayload = {
             income_month_id,
+            household_id: householdId,
             user_id: user.id,
             ersattning_fore_skatt: form.get('fk_ersattning_fore_skatt') || null,
             inbetald_skatt: form.get('fk_inbetald_skatt') || null,
@@ -141,7 +146,7 @@ export const actions: Actions = {
         };
 
         const hasFk = Object.values(fkPayload).some(
-            (v) => v && v !== income_month_id && v !== user.id
+            (v) => v && v !== income_month_id && v !== householdId && v !== user.id
         );
 
         if (hasFk) {
@@ -170,7 +175,7 @@ export const actions: Actions = {
         if (month) {
             const { error } = await supabase
                 .from('income_months')
-                .update({ month_date: month }) // <-- rätt kolumn
+                .update({ month_date: month })
                 .eq('id', income_month_id)
                 .eq('household_id', householdId);
 
@@ -208,6 +213,7 @@ export const actions: Actions = {
         } else if (hasPrimary) {
             const { error } = await supabase.from('income_primary_job').insert({
                 income_month_id,
+                household_id: householdId,
                 user_id: user.id,
                 ...primaryPayload
             });
@@ -228,8 +234,9 @@ export const actions: Actions = {
         const extraRows = arbetsgivareArr
             .map((arbetsgivare, i) => ({
                 income_month_id,
+                household_id: householdId,
                 user_id: user.id,
-                arbetsgivare: arbetsgivare || null,
+                arbetsgivare_namn: arbetsgivare || null,
                 lon_fore_skatt: lonArr[i] || null,
                 franvaro: franvaroArr[i] || null,
                 inbetald_skatt: inbetaldArr[i] || null,
@@ -237,7 +244,9 @@ export const actions: Actions = {
                 att_betala_ut: attBetalaArr[i] || null
             }))
             .filter((row) =>
-                Object.values(row).some((v) => v && v !== income_month_id && v !== user.id)
+                Object.values(row).some(
+                    (v) => v && v !== income_month_id && v !== householdId && v !== user.id
+                )
             );
 
         if (extraRows.length > 0) {
@@ -274,6 +283,7 @@ export const actions: Actions = {
         } else if (hasFk) {
             const { error } = await supabase.from('income_fk').insert({
                 income_month_id,
+                household_id: householdId,
                 user_id: user.id,
                 ...fkPayload
             });
