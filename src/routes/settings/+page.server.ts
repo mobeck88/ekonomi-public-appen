@@ -29,17 +29,22 @@ export const actions = {
 
         const { error } = await locals.supabase
             .from("tax_user_settings")
-            .upsert({
-                user_id: user.id,
-                year,
-                is_member_of_church: isMember
-            });
+            .upsert(
+                {
+                    user_id: user.id,
+                    year,
+                    is_member_of_church: isMember
+                },
+                {
+                    onConflict: "user_id,year"
+                }
+            );
 
         if (error) {
+            console.error("updateChurch error:", error);
             return fail(500, { message: "Kunde inte uppdatera kyrkotillhörighet." });
         }
 
-        // ⭐ KRITISK RAD — utan denna fungerar det inte
         throw redirect(303, "/settings");
     },
 
