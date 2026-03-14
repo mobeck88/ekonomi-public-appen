@@ -1,8 +1,10 @@
 <script lang="ts">
     export let data;
+    export let form;
 
-    let isMember = data.isMemberOfChurch;
-    let message = data.message ?? "";
+    // Använd action-resultat om det finns, annars data från load
+    let isMember = form?.isMember ?? data.isMemberOfChurch;
+    let message = form?.message ?? "";
 
     let showChurch = false;
     let showPassword = false;

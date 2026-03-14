@@ -3,16 +3,24 @@ import type { Actions, PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ locals }) => {
     const user = locals.user;
-    if (!user) return { isMemberOfChurch: true };
+    if (!user) {
+        return {
+            isMemberOfChurch: true
+        };
+    }
 
     const year = new Date().getFullYear();
 
-    const { data } = await locals.supabase
+    const { data, error } = await locals.supabase
         .from("tax_user_settings")
         .select("is_member_of_church")
         .eq("user_id", user.id)
         .eq("year", year)
         .maybeSingle();
+
+    if (error) {
+        console.error("load tax_user_settings error:", error);
+    }
 
     return {
         isMemberOfChurch: data?.is_member_of_church ?? true
@@ -43,10 +51,16 @@ export const actions: Actions = {
 
         if (error) {
             console.error("updateChurch error:", error);
-            return fail(500, { message: "Kunde inte uppdatera kyrkotillhörighet." });
+            return fail(500, {
+                message: "Kunde inte uppdatera kyrkotillhörighet: " + error.message,
+                isMember
+            });
         }
 
-        throw redirect(303, "/settings");
+        return {
+            message: "Kyrkotillhörighet uppdaterad.",
+            isMember
+        };
     },
 
     changePassword: async ({ request, locals }) => {
@@ -54,10 +68,11 @@ export const actions: Actions = {
         const newPassword = form.get("newPassword");
 
         const { error } = await locals.supabase.auth.updateUser({
-            password: newPassword
+            password: newPassword as string
         });
 
         if (error) {
+            console.error("changePassword error:", error);
             return fail(500, { message: "Fel: " + error.message });
         }
 
