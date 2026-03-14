@@ -51,10 +51,6 @@
         if (!dateString) return "";
         return dateString.slice(0, 7);
     }
-
-    // ⭐ Dynamiskt antal extra-jobb kolumner
-    const maxExtraJobs = Math.max(...data.months.map(m => m.extra_jobs.length));
-    const hasFK = data.months.some(m => m.fk);
 </script>
 
 <h1>Inkomster</h1>
@@ -71,49 +67,39 @@
             <p class="empty">Inga inkomster registrerade ännu.</p>
         {:else}
             <table class="month-list">
-                <thead>
-                    <tr>
-                        <th>Månad</th>
-                        <th>Ordinarie netto</th>
-
-                        {#each Array(maxExtraJobs) as _, i}
-                            <th>Extra {i + 1} netto</th>
-                        {/each}
-
-                        {#if hasFK}
-                            <th>FK netto</th>
-                        {/if}
-
-                        <th>Total</th>
-                    </tr>
-                </thead>
-
                 <tbody>
                     {#each data.months as m}
                         <tr on:click={() => editIncome(m)}>
+                            <!-- Månad -->
                             <td>{toMonthInput(m.month)}</td>
 
                             <!-- Ordinarie netto -->
-                            <td>{m.primary_netto} kr</td>
+                            <td>
+                                <strong>Ordinarie</strong><br>
+                                {m.primary_netto} kr
+                            </td>
 
-                            <!-- Extra-jobb netto -->
-                            {#each Array(maxExtraJobs) as _, i}
+                            <!-- Extra-jobb, varje med arbetsgivarens namn -->
+                            {#each m.extra_jobs as job}
                                 <td>
-                                    {#if m.extra_jobs[i]}
-                                        {Number(m.extra_jobs[i].att_betala_ut ?? 0)} kr
-                                    {:else}
-                                        0 kr
-                                    {/if}
+                                    <strong>{job.arbetsgivare_namn}</strong><br>
+                                    {Number(job.att_betala_ut ?? 0)} kr
                                 </td>
                             {/each}
 
-                            <!-- FK netto -->
-                            {#if hasFK}
-                                <td>{m.fk?.att_betala_ut ? Number(m.fk.att_betala_ut) : 0} kr</td>
+                            <!-- FK -->
+                            {#if m.fk}
+                                <td>
+                                    <strong>FK</strong><br>
+                                    {m.fk.att_betala_ut ? Number(m.fk.att_betala_ut) : 0} kr
+                                </td>
                             {/if}
 
                             <!-- Total -->
-                            <td>{m.total} kr</td>
+                            <td>
+                                <strong>Total</strong><br>
+                                {m.total} kr
+                            </td>
                         </tr>
                     {/each}
                 </tbody>
@@ -121,7 +107,6 @@
         {/if}
     {/if}
 </div>
-
 
 <!-- ⭐ Sektion: Ny / Redigera inkomst -->
 <div class="section">
@@ -153,24 +138,44 @@
             <h3>Ordinarie arbete</h3>
 
             <label>Lön före skatt</label>
-            <input type="number" step="0.01" name="primary_lon_fore_skatt"
-                value={selected?.primary_job?.lon_fore_skatt ?? ""} />
+            <input
+                type="number"
+                step="0.01"
+                name="primary_lon_fore_skatt"
+                value={selected?.primary_job?.lon_fore_skatt ?? ""}
+            />
 
             <label>Frånvaro</label>
-            <input type="number" step="0.01" name="primary_franvaro"
-                value={selected?.primary_job?.franvaro ?? ""} />
+            <input
+                type="number"
+                step="0.01"
+                name="primary_franvaro"
+                value={selected?.primary_job?.franvaro ?? ""}
+            />
 
             <label>Inbetald skatt</label>
-            <input type="number" step="0.01" name="primary_inbetald_skatt"
-                value={selected?.primary_job?.inbetald_skatt ?? ""} />
+            <input
+                type="number"
+                step="0.01"
+                name="primary_inbetald_skatt"
+                value={selected?.primary_job?.inbetald_skatt ?? ""}
+            />
 
             <label>Frivillig skatt</label>
-            <input type="number" step="0.01" name="primary_frivillig_skatt"
-                value={selected?.primary_job?.frivillig_skatt ?? ""} />
+            <input
+                type="number"
+                step="0.01"
+                name="primary_frivillig_skatt"
+                value={selected?.primary_job?.frivillig_skatt ?? ""}
+            />
 
             <label>Att betala ut</label>
-            <input type="number" step="0.01" name="primary_att_betala_ut"
-                value={selected?.primary_job?.att_betala_ut ?? ""} />
+            <input
+                type="number"
+                step="0.01"
+                name="primary_att_betala_ut"
+                value={selected?.primary_job?.att_betala_ut ?? ""}
+            />
 
             <!-- ⭐ Extra arbeten -->
             <h3>Extra arbeten</h3>
@@ -178,24 +183,59 @@
             {#each extraJobs as job, i}
                 <div class="card">
                     <label>Arbetsgivare</label>
-                    <input type="text" name="extra_arbetsgivare" bind:value={job.arbetsgivare} />
+                    <input
+                        type="text"
+                        name="extra_arbetsgivare"
+                        bind:value={job.arbetsgivare}
+                    />
 
                     <label>Lön före skatt</label>
-                    <input type="number" step="0.01" name="extra_lon_fore_skatt" bind:value={job.lon_fore_skatt} />
+                    <input
+                        type="number"
+                        step="0.01"
+                        name="extra_lon_fore_skatt"
+                        bind:value={job.lon_fore_skatt}
+                    />
 
                     <label>Frånvaro</label>
-                    <input type="number" step="0.01" name="extra_franvaro" bind:value={job.franvaro} />
+                    <input
+                        type="number"
+                        step="0.01"
+                        name="extra_franvaro"
+                        bind:value={job.franvaro}
+                    />
 
                     <label>Inbetald skatt</label>
-                    <input type="number" step="0.01" name="extra_inbetald_skatt" bind:value={job.inbetald_skatt} />
+                    <input
+                        type="number"
+                        step="0.01"
+                        name="extra_inbetald_skatt"
+                        bind:value={job.inbetald_skatt}
+                    />
 
                     <label>Frivillig skatt</label>
-                    <input type="number" step="0.01" name="extra_frivillig_skatt" bind:value={job.frivillig_skatt} />
+                    <input
+                        type="number"
+                        step="0.01"
+                        name="extra_frivillig_skatt"
+                        bind:value={job.frivillig_skatt}
+                    />
 
                     <label>Att betala ut</label>
-                    <input type="number" step="0.01" name="extra_att_betala_ut" bind:value={job.att_betala_ut} />
+                    <input
+                        type="number"
+                        step="0.01"
+                        name="extra_att_betala_ut"
+                        bind:value={job.att_betala_ut}
+                    />
 
-                    <button type="button" class="danger" on:click={() => removeExtraJob(i)}>Ta bort</button>
+                    <button
+                        type="button"
+                        class="danger"
+                        on:click={() => removeExtraJob(i)}
+                    >
+                        Ta bort
+                    </button>
                 </div>
             {/each}
 
@@ -205,16 +245,28 @@
             <h3>Försäkringskassan</h3>
 
             <label>Ersättning före skatt</label>
-            <input type="number" step="0.01" name="fk_ersattning_fore_skatt"
-                value={selected?.fk?.ersattning_fore_skatt ?? ""} />
+            <input
+                type="number"
+                step="0.01"
+                name="fk_ersattning_fore_skatt"
+                value={selected?.fk?.ersattning_fore_skatt ?? ""}
+            />
 
             <label>Inbetald skatt</label>
-            <input type="number" step="0.01" name="fk_inbetald_skatt"
-                value={selected?.fk?.inbetald_skatt ?? ""} />
+            <input
+                type="number"
+                step="0.01"
+                name="fk_inbetald_skatt"
+                value={selected?.fk?.inbetald_skatt ?? ""}
+            />
 
             <label>Att betala ut</label>
-            <input type="number" step="0.01" name="fk_att_betala_ut"
-                value={selected?.fk?.att_betala_ut ?? ""} />
+            <input
+                type="number"
+                step="0.01"
+                name="fk_att_betala_ut"
+                value={selected?.fk?.att_betala_ut ?? ""}
+            />
 
             <!-- ⭐ Spara -->
             <button type="submit">
@@ -329,6 +381,7 @@
         padding: 0.75rem;
         border-bottom: 1px solid #e5e7eb;
         font-size: 0.95rem;
+        vertical-align: top;
     }
 
     tr:hover {
