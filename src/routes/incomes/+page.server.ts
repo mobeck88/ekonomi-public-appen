@@ -1,6 +1,94 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 
+/* -------------------------------------------------------
+   ⭐ HJÄLPFUNKTION: Synka monthly_income för en månad
+------------------------------------------------------- */
+async function syncMonthlyIncome(supabase: any, householdId: string, income_month_id: string) {
+    // 1) Hämta month_date
+    const { data: monthRow } = await supabase
+        .from('income_months')
+        .select('month_date')
+        .eq('id', income_month_id)
+        .eq('household_id', householdId)
+        .single();
+
+    if (!monthRow) return;
+
+    const month_date = monthRow.month_date;
+
+    // 2) Hämta alla inkomster för månaden
+    const { data: primary } = await supabase
+        .from('income_primary_job')
+        .select('*')
+        .eq('income_month_id', income_month_id);
+
+    const { data: extra } = await supabase
+        .from('income_extra_jobs')
+        .select('*')
+        .eq('income_month_id', income_month_id);
+
+    const { data: fk } = await supabase
+        .from('income_fk')
+        .select('*')
+        .eq('income_month_id', income_month_id);
+
+    // 3) Summera ordinarie
+    const p = primary?.[0] ?? null;
+
+    const ord_lon_fore_skatt = p?.lon_fore_skatt ? Number(p.lon_fore_skatt) : 0;
+    const ord_franvaro = p?.franvaro ? Number(p.franvaro) : 0;
+    const ord_skatt = p?.inbetald_skatt ? Number(p.inbetald_skatt) : 0;
+    const ord_nettolon = p?.att_betala_ut ? Number(p.att_betala_ut) : 0;
+
+    // 4) Summera extra jobb
+    const ass_lon_fore_skatt = extra?.reduce((s, r) => s + Number(r.lon_fore_skatt || 0), 0) ?? 0;
+    const ass_skatt = extra?.reduce((s, r) => s + Number(r.inbetald_skatt || 0), 0) ?? 0;
+    const ass_frivillig_skatt = extra?.reduce((s, r) => s + Number(r.frivillig_skatt || 0), 0) ?? 0;
+    const ass_nettolon = extra?.reduce((s, r) => s + Number(r.att_betala_ut || 0), 0) ?? 0;
+
+    // 5) Summera FK
+    const fk_lon_fore_skatt =
+        fk?.reduce((s, r) => s + Number(r.ersattning_fore_skatt || 0), 0) ?? 0;
+    const fk_skatt = fk?.reduce((s, r) => s + Number(r.inbetald_skatt || 0), 0) ?? 0;
+    const fk_nettolon = fk?.reduce((s, r) => s + Number(r.att_betala_ut || 0), 0) ?? 0;
+
+    // 6) Upsert i monthly_income
+    const payload = {
+        household_id: householdId,
+        month_date,
+        ord_lon_fore_skatt,
+        ord_franvaro,
+        ord_skatt,
+        ord_nettolon,
+        ass_lon_fore_skatt,
+        ass_skatt,
+        ass_frivillig_skatt,
+        ass_nettolon,
+        fk_lon_fore_skatt,
+        fk_skatt,
+        fk_nettolon,
+        inserted_at: new Date().toISOString()
+    };
+
+    // Finns rad?
+    const { data: existing } = await supabase
+        .from('monthly_income')
+        .select('id')
+        .eq('household_id', householdId)
+        .eq('month_date', month_date)
+        .maybeSingle();
+
+    if (existing) {
+        await supabase.from('monthly_income').update(payload).eq('id', existing.id);
+    } else {
+        await supabase.from('monthly_income').insert(payload);
+    }
+}
+
+/* -------------------------------------------------------
+   LOAD
+------------------------------------------------------- */
 export const load: PageServerLoad = async ({ locals }) => {
     const user = locals.user;
     const householdId = locals.householdId;
@@ -92,7 +180,9 @@ export const load: PageServerLoad = async ({ locals }) => {
     return { months: enriched, employers: employers ?? [] };
 };
 
-// ⭐ Konverterar UI-input till en giltig DATE (YYYY-MM-DD)
+/* -------------------------------------------------------
+   PARSE MONTH
+------------------------------------------------------- */
 function parseMonth(raw: FormDataEntryValue | null): string | null {
     if (!raw) return null;
 
@@ -113,9 +203,10 @@ function parseMonth(raw: FormDataEntryValue | null): string | null {
     return null;
 }
 
+/* -------------------------------------------------------
+   ACTIONS
+------------------------------------------------------- */
 export const actions: Actions = {
-
-    // ⭐ NY ACTION – exakt det UI:t behöver
     create_employer: async ({ request, locals }) => {
         const user = locals.user;
         const householdId = locals.householdId;
@@ -146,7 +237,9 @@ export const actions: Actions = {
         });
     },
 
-    // ⭐ Resten av dina actions är oförändrade
+    /* -------------------------------------------------------
+       CREATE INCOME
+    ------------------------------------------------------- */
     create_income: async ({ request, locals }) => {
         const user = locals.user;
         const householdId = locals.householdId;
@@ -174,7 +267,7 @@ export const actions: Actions = {
 
         const income_month_id = monthRow.id;
 
-        // ⭐ Ordinarie arbete
+        // Ordinarie
         const primaryPayload = {
             income_month_id,
             household_id: householdId,
@@ -195,7 +288,7 @@ export const actions: Actions = {
             if (error) return fail(400, { message: error.message });
         }
 
-        // ⭐ Extra jobb — nu med employer_id från UI
+        // Extra jobb
         const employerIdArr = form.getAll('extra_employer_id');
         const lonArr = form.getAll('extra_lon_fore_skatt');
         const franvaroArr = form.getAll('extra_franvaro');
@@ -233,7 +326,7 @@ export const actions: Actions = {
             if (error) return fail(400, { message: error.message });
         }
 
-        // ⭐ Försäkringskassan — flera rader
+        // FK
         const fkTypArr = form.getAll('fk_typ');
         const fkOvrigtArr = form.getAll('fk_typ_ovrigt');
         const fkErsArr = form.getAll('fk_ersattning_fore_skatt');
@@ -262,9 +355,15 @@ export const actions: Actions = {
             if (error) return fail(400, { message: error.message });
         }
 
+        // ⭐ Kör synk
+        await syncMonthlyIncome(supabase, householdId, income_month_id);
+
         throw redirect(303, '/incomes');
     },
 
+    /* -------------------------------------------------------
+       UPDATE INCOME
+    ------------------------------------------------------- */
     update_income: async ({ request, locals }) => {
         const user = locals.user;
         const householdId = locals.householdId;
@@ -290,7 +389,7 @@ export const actions: Actions = {
             if (error) return fail(400, { message: error.message });
         }
 
-        // ⭐ Ordinarie arbete
+        // Ordinarie
         const primaryPayload = {
             lon_fore_skatt: form.get('primary_lon_fore_skatt') || null,
             franvaro: form.get('primary_franvaro') || null,
@@ -329,7 +428,7 @@ export const actions: Actions = {
             if (error) return fail(400, { message: error.message });
         }
 
-        // ⭐ Extra jobb — rensa och skriv om med employer_id
+        // Extra jobb
         await supabase.from('income_extra_jobs').delete().eq('income_month_id', income_month_id);
 
         const employerIdArr = form.getAll('extra_employer_id');
@@ -352,46 +451,4 @@ export const actions: Actions = {
                     franvaro: franvaroArr[i] || null,
                     inbetald_skatt: inbetaldArr[i] || null,
                     frivillig_skatt: frivilligArr[i] || null,
-                    att_betala_ut: attBetalaArr[i] || null
-                };
-
-                return row;
-            })
-            .filter((row) => Object.values(row).some((v) => v))
-            .filter((row) => row.employer_id);
-
-        if (extraRows.length > 0) {
-            const { error } = await supabase.from('income_extra_jobs').insert(extraRows);
-            if (error) return fail(400, { message: error.message });
-        }
-
-        // ⭐ Försäkringskassan — flera rader
-        await supabase.from('income_fk').delete().eq('income_month_id', income_month_id);
-
-        const fkTypArr = form.getAll('fk_typ');
-        const fkOvrigtArr = form.getAll('fk_typ_ovrigt');
-        const fkErsArr = form.getAll('fk_ersattning_fore_skatt');
-        const fkInbetaldArr = form.getAll('fk_inbetald_skatt');
-        const fkAttBetalaArr = form.getAll('fk_att_betala_ut');
-
-        const fkRows = fkTypArr
-            .map((typ, i) => ({
-                income_month_id,
-                household_id: householdId,
-                user_id: user.id,
-                fk_typ: typ || null,
-                fk_typ_ovrigt: fkOvrigtArr[i] || null,
-                ersattning_fore_skatt: fkErsArr[i] || null,
-                inbetald_skatt: fkInbetaldArr[i] || null,
-                att_betala_ut: fkAttBetalaArr[i] || null
-            }))
-            .filter((row) => Object.values(row).some((v) => v));
-
-        if (fkRows.length > 0) {
-            const { error } = await supabase.from('income_fk').insert(fkRows);
-            if (error) return fail(400, { message: error.message });
-        }
-
-        throw redirect(303, '/incomes');
-    }
-};
+                    att_betala_ut: attBetalaArr[i
