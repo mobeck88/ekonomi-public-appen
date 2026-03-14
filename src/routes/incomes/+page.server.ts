@@ -24,23 +24,27 @@ export const load: PageServerLoad = async ({ locals }) => {
     const enriched = months.map((m) => {
         const p = primary?.find((p) => p.income_month_id === m.id) ?? null;
         const e = extra?.filter((e) => e.income_month_id === m.id) ?? [];
-        const f = fk?.find((f) => f.income_month_id === m.id) ?? null;
+        const f = fk?.filter((f) => f.income_month_id === m.id) ?? [];
 
         const primary_netto = p?.att_betala_ut ? Number(p.att_betala_ut) : 0;
         const extra_netto = e.reduce(
             (sum, row) => sum + (row.att_betala_ut ? Number(row.att_betala_ut) : 0),
             0
         );
-        const fk_netto = f?.att_betala_ut ? Number(f.att_betala_ut) : 0;
+        const fk_netto = f.reduce(
+            (sum, row) => sum + (row.att_betala_ut ? Number(row.att_betala_ut) : 0),
+            0
+        );
 
         return {
             ...m,
-            month: m.month_date.slice(0, 7), // YYYY-MM för UI
+            month: m.month_date.slice(0, 7),
             primary_job: p,
             extra_jobs: e,
-            fk: f,
+            fk_list: f,
             primary_netto,
             extra_netto,
+            fk_netto,
             total: primary_netto + extra_netto + fk_netto
         };
     });
@@ -149,22 +153,36 @@ export const actions: Actions = {
             if (error) return fail(400, { message: error.message });
         }
 
-        // ⭐ Försäkringskassan
-        const fkPayload = {
-            income_month_id,
-            household_id: householdId,
-            user_id: user.id,
-            ersattning_fore_skatt: form.get('fk_ersattning_fore_skatt') || null,
-            inbetald_skatt: form.get('fk_inbetald_skatt') || null,
-            att_betala_ut: form.get('fk_att_betala_ut') || null
-        };
+        // ⭐ Försäkringskassan — flera rader
+        const fkTypArr = form.getAll('fk_typ');
+        const fkOvrigtArr = form.getAll('fk_typ_ovrigt');
+        const fkErsArr = form.getAll('fk_ersattning_fore_skatt');
+        const fkInbetaldArr = form.getAll('fk_inbetald_skatt');
+        const fkAttBetalaArr = form.getAll('fk_att_betala_ut');
 
-        const hasFk = Object.values(fkPayload).some(
-            (v) => v && v !== income_month_id && v !== householdId && v !== user.id
-        );
+        const fkRows = fkTypArr
+            .map((typ, i) => ({
+                income_month_id,
+                household_id: householdId,
+                user_id: user.id,
+                fk_typ: typ || null,
+                fk_typ_ovrigt: fkOvrigtArr[i] || null,
+                ersattning_fore_skatt: fkErsArr[i] || null,
+                inbetald_skatt: fkInbetaldArr[i] || null,
+                att_betala_ut: fkAttBetalaArr[i] || null
+            }))
+            .filter((row) =>
+                Object.values(row).some(
+                    (v) =>
+                        v &&
+                        v !== income_month_id &&
+                        v !== householdId &&
+                        v !== user.id
+                )
+            );
 
-        if (hasFk) {
-            const { error } = await supabase.from('income_fk').insert(fkPayload);
+        if (fkRows.length > 0) {
+            const { error } = await supabase.from('income_fk').insert(fkRows);
             if (error) return fail(400, { message: error.message });
         }
 
@@ -257,51 +275,37 @@ export const actions: Actions = {
                 frivillig_skatt: frivilligArr[i] || null,
                 att_betala_ut: attBetalaArr[i] || null
             }))
-            .filter((row) =>
-                Object.values(row).some(
-                    (v) => v && v !== income_month_id && v !== householdId && v !== user.id
-                )
-            );
+            .filter((row) => Object.values(row).some((v) => v));
 
         if (extraRows.length > 0) {
             const { error } = await supabase.from('income_extra_jobs').insert(extraRows);
             if (error) return fail(400, { message: error.message });
         }
 
-        // ⭐ Försäkringskassan
-        const fkPayload = {
-            ersattning_fore_skatt: form.get('fk_ersattning_fore_skatt') || null,
-            inbetald_skatt: form.get('fk_inbetald_skatt') || null,
-            att_betala_ut: form.get('fk_att_betala_ut') || null
-        };
+        // ⭐ Försäkringskassan — flera rader
+        await supabase.from('income_fk').delete().eq('income_month_id', income_month_id);
 
-        const { data: existingFk } = await supabase
-            .from('income_fk')
-            .select('id')
-            .eq('income_month_id', income_month_id)
-            .maybeSingle();
+        const fkTypArr = form.getAll('fk_typ');
+        const fkOvrigtArr = form.getAll('fk_typ_ovrigt');
+        const fkErsArr = form.getAll('fk_ersattning_fore_skatt');
+        const fkInbetaldArr = form.getAll('fk_inbetald_skatt');
+        const fkAttBetalaArr = form.getAll('fk_att_betala_ut');
 
-        const hasFk = Object.values(fkPayload).some((v) => v);
-
-        if (existingFk) {
-            if (hasFk) {
-                const { error } = await supabase
-                    .from('income_fk')
-                    .update(fkPayload)
-                    .eq('id', existingFk.id);
-
-                if (error) return fail(400, { message: error.message });
-            } else {
-                await supabase.from('income_fk').delete().eq('id', existingFk.id);
-            }
-        } else if (hasFk) {
-            const { error } = await supabase.from('income_fk').insert({
+        const fkRows = fkTypArr
+            .map((typ, i) => ({
                 income_month_id,
                 household_id: householdId,
                 user_id: user.id,
-                ...fkPayload
-            });
+                fk_typ: typ || null,
+                fk_typ_ovrigt: fkOvrigtArr[i] || null,
+                ersattning_fore_skatt: fkErsArr[i] || null,
+                inbetald_skatt: fkInbetaldArr[i] || null,
+                att_betala_ut: fkAttBetalaArr[i] || null
+            }))
+            .filter((row) => Object.values(row).some((v) => v));
 
+        if (fkRows.length > 0) {
+            const { error } = await supabase.from('income_fk').insert(fkRows);
             if (error) return fail(400, { message: error.message });
         }
 

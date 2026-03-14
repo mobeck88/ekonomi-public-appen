@@ -4,12 +4,37 @@
     let selected = null;
     let extraJobs = [];
 
+    // ⭐ FK-lista (precis som extra jobb)
+    let fkList = [];
+
     let showList = false;
     let showForm = false;
+
+    const FK_TYPES = [
+        "Sjukpenning",
+        "Tillfällig föräldrapenning (VAB)",
+        "Graviditetspenning",
+        "Sjukersättning",
+        "Aktivitetsersättning",
+        "Aktivitetsstöd",
+        "Smittbärarpenning",
+        "Närståendepenning",
+        "Livränta vid arbetsskada",
+        "Etableringsersättning",
+        "Utvecklingsersättning",
+        "Barnbidrag",
+        "Förlängt barnbidrag",
+        "Studiebidrag (CSN)",
+        "Bostadsbidrag",
+        "Bostadstillägg",
+        "Underhållsstöd",
+        "Övrigt"
+    ];
 
     function newIncome() {
         selected = null;
         extraJobs = [];
+        fkList = [];
         showForm = true;
     }
 
@@ -17,6 +42,7 @@
         selected = structuredClone(m);
         showForm = true;
 
+        // ⭐ Extra jobb
         extraJobs = m.extra_jobs
             ? m.extra_jobs.map(e => ({
                 arbetsgivare: e.arbetsgivare_namn ?? "",
@@ -25,6 +51,17 @@
                 inbetald_skatt: e.inbetald_skatt ?? "",
                 frivillig_skatt: e.frivillig_skatt ?? "",
                 att_betala_ut: e.att_betala_ut ?? ""
+            }))
+            : [];
+
+        // ⭐ FK-lista
+        fkList = m.fk_list
+            ? m.fk_list.map(f => ({
+                fk_typ: f.fk_typ ?? "",
+                fk_typ_ovrigt: f.fk_typ_ovrigt ?? "",
+                ersattning_fore_skatt: f.ersattning_fore_skatt ?? "",
+                inbetald_skatt: f.inbetald_skatt ?? "",
+                att_betala_ut: f.att_betala_ut ?? ""
             }))
             : [];
     }
@@ -45,6 +82,24 @@
 
     function removeExtraJob(i) {
         extraJobs = extraJobs.filter((_, idx) => idx !== i);
+    }
+
+    // ⭐ FK-funktioner
+    function addFk() {
+        fkList = [
+            ...fkList,
+            {
+                fk_typ: "",
+                fk_typ_ovrigt: "",
+                ersattning_fore_skatt: "",
+                inbetald_skatt: "",
+                att_betala_ut: ""
+            }
+        ];
+    }
+
+    function removeFk(i) {
+        fkList = fkList.filter((_, idx) => idx !== i);
     }
 
     function toMonthInput(dateString) {
@@ -79,7 +134,7 @@
                                 {m.primary_netto} kr
                             </td>
 
-                            <!-- Extra-jobb, varje med arbetsgivarens namn -->
+                            <!-- Extra-jobb -->
                             {#each m.extra_jobs as job}
                                 <td>
                                     <strong>{job.arbetsgivare_namn}</strong><br>
@@ -87,13 +142,15 @@
                                 </td>
                             {/each}
 
-                            <!-- FK -->
-                            {#if m.fk}
+                            <!-- FK – flera rader -->
+                            {#each m.fk_list as fk}
                                 <td>
-                                    <strong>FK</strong><br>
-                                    {m.fk.att_betala_ut ? Number(m.fk.att_betala_ut) : 0} kr
+                                    <strong>
+                                        FK – {fk.fk_typ === "Övrigt" ? fk.fk_typ_ovrigt : fk.fk_typ}
+                                    </strong><br>
+                                    {Number(fk.att_betala_ut ?? 0)} kr
                                 </td>
-                            {/if}
+                            {/each}
 
                             <!-- Total -->
                             <td>
@@ -241,32 +298,63 @@
 
             <button type="button" on:click={addExtraJob}>Lägg till extra arbete</button>
 
-            <!-- ⭐ Försäkringskassan -->
+            <!-- ⭐ Försäkringskassan – flera rader -->
             <h3>Försäkringskassan</h3>
 
-            <label>Ersättning före skatt</label>
-            <input
-                type="number"
-                step="0.01"
-                name="fk_ersattning_fore_skatt"
-                value={selected?.fk?.ersattning_fore_skatt ?? ""}
-            />
+            {#each fkList as fk, i}
+                <div class="card">
+                    <label>Typ av ersättning</label>
+                    <select name="fk_typ" bind:value={fk.fk_typ}>
+                        <option value="">Välj typ…</option>
+                        {#each FK_TYPES as t}
+                            <option value={t}>{t}</option>
+                        {/each}
+                    </select>
 
-            <label>Inbetald skatt</label>
-            <input
-                type="number"
-                step="0.01"
-                name="fk_inbetald_skatt"
-                value={selected?.fk?.inbetald_skatt ?? ""}
-            />
+                    {#if fk.fk_typ === "Övrigt"}
+                        <label>Beskrivning</label>
+                        <input
+                            type="text"
+                            name="fk_typ_ovrigt"
+                            bind:value={fk.fk_typ_ovrigt}
+                        />
+                    {/if}
 
-            <label>Att betala ut</label>
-            <input
-                type="number"
-                step="0.01"
-                name="fk_att_betala_ut"
-                value={selected?.fk?.att_betala_ut ?? ""}
-            />
+                    <label>Ersättning före skatt</label>
+                    <input
+                        type="number"
+                        step="0.01"
+                        name="fk_ersattning_fore_skatt"
+                        bind:value={fk.ersattning_fore_skatt}
+                    />
+
+                    <label>Inbetald skatt</label>
+                    <input
+                        type="number"
+                        step="0.01"
+                        name="fk_inbetald_skatt"
+                        bind:value={fk.inbetald_skatt}
+                    />
+
+                    <label>Att betala ut</label>
+                    <input
+                        type="number"
+                        step="0.01"
+                        name="fk_att_betala_ut"
+                        bind:value={fk.att_betala_ut}
+                    />
+
+                    <button
+                        type="button"
+                        class="danger"
+                        on:click={() => removeFk(i)}
+                    >
+                        Ta bort
+                    </button>
+                </div>
+            {/each}
+
+            <button type="button" on:click={addFk}>Lägg till FK‑ersättning</button>
 
             <!-- ⭐ Spara -->
             <button type="submit">
@@ -277,6 +365,7 @@
 </div>
 
 <style>
+    /* exakt samma CSS som du skickade */
     h1 {
         margin-bottom: 1.2rem;
         color: #1f2937;
