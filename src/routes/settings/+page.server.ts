@@ -6,7 +6,7 @@ export const load = async ({ locals }) => {
 
     const year = new Date().getFullYear();
 
-    const { data, error } = await locals.supabase
+    const { data } = await locals.supabase
         .from("tax_user_settings")
         .select("is_member_of_church")
         .eq("user_id", user.id)
@@ -39,7 +39,7 @@ export const actions = {
             return fail(500, { message: "Kunde inte uppdatera kyrkotillhörighet." });
         }
 
-        // ⭐ Kritisk fix: load() måste köras om
+        // ⭐ KRITISK RAD — utan denna fungerar det inte
         throw redirect(303, "/settings");
     },
 
