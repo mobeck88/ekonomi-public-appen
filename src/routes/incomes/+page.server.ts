@@ -10,7 +10,7 @@ async function syncMonthlyIncome(
     userId: string,
     income_month_id: string
 ) {
-    // 1) Hämta month_date
+    // 1) Hämta month_date från income_months
     const { data: monthRow, error: monthError } = await supabase
         .from('income_months')
         .select('month_date')
@@ -67,11 +67,10 @@ async function syncMonthlyIncome(
     const fk_nettolon =
         fk?.reduce((sum: number, row: any) => sum + Number(row.att_betala_ut || 0), 0) ?? 0;
 
-    // 6) Upsert i monthly_income
+    // 6) Upsert i monthly_income (OBS: kolumnen heter "month")
     const payload = {
-        household_id: householdId,
         user_id: userId,
-        month_date,
+        month: month_date,
         ord_lon_fore_skatt,
         ord_franvaro,
         ord_skatt,
@@ -88,14 +87,17 @@ async function syncMonthlyIncome(
 
     const { data: existing } = await supabase
         .from('monthly_income')
-        .select('id')
-        .eq('household_id', householdId)
+        .select('user_id, month')
         .eq('user_id', userId)
-        .eq('month_date', month_date)
+        .eq('month', month_date)
         .maybeSingle();
 
     if (existing) {
-        await supabase.from('monthly_income').update(payload).eq('id', existing.id);
+        await supabase
+            .from('monthly_income')
+            .update(payload)
+            .eq('user_id', userId)
+            .eq('month', month_date);
     } else {
         await supabase.from('monthly_income').insert(payload);
     }
