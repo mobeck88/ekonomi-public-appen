@@ -38,13 +38,14 @@
     </button>
 
     {#if showChurch}
-        <form method="POST" class="form">
+        <!-- ⭐ KORREKT ACTION -->
+        <form method="POST" action="?/updateChurch" class="form">
             <label class="checkbox-row">
                 <input type="checkbox" name="isMember" bind:checked={isMember}>
                 Jag är medlem i Svenska kyrkan
             </label>
 
-            <button type="submit" name="action" value="updateChurch">
+            <button type="submit">
                 Spara
             </button>
         </form>
@@ -59,11 +60,12 @@
     </button>
 
     {#if showPassword}
-        <form method="POST" class="form">
+        <!-- ⭐ KORREKT ACTION -->
+        <form method="POST" action="?/changePassword" class="form">
             <label for="newPassword">Nytt lösenord</label>
             <input type="password" id="newPassword" name="newPassword" required>
 
-            <button type="submit" name="action" value="changePassword">
+            <button type="submit">
                 Byt lösenord
             </button>
         </form>
