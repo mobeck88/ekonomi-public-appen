@@ -7,6 +7,7 @@ import type { Actions, PageServerLoad } from './$types';
 async function syncMonthlyIncome(
     supabase: any,
     householdId: string,
+    userId: string,
     income_month_id: string
 ) {
     // 1) Hämta month_date
@@ -69,6 +70,7 @@ async function syncMonthlyIncome(
     // 6) Upsert i monthly_income
     const payload = {
         household_id: householdId,
+        user_id: userId,
         month_date,
         ord_lon_fore_skatt,
         ord_franvaro,
@@ -88,6 +90,7 @@ async function syncMonthlyIncome(
         .from('monthly_income')
         .select('id')
         .eq('household_id', householdId)
+        .eq('user_id', userId)
         .eq('month_date', month_date)
         .maybeSingle();
 
@@ -219,7 +222,6 @@ function parseMonth(raw: FormDataEntryValue | null): string | null {
    ACTIONS
 ------------------------------------------------------- */
 export const actions: Actions = {
-    // Skapa arbetsgivare
     create_employer: async ({ request, locals }) => {
         const user = locals.user;
         const householdId = locals.householdId;
@@ -250,7 +252,6 @@ export const actions: Actions = {
         });
     },
 
-    // Skapa inkomster
     create_income: async ({ request, locals }) => {
         const user = locals.user;
         const householdId = locals.householdId;
@@ -367,12 +368,11 @@ export const actions: Actions = {
         }
 
         // Synka monthly_income
-        await syncMonthlyIncome(supabase, householdId, income_month_id);
+        await syncMonthlyIncome(supabase, householdId, user.id, income_month_id);
 
         throw redirect(303, '/incomes');
     },
 
-    // Uppdatera inkomster
     update_income: async ({ request, locals }) => {
         const user = locals.user;
         const householdId = locals.householdId;
@@ -502,7 +502,7 @@ export const actions: Actions = {
         }
 
         // Synka monthly_income
-        await syncMonthlyIncome(supabase, householdId, income_month_id);
+        await syncMonthlyIncome(supabase, householdId, user.id, income_month_id);
 
         throw redirect(303, '/incomes');
     }
