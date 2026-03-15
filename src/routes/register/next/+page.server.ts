@@ -7,7 +7,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 
     if (!user) throw redirect(303, '/login');
 
-    // Se till att profil finns (skapas första gången efter verifiering)
     const { data: profile } = await supabase
         .from('profiles')
         .select('id')
@@ -21,7 +20,6 @@ export const load: PageServerLoad = async ({ locals }) => {
         });
 
         if (profileError) {
-            // Vi stoppar inte flödet, men logik kan justeras vid behov
             console.error('Profile creation error:', profileError);
         }
     }

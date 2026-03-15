@@ -26,8 +26,8 @@ export const actions: Actions = {
             email,
             password,
             options: {
-                data: { full_name }
-                // Om du vill: sätt redirectTo i Supabase‑dashboarden till /register/next
+                data: { full_name },
+                emailRedirectTo: 'https://ekonomi-public-appen.vercel.app/register/next'
             }
         });
 
@@ -35,7 +35,6 @@ export const actions: Actions = {
             return fail(400, { error: signUpError.message });
         }
 
-        // Ingen inloggning här. Användaren måste först verifiera sin e‑post.
         throw redirect(303, '/register/verify-email');
     }
 };
