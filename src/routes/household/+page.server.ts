@@ -1,39 +1,14 @@
-import { fail, redirect } from "@sveltejs/kit";
-import { createClient } from "@supabase/supabase-js";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "$env/static/private";
+import { fail, redirect } from '@sveltejs/kit';
+import type { Actions, PageServerLoad } from './$types';
 
-export const load = async ({ locals, cookies }) => {
+export const load: PageServerLoad = async ({ locals }) => {
+    const supabase = locals.supabase;
     const user = locals.user;
-    if (!user) {
-        return {
-            user: null,
-            householdId: null,
-            role: null,
-            adults: 0,
-            children: 0,
-            childBirthdates: []
-        };
-    }
+    const householdId = locals.householdId;
 
-    const access_token = cookies.get("sb-access-token");
+    if (!user) throw redirect(303, '/login');
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        global: {
-            headers: {
-                Authorization: `Bearer ${access_token}`
-            }
-        }
-    });
-
-    // Hämta hushållsmedlemskap
-    const { data: membership } = await supabase
-        .from("household_members")
-        .select("household_id, role")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-    const householdId = membership?.household_id ?? null;
-
+    // Om användaren inte tillhör ett hushåll
     if (!householdId) {
         return {
             user,
@@ -45,119 +20,101 @@ export const load = async ({ locals, cookies }) => {
         };
     }
 
-    // Hämta adults/children
+    // Hämta roll
+    const { data: membership } = await supabase
+        .from('household_members')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('household_id', householdId)
+        .single();
+
+    // Hämta hushållsinställningar
     const { data: household } = await supabase
-        .from("households")
-        .select("adults, children")
-        .eq("id", householdId)
-        .maybeSingle();
+        .from('households')
+        .select('adults, children')
+        .eq('id', householdId)
+        .single();
 
     // Hämta barnens födelsedatum
     const { data: childRows } = await supabase
-        .from("household_children")
-        .select("id, birthdate")
-        .eq("household_id", householdId)
-        .order("id");
+        .from('household_children')
+        .select('id, birthdate')
+        .eq('household_id', householdId)
+        .order('id');
 
     return {
         user,
         householdId,
-        role: membership.role,
+        role: membership?.role ?? null,
         adults: household?.adults ?? 0,
         children: household?.children ?? 0,
         childBirthdates: childRows ?? []
     };
 };
 
-export const actions = {
-    // ⭐ JOIN — oförändrad
-    join: async ({ request, locals, cookies }) => {
+export const actions: Actions = {
+    join: async ({ request, locals }) => {
+        const supabase = locals.supabase;
         const user = locals.user;
-        if (!user) return fail(401, { error: "Du måste vara inloggad." });
+
+        if (!user) throw redirect(303, '/login');
 
         const form = await request.formData();
-        const code = form.get("code");
+        const code = form.get('code');
 
-        const access_token = cookies.get("sb-access-token");
-
-        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-            global: {
-                headers: {
-                    Authorization: `Bearer ${access_token}`
-                }
-            }
-        });
-
+        // Finns hushållet?
         const { data: household } = await supabase
-            .from("households")
-            .select("id")
-            .eq("id", code)
-            .maybeSingle();
+            .from('households')
+            .select('id')
+            .eq('id', code)
+            .single();
 
-        if (!household) return fail(404, { error: "Hushåll hittades inte." });
+        if (!household) {
+            return fail(404, { error: 'Hushåll hittades inte.' });
+        }
 
-        const { error } = await supabase.from("household_members").insert({
+        // Lägg till användaren
+        const { error } = await supabase.from('household_members').insert({
             household_id: household.id,
             user_id: user.id,
-            role: "member"
+            role: 'member'
         });
 
-        if (error) return fail(500, { error: "Kunde inte gå med i hushållet." });
+        if (error) {
+            return fail(500, { error: 'Kunde inte gå med i hushållet.' });
+        }
 
         return { success: true };
     },
 
-    // ⭐ SPARA HUSHÅLL
-    saveHousehold: async ({ request, locals, cookies }) => {
+    saveHousehold: async ({ request, locals }) => {
+        const supabase = locals.supabase;
         const user = locals.user;
-        if (!user) throw redirect(303, "/login");
+        const householdId = locals.householdId;
+
+        if (!user) throw redirect(303, '/login');
+        if (!householdId) return fail(400, { message: 'Du tillhör inget hushåll.' });
 
         const form = await request.formData();
 
-        const adults = Number(form.get("adults"));
-        const children = Number(form.get("children"));
+        const adults = Number(form.get('adults'));
+        const children = Number(form.get('children'));
 
-        const access_token = cookies.get("sb-access-token");
-
-        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-            global: {
-                headers: {
-                    Authorization: `Bearer ${access_token}`
-                }
-            }
-        });
-
-        // Hämta hushållet
-        const { data: membership } = await supabase
-            .from("household_members")
-            .select("household_id")
-            .eq("user_id", user.id)
-            .maybeSingle();
-
-        if (!membership) {
-            return fail(400, { message: "Du tillhör inget hushåll." });
-        }
-
-        const householdId = membership.household_id;
-
-        // Uppdatera adults/children
+        // Uppdatera hushållet
         const { error: updateError } = await supabase
-            .from("households")
-            .update({
-                adults,
-                children
-            })
-            .eq("id", householdId);
+            .from('households')
+            .update({ adults, children })
+            .eq('id', householdId);
 
         if (updateError) {
-            return fail(500, { message: "Kunde inte uppdatera hushållet." });
+            return fail(500, { message: 'Kunde inte uppdatera hushållet.' });
         }
 
         // Ta bort gamla barn
         await supabase
-            .from("household_children")
+            .from('household_children')
             .delete()
-            .eq("household_id", householdId);
+            .eq('household_id', householdId);
 
         // Lägg till nya barn
         const inserts = [];
@@ -173,16 +130,16 @@ export const actions = {
 
         if (inserts.length > 0) {
             const { error: insertError } = await supabase
-                .from("household_children")
+                .from('household_children')
                 .insert(inserts);
 
             if (insertError) {
                 return fail(500, {
-                    message: "Kunde inte spara barnens födelsedatum."
+                    message: 'Kunde inte spara barnens födelsedatum.'
                 });
             }
         }
 
-        return { message: "Hushållet uppdaterades." };
+        return { message: 'Hushållet uppdaterades.' };
     }
 };
