@@ -19,7 +19,6 @@ export const load: PageServerLoad = async ({ locals }) => {
         };
     }
 
-    // Hämta roll
     const { data: membership } = await supabase
         .from('household_members')
         .select('role')
@@ -27,14 +26,12 @@ export const load: PageServerLoad = async ({ locals }) => {
         .eq('household_id', householdId)
         .single();
 
-    // Hämta hushållsinställningar
     const { data: household } = await supabase
         .from('households')
-        .select('adults, children')
+        .select('adults, children, invite_token')
         .eq('id', householdId)
         .single();
 
-    // Hämta barnens födelsedatum
     const { data: childRows } = await supabase
         .from('household_children')
         .select('id, birthdate')
@@ -47,6 +44,7 @@ export const load: PageServerLoad = async ({ locals }) => {
         role: membership?.role ?? null,
         adults: household?.adults ?? 0,
         children: household?.children ?? 0,
+        invite_token: household?.invite_token ?? null,
         childBirthdates: childRows ?? []
     };
 };
@@ -71,17 +69,60 @@ export const actions: Actions = {
             return fail(404, { error: 'Hushåll hittades inte.' });
         }
 
-        const { error } = await supabase.from('household_members').insert({
+        await supabase.from('household_members').insert({
             household_id: household.id,
             user_id: user.id,
             role: 'member'
         });
 
-        if (error) {
-            return fail(500, { error: 'Kunde inte gå med i hushållet.' });
-        }
-
         return { success: true };
+    },
+
+    generateInvite: async ({ locals }) => {
+        const supabase = locals.supabase;
+        const householdId = locals.householdId;
+
+        if (!householdId) return fail(400, { error: 'Inget hushåll.' });
+
+        const token = crypto.randomUUID();
+
+        await supabase
+            .from('households')
+            .update({ invite_token: token })
+            .eq('id', householdId);
+
+        return {
+            inviteUrl: `/join/${token}`
+        };
+    },
+
+    leaveHousehold: async ({ locals }) => {
+        const supabase = locals.supabase;
+        const user = locals.user;
+        const householdId = locals.householdId;
+
+        if (!householdId) return fail(400, { error: 'Inget hushåll.' });
+
+        await supabase
+            .from('household_members')
+            .delete()
+            .eq('household_id', householdId)
+            .eq('user_id', user.id);
+
+        throw redirect(303, '/household?left=1');
+    },
+
+    deleteHousehold: async ({ locals }) => {
+        const supabase = locals.supabase;
+        const householdId = locals.householdId;
+
+        if (!householdId) return fail(400, { error: 'Inget hushåll.' });
+
+        await supabase.from('household_children').delete().eq('household_id', householdId);
+        await supabase.from('household_members').delete().eq('household_id', householdId);
+        await supabase.from('households').delete().eq('id', householdId);
+
+        throw redirect(303, '/household?deleted=1');
     },
 
     saveHousehold: async ({ request, locals }) => {
@@ -97,23 +138,16 @@ export const actions: Actions = {
         const adults = Number(form.get('adults'));
         const children = Number(form.get('children'));
 
-        // Uppdatera hushållet
-        const { error: updateError } = await supabase
+        await supabase
             .from('households')
             .update({ adults, children })
             .eq('id', householdId);
 
-        if (updateError) {
-            return fail(500, { message: 'Kunde inte uppdatera hushållet.' });
-        }
-
-        // Ta bort gamla barn
         await supabase
             .from('household_children')
             .delete()
             .eq('household_id', householdId);
 
-        // Lägg till nya barn
         const inserts = [];
         for (let i = 0; i < children; i++) {
             const birthdate = form.get(`child_${i}_birthdate`);
@@ -126,15 +160,7 @@ export const actions: Actions = {
         }
 
         if (inserts.length > 0) {
-            const { error: insertError } = await supabase
-                .from('household_children')
-                .insert(inserts);
-
-            if (insertError) {
-                return fail(500, {
-                    message: 'Kunde inte spara barnens födelsedatum.'
-                });
-            }
+            await supabase.from('household_children').insert(inserts);
         }
 
         return {
