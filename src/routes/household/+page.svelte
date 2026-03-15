@@ -2,13 +2,13 @@
     export let data;
     export let form;
 
+    // Hushållsinställningar
     let adults = form?.adults ?? data.adults;
     let children = form?.children ?? data.children;
 
-    // Barnens födelsedatum (array)
     let childBirthdates = form?.childBirthdates ?? data.childBirthdates;
 
-    // Om antal barn ändras – justera arrayen
+    // Justera arrayen när antal barn ändras
     $: {
         if (children > childBirthdates.length) {
             while (childBirthdates.length < children) {
@@ -22,44 +22,74 @@
     let message = form?.message ?? "";
 </script>
 
-<h1>Hushållsinställningar</h1>
+<h1>Hushåll</h1>
 
-{#if !data.householdId}
-    <p>Du tillhör inget hushåll.</p>
+{#if !data.user}
+    <p>Du måste vara inloggad för att se hushåll.</p>
 {:else}
-    <p><strong>Hushålls‑ID:</strong></p>
-    <pre>{data.householdId}</pre>
 
-    <form method="POST" action="?/saveHousehold" class="form">
+    <!-- VISA HUSHÅLLS-ID OCH ROLL -->
+    {#if data.householdId}
+        <p><strong>Ditt hushålls‑ID (kod):</strong></p>
+        <pre>{data.householdId}</pre>
+        <p>Ge den här koden till din partner så kan hen gå med i samma hushåll.</p>
+        <p>Din roll: {data.role}</p>
+    {:else}
+        <p>Du tillhör inget hushåll ännu.</p>
+    {/if}
 
-        <label for="adults">Antal vuxna</label>
-        <input id="adults" name="adults" type="number" min="0" bind:value={adults} />
+    <!-- GÅ MED I HUSHÅLL -->
+    <h2>Gå med i ett hushåll</h2>
+    <form method="POST" action="?/join">
+        <label for="code">Hushållskod</label>
+        <input id="code" name="code" type="text" required />
 
-        <label for="children">Antal barn</label>
-        <input id="children" name="children" type="number" min="0" bind:value={children} />
-
-        {#if children > 0}
-            <h3>Barnens födelsedatum</h3>
-
-            {#each Array(children) as _, i}
-                <div>
-                    <label for="child_{i}_birthdate">Barn {i + 1}</label>
-                    <input
-                        id="child_{i}_birthdate"
-                        name="child_{i}_birthdate"
-                        type="date"
-                        bind:value={childBirthdates[i].birthdate}
-                    />
-                </div>
-            {/each}
+        {#if form?.error}
+            <p style="color:red; margin-top:10px">{form.error}</p>
         {/if}
 
-        <button type="submit">Spara hushåll</button>
-
-        {#if message}
-            <p class="feedback">{message}</p>
+        {#if form?.success}
+            <p style="color:green; margin-top:10px">Du har gått med i hushållet.</p>
         {/if}
+
+        <button type="submit" style="margin-top:10px">Gå med</button>
     </form>
+
+    <!-- HUSHÅLLSINSTÄLLNINGAR (ENDAST OM MAN TILLHÖR ETT HUSHÅLL) -->
+    {#if data.householdId}
+        <h2 style="margin-top:2rem">Hushållsinställningar</h2>
+
+        <form method="POST" action="?/saveHousehold" class="form">
+
+            <label for="adults">Antal vuxna</label>
+            <input id="adults" name="adults" type="number" min="0" bind:value={adults} />
+
+            <label for="children">Antal barn</label>
+            <input id="children" name="children" type="number" min="0" bind:value={children} />
+
+            {#if children > 0}
+                <h3>Barnens födelsedatum</h3>
+
+                {#each Array(children) as _, i}
+                    <div>
+                        <label for="child_{i}_birthdate">Barn {i + 1}</label>
+                        <input
+                            id="child_{i}_birthdate"
+                            name="child_{i}_birthdate"
+                            type="date"
+                            bind:value={childBirthdates[i].birthdate}
+                        />
+                    </div>
+                {/each}
+            {/if}
+
+            <button type="submit">Spara hushåll</button>
+
+            {#if message}
+                <p class="feedback">{message}</p>
+            {/if}
+        </form>
+    {/if}
 {/if}
 
 <style>
@@ -68,6 +98,12 @@
         color: #1f2937;
         font-size: 1.6rem;
         font-weight: 700;
+    }
+
+    h2 {
+        margin-top: 1.5rem;
+        font-size: 1.3rem;
+        color: #1f2937;
     }
 
     .form {
@@ -79,6 +115,7 @@
         border: 1px solid #e5e7eb;
         border-radius: 12px;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        margin-top: 1rem;
     }
 
     label {
@@ -87,7 +124,8 @@
     }
 
     input[type="number"],
-    input[type="date"] {
+    input[type="date"],
+    input[type="text"] {
         padding: 0.65rem;
         border: 1px solid #d1d5db;
         border-radius: 8px;
