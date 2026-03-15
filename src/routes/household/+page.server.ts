@@ -70,7 +70,7 @@ export const load = async ({ locals, cookies }) => {
 };
 
 export const actions = {
-    // ⭐ DIN GAMLA JOIN-FUNKTION — OFÖRÄNDRAD
+    // ⭐ JOIN — oförändrad
     join: async ({ request, locals, cookies }) => {
         const user = locals.user;
         if (!user) return fail(401, { error: "Du måste vara inloggad." });
@@ -107,7 +107,7 @@ export const actions = {
         return { success: true };
     },
 
-    // ⭐ NY FUNKTION FÖR ATT SPARA HUSHÅLLSINSTÄLLNINGAR
+    // ⭐ SPARA HUSHÅLL
     saveHousehold: async ({ request, locals, cookies }) => {
         const user = locals.user;
         if (!user) throw redirect(303, "/login");
