@@ -8,7 +8,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 
     if (!user) throw redirect(303, '/login');
 
-    // Om användaren inte tillhör ett hushåll
     if (!householdId) {
         return {
             user,
@@ -62,7 +61,6 @@ export const actions: Actions = {
         const form = await request.formData();
         const code = form.get('code');
 
-        // Finns hushållet?
         const { data: household } = await supabase
             .from('households')
             .select('id')
@@ -73,7 +71,6 @@ export const actions: Actions = {
             return fail(404, { error: 'Hushåll hittades inte.' });
         }
 
-        // Lägg till användaren
         const { error } = await supabase.from('household_members').insert({
             household_id: household.id,
             user_id: user.id,
@@ -140,6 +137,11 @@ export const actions: Actions = {
             }
         }
 
-        return { message: 'Hushållet uppdaterades.' };
+        return {
+            message: 'Hushållet uppdaterades.',
+            adults,
+            children,
+            childBirthdates: inserts
+        };
     }
 };

@@ -2,13 +2,17 @@
     export let data;
     export let form;
 
-    // Hushållsinställningar
-    let adults = form?.adults ?? data.adults;
-    let children = form?.children ?? data.children;
+    // Startvärden från load()
+    let adults = data.adults;
+    let children = data.children;
+    let childBirthdates = data.childBirthdates.map(c => ({ birthdate: c.birthdate }));
 
-    let childBirthdates = form?.childBirthdates ?? data.childBirthdates;
+    // Om POST returnerar nya värden → använd dem
+    if (form?.adults !== undefined) adults = form.adults;
+    if (form?.children !== undefined) children = form.children;
+    if (form?.childBirthdates !== undefined) childBirthdates = form.childBirthdates;
 
-    // Justera arrayen när antal barn ändras
+    // Håll barn-arrayen i sync
     $: {
         if (children > childBirthdates.length) {
             while (childBirthdates.length < children) {
@@ -28,17 +32,14 @@
     <p>Du måste vara inloggad för att se hushåll.</p>
 {:else}
 
-    <!-- VISA HUSHÅLLS-ID OCH ROLL -->
     {#if data.householdId}
-        <p><strong>Ditt hushålls‑ID (kod):</strong></p>
+        <p><strong>Ditt hushålls‑ID:</strong></p>
         <pre>{data.householdId}</pre>
-        <p>Ge den här koden till din partner så kan hen gå med i samma hushåll.</p>
         <p>Din roll: {data.role}</p>
     {:else}
         <p>Du tillhör inget hushåll ännu.</p>
     {/if}
 
-    <!-- GÅ MED I HUSHÅLL -->
     <h2>Gå med i ett hushåll</h2>
     <form method="POST" action="?/join">
         <label for="code">Hushållskod</label>
@@ -55,7 +56,6 @@
         <button type="submit" style="margin-top:10px">Gå med</button>
     </form>
 
-    <!-- HUSHÅLLSINSTÄLLNINGAR (ENDAST OM MAN TILLHÖR ETT HUSHÅLL) -->
     {#if data.householdId}
         <h2 style="margin-top:2rem">Hushållsinställningar</h2>
 
