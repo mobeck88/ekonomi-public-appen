@@ -2,7 +2,6 @@ import { redirect, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-    // Om användaren inte är inloggad → skicka till login
     if (!locals.user) throw redirect(303, '/login');
     return {};
 };
@@ -19,7 +18,6 @@ export const actions: Actions = {
             return fail(400, { error: 'Du måste ange en hushållskod.' });
         }
 
-        // Hitta hushållet
         const { data: household } = await supabase
             .from('households')
             .select('id')
@@ -30,7 +28,6 @@ export const actions: Actions = {
             return fail(400, { error: 'Hushåll hittades inte.' });
         }
 
-        // Lägg till användaren i hushållet
         const { error: memberError } = await supabase.from('household_members').insert({
             household_id: household.id,
             user_id: user.id,
@@ -48,7 +45,6 @@ export const actions: Actions = {
         const supabase = locals.supabase;
         const user = locals.user;
 
-        // Skapa nytt hushåll
         const { data: newHousehold, error: householdError } = await supabase
             .from('households')
             .insert({
@@ -62,7 +58,6 @@ export const actions: Actions = {
             return fail(500, { error: 'Kunde inte skapa hushåll.' });
         }
 
-        // Lägg till användaren som owner
         const { error: memberError } = await supabase.from('household_members').insert({
             household_id: newHousehold.id,
             user_id: user.id,

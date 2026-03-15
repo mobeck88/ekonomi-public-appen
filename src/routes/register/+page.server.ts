@@ -9,7 +9,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
-    default: async ({ request, cookies }) => {
+    default: async ({ request, cookies, locals }) => {
         const form = await request.formData();
 
         const email = form.get('email') as string;
@@ -20,10 +20,10 @@ export const actions: Actions = {
             return fail(400, { error: 'Alla fält måste fyllas i.' });
         }
 
-        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const anon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // Skapa användare
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        // 1. Skapa användare
+        const { data: signUpData, error: signUpError } = await anon.auth.signUp({
             email,
             password
         });
@@ -32,20 +32,8 @@ export const actions: Actions = {
             return fail(400, { error: signUpError?.message ?? 'Kunde inte skapa användare.' });
         }
 
-        const userId = signUpData.user.id;
-
-        // Skapa profil
-        const { error: profileError } = await supabase.from('profiles').insert({
-            id: userId,
-            full_name
-        });
-
-        if (profileError) {
-            return fail(400, { error: profileError.message });
-        }
-
-        // Logga in användaren direkt
-        const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+        // 2. Logga in användaren
+        const { data: loginData, error: loginError } = await anon.auth.signInWithPassword({
             email,
             password
         });
@@ -56,7 +44,7 @@ export const actions: Actions = {
 
         const session = loginData.session;
 
-        // Spara tokens i cookies
+        // 3. Spara tokens i cookies
         cookies.set('sb-access-token', session.access_token, {
             path: '/',
             httpOnly: true,
@@ -73,7 +61,19 @@ export const actions: Actions = {
             maxAge: 60 * 60 * 24 * 30
         });
 
-        // Redirect till nästa steg
+        // 4. Skapa profil via locals.supabase (med session → RLS OK)
+        const supabase = locals.supabase;
+
+        const { error: profileError } = await supabase.from('profiles').insert({
+            id: signUpData.user.id,
+            full_name
+        });
+
+        if (profileError) {
+            return fail(400, { error: profileError.message });
+        }
+
+        // 5. Gå vidare till hushållsval
         throw redirect(303, '/register/next');
     }
 };

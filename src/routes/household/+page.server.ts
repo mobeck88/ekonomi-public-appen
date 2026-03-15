@@ -148,7 +148,7 @@ export const actions: Actions = {
             .delete()
             .eq('household_id', householdId);
 
-        const inserts = [];
+        const inserts: { household_id: string; birthdate: FormDataEntryValue }[] = [];
         for (let i = 0; i < children; i++) {
             const birthdate = form.get(`child_${i}_birthdate`);
             if (birthdate) {
