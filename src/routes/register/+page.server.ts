@@ -9,7 +9,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
-    default: async ({ request, cookies, locals }) => {
+    default: async ({ request }) => {
         const form = await request.formData();
 
         const email = form.get('email') as string;
@@ -22,58 +22,20 @@ export const actions: Actions = {
 
         const anon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // 1. Skapa användare
-        const { data: signUpData, error: signUpError } = await anon.auth.signUp({
+        const { error: signUpError } = await anon.auth.signUp({
             email,
-            password
+            password,
+            options: {
+                data: { full_name }
+                // Om du vill: sätt redirectTo i Supabase‑dashboarden till /register/next
+            }
         });
 
-        if (signUpError || !signUpData.user) {
-            return fail(400, { error: signUpError?.message ?? 'Kunde inte skapa användare.' });
+        if (signUpError) {
+            return fail(400, { error: signUpError.message });
         }
 
-        // 2. Logga in användaren
-        const { data: loginData, error: loginError } = await anon.auth.signInWithPassword({
-            email,
-            password
-        });
-
-        if (loginError || !loginData.session) {
-            return fail(400, { error: loginError?.message ?? 'Kunde inte logga in.' });
-        }
-
-        const session = loginData.session;
-
-        // 3. Spara tokens i cookies
-        cookies.set('sb-access-token', session.access_token, {
-            path: '/',
-            httpOnly: true,
-            sameSite: 'lax',
-            secure: true,
-            maxAge: 60 * 60 * 24 * 7
-        });
-
-        cookies.set('sb-refresh-token', session.refresh_token, {
-            path: '/',
-            httpOnly: true,
-            sameSite: 'lax',
-            secure: true,
-            maxAge: 60 * 60 * 24 * 30
-        });
-
-        // 4. Skapa profil via locals.supabase (med session → RLS OK)
-        const supabase = locals.supabase;
-
-        const { error: profileError } = await supabase.from('profiles').insert({
-            id: signUpData.user.id,
-            full_name
-        });
-
-        if (profileError) {
-            return fail(400, { error: profileError.message });
-        }
-
-        // 5. Gå vidare till hushållsval
-        throw redirect(303, '/register/next');
+        // Ingen inloggning här. Användaren måste först verifiera sin e‑post.
+        throw redirect(303, '/register/verify-email');
     }
 };

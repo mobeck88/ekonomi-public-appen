@@ -42,6 +42,11 @@
         font-weight: 700;
     }
 
+    p {
+        max-width: 480px;
+        color: #374151;
+    }
+
     .section {
         border: 1px solid #e5e7eb;
         border-radius: 12px;

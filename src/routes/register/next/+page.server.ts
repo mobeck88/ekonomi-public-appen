@@ -2,7 +2,30 @@ import { redirect, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-    if (!locals.user) throw redirect(303, '/login');
+    const supabase = locals.supabase;
+    const user = locals.user;
+
+    if (!user) throw redirect(303, '/login');
+
+    // Se till att profil finns (skapas första gången efter verifiering)
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    if (!profile) {
+        const { error: profileError } = await supabase.from('profiles').insert({
+            id: user.id,
+            full_name: user.user_metadata?.full_name ?? null
+        });
+
+        if (profileError) {
+            // Vi stoppar inte flödet, men logik kan justeras vid behov
+            console.error('Profile creation error:', profileError);
+        }
+    }
+
     return {};
 };
 
@@ -10,6 +33,8 @@ export const actions: Actions = {
     join: async ({ request, locals }) => {
         const supabase = locals.supabase;
         const user = locals.user;
+
+        if (!user) throw redirect(303, '/login');
 
         const form = await request.formData();
         const code = form.get('code');
@@ -44,6 +69,8 @@ export const actions: Actions = {
     create: async ({ locals }) => {
         const supabase = locals.supabase;
         const user = locals.user;
+
+        if (!user) throw redirect(303, '/login');
 
         const { data: newHousehold, error: householdError } = await supabase
             .from('households')
