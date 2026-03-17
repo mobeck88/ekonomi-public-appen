@@ -13,11 +13,14 @@ export const handle = async ({ event, resolve }) => {
 
     event.locals.supabase = supabase;
 
+    // Hämta användare
     const { data: userData } = await supabase.auth.getUser();
     const user = userData?.user ?? null;
 
+    // Offentliga routes som inte kräver login
     const publicRoutes = ['/login', '/register'];
 
+    // Ingen användare → endast tillåt public routes
     if (!user) {
         if (!publicRoutes.includes(event.url.pathname)) {
             throw redirect(303, '/login');
@@ -30,8 +33,10 @@ export const handle = async ({ event, resolve }) => {
         });
     }
 
+    // Användare finns
     event.locals.user = user;
 
+    // Hämta hushållsmedlemskap
     const { data: membership } = await supabase
         .from('household_members')
         .select('household_id')
@@ -41,19 +46,22 @@ export const handle = async ({ event, resolve }) => {
     const householdId = membership?.household_id ?? null;
     event.locals.householdId = householdId;
 
+    // Routes som ska vara tillåtna även utan hushåll
     const isRegisterRoute = event.url.pathname.startsWith('/register');
     const isJoinRoute = event.url.pathname.startsWith('/join');
     const isLogoutRoute = event.url.pathname === '/logout';
 
+    // Tillåt POST på /register/next
     const isRegisterNextAction =
         event.url.pathname === '/register/next' &&
         event.request.method === 'POST';
 
-    // ⭐ NYTT: tillåt POST-actions på /join
+    // ⭐ NYTT: Tillåt POST på /join
     const isJoinAction =
         event.url.pathname === '/join' &&
         event.request.method === 'POST';
 
+    // Blockera allt annat om användaren saknar hushåll
     if (
         !householdId &&
         !isRegisterRoute &&
@@ -65,6 +73,7 @@ export const handle = async ({ event, resolve }) => {
         throw redirect(303, '/register/next');
     }
 
+    // Allt OK → fortsätt
     return resolve(event, {
         filterSerializedResponseHeaders(name) {
             return name === 'set-cookie';
