@@ -7,6 +7,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
     if (!user) throw redirect(303, '/login');
 
+    // Säkerställ att profil finns
     const { data: profile } = await supabase
         .from('profiles')
         .select('id')
@@ -37,20 +38,22 @@ export const actions: Actions = {
         const form = await request.formData();
         const code = form.get('code');
 
-        if (!code) {
+        if (!code || typeof code !== 'string') {
             return fail(400, { error: 'Du måste ange en hushållskod.' });
         }
 
+        // Hitta hushåll via join_code (8 tecken)
         const { data: household } = await supabase
             .from('households')
             .select('id')
-            .eq('id', code)
-            .single();
+            .eq('join_code', code)
+            .maybeSingle();
 
         if (!household) {
             return fail(400, { error: 'Hushåll hittades inte.' });
         }
 
+        // Lägg till användaren i hushållet
         const { error: memberError } = await supabase.from('household_members').insert({
             household_id: household.id,
             user_id: user.id,
@@ -70,6 +73,7 @@ export const actions: Actions = {
 
         if (!user) throw redirect(303, '/login');
 
+        // Skapa hushåll
         const { data: newHousehold, error: householdError } = await supabase
             .from('households')
             .insert({
@@ -83,6 +87,7 @@ export const actions: Actions = {
             return fail(500, { error: 'Kunde inte skapa hushåll.' });
         }
 
+        // Lägg till användaren som owner
         const { error: memberError } = await supabase.from('household_members').insert({
             household_id: newHousehold.id,
             user_id: user.id,

@@ -8,21 +8,34 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
     if (!user) throw redirect(303, '/login');
 
+    // Hitta hushåll via invite_token
     const { data: household } = await supabase
         .from('households')
         .select('id')
         .eq('invite_token', token)
-        .single();
+        .maybeSingle();
 
     if (!household) {
         throw redirect(303, '/household?error=invalid_token');
     }
 
-    await supabase.from('household_members').insert({
-        household_id: household.id,
-        user_id: user.id,
-        role: 'member'
-    });
+    // Kontrollera om användaren redan är medlem
+    const { data: existingMember } = await supabase
+        .from('household_members')
+        .select('id')
+        .eq('household_id', household.id)
+        .eq('user_id', user.id)
+        .maybeSingle();
 
+    // Om inte medlem → lägg till
+    if (!existingMember) {
+        await supabase.from('household_members').insert({
+            household_id: household.id,
+            user_id: user.id,
+            role: 'member'
+        });
+    }
+
+    // Klart → redirect
     throw redirect(303, '/household?joined=1');
 };

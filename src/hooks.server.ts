@@ -47,12 +47,12 @@ export const handle = async ({ event, resolve }) => {
     const householdId = membership?.household_id ?? null;
     event.locals.householdId = householdId;
 
-    // Household-spärr:
-    // Tillåt register-flödet och logout även utan household
+    // Routes som ska vara tillåtna även utan hushåll
     const isRegisterRoute = event.url.pathname.startsWith('/register');
+    const isJoinRoute = event.url.pathname.startsWith('/join');
     const isLogoutRoute = event.url.pathname === '/logout';
 
-    if (!householdId && !isRegisterRoute && !isLogoutRoute) {
+    if (!householdId && !isRegisterRoute && !isJoinRoute && !isLogoutRoute) {
         throw redirect(303, '/register/next');
     }
 

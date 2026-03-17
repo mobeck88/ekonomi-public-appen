@@ -8,6 +8,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
     if (!user) throw redirect(303, '/login');
 
+    // Om användaren inte tillhör ett hushåll ännu
     if (!householdId) {
         return {
             user,
@@ -19,6 +20,7 @@ export const load: PageServerLoad = async ({ locals }) => {
         };
     }
 
+    // Hämta roll
     const { data: membership } = await supabase
         .from('household_members')
         .select('role')
@@ -26,12 +28,14 @@ export const load: PageServerLoad = async ({ locals }) => {
         .eq('household_id', householdId)
         .single();
 
+    // Hämta hushåll
     const { data: household } = await supabase
         .from('households')
-        .select('adults, children, invite_token')
+        .select('adults, children, invite_token, join_code')
         .eq('id', householdId)
         .single();
 
+    // Hämta barn
     const { data: childRows } = await supabase
         .from('household_children')
         .select('id, birthdate')
@@ -45,6 +49,7 @@ export const load: PageServerLoad = async ({ locals }) => {
         adults: household?.adults ?? 0,
         children: household?.children ?? 0,
         invite_token: household?.invite_token ?? null,
+        join_code: household?.join_code ?? null,
         childBirthdates: childRows ?? []
     };
 };
@@ -59,21 +64,31 @@ export const actions: Actions = {
         const form = await request.formData();
         const code = form.get('code');
 
+        if (!code || typeof code !== 'string') {
+            return fail(400, { error: 'Du måste ange en hushållskod.' });
+        }
+
+        // Hitta hushåll via join_code (8 tecken)
         const { data: household } = await supabase
             .from('households')
             .select('id')
-            .eq('id', code)
-            .single();
+            .eq('join_code', code)
+            .maybeSingle();
 
         if (!household) {
             return fail(404, { error: 'Hushåll hittades inte.' });
         }
 
-        await supabase.from('household_members').insert({
+        // Lägg till användaren i hushållet
+        const { error: memberError } = await supabase.from('household_members').insert({
             household_id: household.id,
             user_id: user.id,
             role: 'member'
         });
+
+        if (memberError) {
+            return fail(500, { error: 'Kunde inte gå med i hushållet.' });
+        }
 
         return { success: true };
     },
