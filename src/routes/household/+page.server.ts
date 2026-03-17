@@ -16,7 +16,8 @@ export const load: PageServerLoad = async ({ locals }) => {
             role: null,
             adults: 0,
             children: 0,
-            childBirthdates: []
+            childBirthdates: [],
+            join_code: null
         };
     }
 
@@ -31,7 +32,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     // Hämta hushåll
     const { data: household } = await supabase
         .from('households')
-        .select('adults, children, invite_token, join_code')
+        .select('adults, children, join_code')
         .eq('id', householdId)
         .single();
 
@@ -48,7 +49,6 @@ export const load: PageServerLoad = async ({ locals }) => {
         role: membership?.role ?? null,
         adults: household?.adults ?? 0,
         children: household?.children ?? 0,
-        invite_token: household?.invite_token ?? null,
         join_code: household?.join_code ?? null,
         childBirthdates: childRows ?? []
     };
@@ -99,15 +99,16 @@ export const actions: Actions = {
 
         if (!householdId) return fail(400, { error: 'Inget hushåll.' });
 
-        const token = crypto.randomUUID();
+        // Generera en ny 8-teckenskod
+        const newCode = Math.random().toString(36).substring(2, 10);
 
         await supabase
             .from('households')
-            .update({ invite_token: token })
+            .update({ join_code: newCode })
             .eq('id', householdId);
 
         return {
-            inviteUrl: `/join/${token}`
+            join_code: newCode
         };
     },
 
