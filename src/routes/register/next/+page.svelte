@@ -8,7 +8,7 @@
 <div class="section">
     <h2>Gå med i hushåll (rekommenderas)</h2>
 
-    <form method="POST" action="?/join" class="form">
+    <form method="POST" action="join" class="form">
         <label for="code">Hushållskod</label>
         <input
             id="code"
@@ -29,14 +29,14 @@
 <div class="section" style="margin-top: 1.5rem;">
     <h2>Skapa nytt hushåll</h2>
 
-    <form method="POST" action="?/create">
+    <form method="POST" action="create">
         <button type="submit">Skapa nytt hushåll</button>
     </form>
 </div>
 
 <style>
     h1 {
-        margin-bottom: 1rem;
+        margin-bottom: 1.2rem;
         color: #1f2937;
         font-size: 1.6rem;
         font-weight: 700;
