@@ -8,7 +8,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 
     if (!user) throw redirect(303, '/login');
 
-    // Om användaren inte tillhör ett hushåll ännu
     if (!householdId) {
         return {
             user,
@@ -21,7 +20,6 @@ export const load: PageServerLoad = async ({ locals }) => {
         };
     }
 
-    // Hämta roll
     const { data: membership } = await supabase
         .from('household_members')
         .select('role')
@@ -29,14 +27,12 @@ export const load: PageServerLoad = async ({ locals }) => {
         .eq('household_id', householdId)
         .single();
 
-    // Hämta hushåll
     const { data: household } = await supabase
         .from('households')
         .select('adults, children, join_code')
         .eq('id', householdId)
         .single();
 
-    // Hämta barn
     const { data: childRows } = await supabase
         .from('household_children')
         .select('id, birthdate')
@@ -68,7 +64,6 @@ export const actions: Actions = {
             return fail(400, { error: 'Du måste ange en hushållskod.' });
         }
 
-        // Hitta hushåll via join_code (8 tecken)
         const { data: household } = await supabase
             .from('households')
             .select('id')
@@ -79,7 +74,6 @@ export const actions: Actions = {
             return fail(404, { error: 'Hushåll hittades inte.' });
         }
 
-        // Lägg till användaren i hushållet
         const { error: memberError } = await supabase.from('household_members').insert({
             household_id: household.id,
             user_id: user.id,
@@ -99,7 +93,6 @@ export const actions: Actions = {
 
         if (!householdId) return fail(400, { error: 'Inget hushåll.' });
 
-        // Generera en ny 8-teckenskod
         const newCode = Math.random().toString(36).substring(2, 10);
 
         await supabase
@@ -107,9 +100,7 @@ export const actions: Actions = {
             .update({ join_code: newCode })
             .eq('id', householdId);
 
-        return {
-            join_code: newCode
-        };
+        return { join_code: newCode };
     },
 
     leaveHousehold: async ({ locals }) => {
@@ -118,6 +109,19 @@ export const actions: Actions = {
         const householdId = locals.householdId;
 
         if (!householdId) return fail(400, { error: 'Inget hushåll.' });
+
+        const { data: membership } = await supabase
+            .from('household_members')
+            .select('role')
+            .eq('user_id', user.id)
+            .eq('household_id', householdId)
+            .single();
+
+        if (!membership) return fail(400, { error: 'Du är inte medlem i detta hushåll.' });
+
+        if (membership.role === 'owner') {
+            return fail(400, { error: 'Ägare kan inte lämna sitt eget hushåll.' });
+        }
 
         await supabase
             .from('household_members')
@@ -130,9 +134,21 @@ export const actions: Actions = {
 
     deleteHousehold: async ({ locals }) => {
         const supabase = locals.supabase;
+        const user = locals.user;
         const householdId = locals.householdId;
 
         if (!householdId) return fail(400, { error: 'Inget hushåll.' });
+
+        const { data: membership } = await supabase
+            .from('household_members')
+            .select('role')
+            .eq('user_id', user.id)
+            .eq('household_id', householdId)
+            .single();
+
+        if (!membership || membership.role !== 'owner') {
+            return fail(403, { error: 'Endast ägaren kan ta bort hushållet.' });
+        }
 
         await supabase.from('household_children').delete().eq('household_id', householdId);
         await supabase.from('household_members').delete().eq('household_id', householdId);

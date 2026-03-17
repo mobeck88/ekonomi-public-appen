@@ -23,6 +23,14 @@
     }
 
     let message = form?.message ?? '';
+
+    function confirmLeave() {
+        return confirm("Vill du verkligen lämna hushållet?");
+    }
+
+    function confirmDelete() {
+        return confirm("Är du säker på att du vill ta bort hushållet? Detta går inte att ångra.");
+    }
 </script>
 
 <h1>Hushåll</h1>
@@ -32,7 +40,6 @@
     <pre>{data.householdId}</pre>
     <p>Din roll: {data.role}</p>
 
-    <!-- ⭐ NYTT: Visa hushållskoden direkt -->
     <h2>Hushållskod</h2>
     {#if data.join_code}
         <p>Ge denna kod till din partner:</p>
@@ -41,7 +48,6 @@
         <p>Ingen hushållskod genererad ännu.</p>
     {/if}
 
-    <!-- ⭐ NYTT: Generera ny hushållskod -->
     <form method="POST" action="?/generateInvite" style="margin-top: 10px">
         <button>Generera ny hushållskod</button>
     </form>
@@ -84,15 +90,19 @@
         {/if}
     </form>
 
-    <h2>Byt hushåll</h2>
-    <form method="POST" action="?/leaveHousehold">
-        <button>Byt hushåll</button>
-    </form>
+    {#if data.role === 'member'}
+        <h2>Byt hushåll</h2>
+        <form method="POST" action="?/leaveHousehold" on:submit|preventDefault={() => confirmLeave() && event.target.submit()}>
+            <button>Byt hushåll</button>
+        </form>
+    {/if}
 
-    <h2>Ta bort hushåll</h2>
-    <form method="POST" action="?/deleteHousehold">
-        <button style="background:red">Ta bort hushåll</button>
-    </form>
+    {#if data.role === 'owner'}
+        <h2>Ta bort hushåll</h2>
+        <form method="POST" action="?/deleteHousehold" on:submit|preventDefault={() => confirmDelete() && event.target.submit()}>
+            <button style="background:red">Ta bort hushåll</button>
+        </form>
+    {/if}
 
 {:else}
     <p>Du tillhör inget hushåll ännu.</p>
