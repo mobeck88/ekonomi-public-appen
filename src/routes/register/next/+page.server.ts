@@ -25,6 +25,22 @@ export const load: PageServerLoad = async ({ locals }) => {
         }
     }
 
+    // Kolla om användaren redan tillhör ett hushåll
+    const { data: membership, error: membershipError } = await supabase
+        .from('household_members')
+        .select('household_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+    if (membershipError) {
+        console.error('Membership lookup error:', membershipError);
+    }
+
+    if (membership?.household_id) {
+        // Användaren är redan med i ett hushåll → skicka till hushållssidan
+        throw redirect(303, '/household');
+    }
+
     return {};
 };
 
@@ -36,32 +52,56 @@ export const actions: Actions = {
         if (!user) throw redirect(303, '/login');
 
         const form = await request.formData();
-        const code = form.get('code');
+        let code = form.get('code');
 
         if (!code || typeof code !== 'string') {
             return fail(400, { error: 'Du måste ange en hushållskod.' });
         }
 
-        // Hitta hushåll via join_code (8 tecken)
-        const { data: household } = await supabase
+        code = code.trim();
+
+        if (code.length === 0) {
+            return fail(400, { error: 'Du måste ange en hushållskod.' });
+        }
+
+        // Hitta hushåll via join_code
+        const { data: household, error: selectError } = await supabase
             .from('households')
             .select('id')
             .eq('join_code', code)
             .maybeSingle();
 
+        if (selectError) {
+            console.error('Join select error:', selectError);
+        }
+
         if (!household) {
             return fail(400, { error: 'Hushåll hittades inte.' });
         }
 
-        // Lägg till användaren i hushållet
-        const { error: memberError } = await supabase.from('household_members').insert({
-            household_id: household.id,
-            user_id: user.id,
-            role: 'member'
-        });
+        // Kontrollera om användaren redan är medlem
+        const { data: existingMember, error: existingError } = await supabase
+            .from('household_members')
+            .select('id')
+            .eq('household_id', household.id)
+            .eq('user_id', user.id)
+            .maybeSingle();
 
-        if (memberError) {
-            return fail(500, { error: 'Kunde inte gå med i hushållet.' });
+        if (existingError) {
+            console.error('Existing member lookup error:', existingError);
+        }
+
+        if (!existingMember) {
+            const { error: memberError } = await supabase.from('household_members').insert({
+                household_id: household.id,
+                user_id: user.id,
+                role: 'member'
+            });
+
+            if (memberError) {
+                console.error('Member insert error:', memberError);
+                return fail(500, { error: 'Kunde inte gå med i hushållet.' });
+            }
         }
 
         throw redirect(303, '/household');
@@ -83,7 +123,8 @@ export const actions: Actions = {
             .select('id')
             .single();
 
-        if (householdError) {
+        if (householdError || !newHousehold) {
+            console.error('Household creation error:', householdError);
             return fail(500, { error: 'Kunde inte skapa hushåll.' });
         }
 
@@ -95,6 +136,7 @@ export const actions: Actions = {
         });
 
         if (memberError) {
+            console.error('Owner insert error:', memberError);
             return fail(500, { error: 'Kunde inte lägga till dig i hushållet.' });
         }
 
