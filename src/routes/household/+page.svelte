@@ -1,189 +1,186 @@
-import { fail, redirect } from '@sveltejs/kit';
-import type { Actions, PageServerLoad } from './$types';
+<script lang="ts">
+    export let data;
+    export let form;
 
-export const load: PageServerLoad = async ({ locals }) => {
-    const supabase = locals.supabase;
-    const user = locals.user;
-    const householdId = locals.householdId;
+    let adults = data.adults;
+    let children = data.children;
+    let childBirthdates = data.childBirthdates.map((c: { birthdate: string }) => ({
+        birthdate: c.birthdate
+    }));
 
-    if (!user) throw redirect(303, '/login');
+    if (form?.adults !== undefined) adults = form.adults;
+    if (form?.children !== undefined) children = form.children;
+    if (form?.childBirthdates !== undefined) childBirthdates = form.childBirthdates;
 
-    // Om användaren inte tillhör ett hushåll ännu
-    if (!householdId) {
-        return {
-            user,
-            householdId: null,
-            role: null,
-            adults: 0,
-            children: 0,
-            childBirthdates: [],
-            join_code: null
-        };
-    }
-
-    // Hämta roll
-    const { data: membership } = await supabase
-        .from('household_members')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('household_id', householdId)
-        .single();
-
-    // Hämta hushåll
-    const { data: household } = await supabase
-        .from('households')
-        .select('adults, children, join_code')
-        .eq('id', householdId)
-        .single();
-
-    // Hämta barn
-    const { data: childRows } = await supabase
-        .from('household_children')
-        .select('id, birthdate')
-        .eq('household_id', householdId)
-        .order('id');
-
-    return {
-        user,
-        householdId,
-        role: membership?.role ?? null,
-        adults: household?.adults ?? 0,
-        children: household?.children ?? 0,
-        join_code: household?.join_code ?? null,
-        childBirthdates: childRows ?? []
-    };
-};
-
-export const actions: Actions = {
-    join: async ({ request, locals }) => {
-        const supabase = locals.supabase;
-        const user = locals.user;
-
-        if (!user) throw redirect(303, '/login');
-
-        const form = await request.formData();
-        const code = form.get('code');
-
-        if (!code || typeof code !== 'string') {
-            return fail(400, { error: 'Du måste ange en hushållskod.' });
-        }
-
-        // Hitta hushåll via join_code (8 tecken)
-        const { data: household } = await supabase
-            .from('households')
-            .select('id')
-            .eq('join_code', code)
-            .maybeSingle();
-
-        if (!household) {
-            return fail(404, { error: 'Hushåll hittades inte.' });
-        }
-
-        // Lägg till användaren i hushållet
-        const { error: memberError } = await supabase.from('household_members').insert({
-            household_id: household.id,
-            user_id: user.id,
-            role: 'member'
-        });
-
-        if (memberError) {
-            return fail(500, { error: 'Kunde inte gå med i hushållet.' });
-        }
-
-        return { success: true };
-    },
-
-    generateInvite: async ({ locals }) => {
-        const supabase = locals.supabase;
-        const householdId = locals.householdId;
-
-        if (!householdId) return fail(400, { error: 'Inget hushåll.' });
-
-        // Generera en ny 8-teckenskod
-        const newCode = Math.random().toString(36).substring(2, 10);
-
-        await supabase
-            .from('households')
-            .update({ join_code: newCode })
-            .eq('id', householdId);
-
-        return {
-            join_code: newCode
-        };
-    },
-
-    leaveHousehold: async ({ locals }) => {
-        const supabase = locals.supabase;
-        const user = locals.user;
-        const householdId = locals.householdId;
-
-        if (!householdId) return fail(400, { error: 'Inget hushåll.' });
-
-        await supabase
-            .from('household_members')
-            .delete()
-            .eq('household_id', householdId)
-            .eq('user_id', user.id);
-
-        throw redirect(303, '/household?left=1');
-    },
-
-    deleteHousehold: async ({ locals }) => {
-        const supabase = locals.supabase;
-        const householdId = locals.householdId;
-
-        if (!householdId) return fail(400, { error: 'Inget hushåll.' });
-
-        await supabase.from('household_children').delete().eq('household_id', householdId);
-        await supabase.from('household_members').delete().eq('household_id', householdId);
-        await supabase.from('households').delete().eq('id', householdId);
-
-        throw redirect(303, '/household?deleted=1');
-    },
-
-    saveHousehold: async ({ request, locals }) => {
-        const supabase = locals.supabase;
-        const user = locals.user;
-        const householdId = locals.householdId;
-
-        if (!user) throw redirect(303, '/login');
-        if (!householdId) return fail(400, { message: 'Du tillhör inget hushåll.' });
-
-        const form = await request.formData();
-
-        const adults = Number(form.get('adults'));
-        const children = Number(form.get('children'));
-
-        await supabase
-            .from('households')
-            .update({ adults, children })
-            .eq('id', householdId);
-
-        await supabase
-            .from('household_children')
-            .delete()
-            .eq('household_id', householdId);
-
-        const inserts: { household_id: string; birthdate: FormDataEntryValue }[] = [];
-        for (let i = 0; i < children; i++) {
-            const birthdate = form.get(`child_${i}_birthdate`);
-            if (birthdate) {
-                inserts.push({
-                    household_id: householdId,
-                    birthdate
-                });
+    $: {
+        if (children > childBirthdates.length) {
+            while (childBirthdates.length < children) {
+                childBirthdates.push({ birthdate: '' });
             }
+        } else if (children < childBirthdates.length) {
+            childBirthdates = childBirthdates.slice(0, children);
         }
-
-        if (inserts.length > 0) {
-            await supabase.from('household_children').insert(inserts);
-        }
-
-        return {
-            message: 'Hushållet uppdaterades.',
-            adults,
-            children,
-            childBirthdates: inserts
-        };
     }
-};
+
+    let message = form?.message ?? '';
+</script>
+
+<h1>Hushåll</h1>
+
+{#if data.householdId}
+    <p><strong>Ditt hushålls‑ID:</strong></p>
+    <pre>{data.householdId}</pre>
+    <p>Din roll: {data.role}</p>
+
+    <!-- ⭐ NYTT: Visa hushållskoden direkt -->
+    <h2>Hushållskod</h2>
+    {#if data.join_code}
+        <p>Ge denna kod till din partner:</p>
+        <pre>{data.join_code}</pre>
+    {:else}
+        <p>Ingen hushållskod genererad ännu.</p>
+    {/if}
+
+    <!-- ⭐ NYTT: Generera ny hushållskod -->
+    <form method="POST" action="?/generateInvite" style="margin-top: 10px">
+        <button>Generera ny hushållskod</button>
+    </form>
+
+    {#if form?.join_code}
+        <p>Ny kod skapad:</p>
+        <pre>{form.join_code}</pre>
+    {/if}
+
+    <h2>Hushållsinställningar</h2>
+
+    <form method="POST" action="?/saveHousehold" class="form">
+
+        <label for="adults">Antal vuxna</label>
+        <input id="adults" name="adults" type="number" min="0" bind:value={adults} />
+
+        <label for="children">Antal barn</label>
+        <input id="children" name="children" type="number" min="0" bind:value={children} />
+
+        {#if children > 0}
+            <h3>Barnens födelsedatum</h3>
+
+            {#each Array(children) as _, i}
+                <div>
+                    <label for="child_{i}_birthdate">Barn {i + 1}</label>
+                    <input
+                        id="child_{i}_birthdate"
+                        name="child_{i}_birthdate"
+                        type="date"
+                        bind:value={childBirthdates[i].birthdate}
+                    />
+                </div>
+            {/each}
+        {/if}
+
+        <button type="submit">Spara hushåll</button>
+
+        {#if message}
+            <p class="feedback">{message}</p>
+        {/if}
+    </form>
+
+    <h2>Byt hushåll</h2>
+    <form method="POST" action="?/leaveHousehold">
+        <button>Byt hushåll</button>
+    </form>
+
+    <h2>Ta bort hushåll</h2>
+    <form method="POST" action="?/deleteHousehold">
+        <button style="background:red">Ta bort hushåll</button>
+    </form>
+
+{:else}
+    <p>Du tillhör inget hushåll ännu.</p>
+
+    <h2>Gå med i ett hushåll</h2>
+    <form method="POST" action="?/join">
+        <label for="code">Hushållskod</label>
+        <input id="code" name="code" type="text" required />
+
+        {#if form?.error}
+            <p style="color:red; margin-top:10px">{form.error}</p>
+        {/if}
+
+        {#if form?.success}
+            <p style="color:green; margin-top:10px">Du har gått med i hushållet.</p>
+        {/if}
+
+        <button type="submit" style="margin-top:10px">Gå med</button>
+    </form>
+{/if}
+
+<style>
+    h1 {
+        margin-bottom: 1.2rem;
+        color: #1f2937;
+        font-size: 1.6rem;
+        font-weight: 700;
+    }
+
+    h2 {
+        margin-top: 1.5rem;
+        font-size: 1.3rem;
+        color: #1f2937;
+    }
+
+    .form {
+        display: grid;
+        gap: 0.9rem;
+        padding: 1rem;
+        max-width: 420px;
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        margin-top: 1rem;
+    }
+
+    label {
+        font-weight: 600;
+        color: #374151;
+    }
+
+    input[type='number'],
+    input[type='date'],
+    input[type='text'] {
+        padding: 0.65rem;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        background: #f9fafb;
+    }
+
+    input:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 2px #dbeafe;
+        background: #ffffff;
+    }
+
+    button {
+        padding: 0.75rem 1rem;
+        border: none;
+        background: #2563eb;
+        color: white;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.95rem;
+        font-weight: 600;
+        transition: background 0.15s;
+    }
+
+    button:hover {
+        background: #1d4ed8;
+    }
+
+    .feedback {
+        margin-top: 1rem;
+        color: green;
+        font-weight: 600;
+    }
+</style>
