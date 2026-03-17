@@ -8,7 +8,7 @@ export const actions = {
         const email = form.get('email');
         const password = form.get('password');
 
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data: authData, error } = await supabase.auth.signInWithPassword({
             email,
             password
         });
@@ -17,7 +17,22 @@ export const actions = {
             return fail(400, { message: error.message });
         }
 
-        // Nu är sessionen satt via cookies
+        // Hämta användaren
+        const user = authData.user;
+
+        // Kolla om profil finns
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', user.id)
+            .maybeSingle();
+
+        // Om ingen profil → gå till register/next
+        if (!profile) {
+            throw redirect(303, '/register/next');
+        }
+
+        // Om profil finns → kör som idag
         throw redirect(303, '/');
     }
 };
