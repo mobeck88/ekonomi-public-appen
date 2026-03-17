@@ -13,15 +13,16 @@ export const handle = async ({ event, resolve }) => {
 
     event.locals.supabase = supabase;
 
-    const {
-        data: { session }
-    } = await supabase.auth.getSession();
+    // 🔒 SÄKERT: Hämta verifierad användare från Auth-servern
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+
+    const user = userData?.user ?? null;
 
     // Offentliga routes som inte kräver login
     const publicRoutes = ['/login', '/register'];
 
-    // Ingen session → endast tillåt public routes
-    if (!session) {
+    // Ingen användare → endast tillåt public routes
+    if (!user) {
         if (!publicRoutes.includes(event.url.pathname)) {
             throw redirect(303, '/login');
         }
@@ -33,11 +34,10 @@ export const handle = async ({ event, resolve }) => {
         });
     }
 
-    // Användare finns
-    const user = session.user;
+    // 🔒 Användare finns och är verifierad
     event.locals.user = user;
 
-    // Hämta household membership för just denna användare
+    // Hämta household membership
     const { data: membership, error: membershipError } = await supabase
         .from('household_members')
         .select('household_id')
