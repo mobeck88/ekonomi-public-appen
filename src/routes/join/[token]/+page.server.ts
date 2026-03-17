@@ -1,22 +1,22 @@
-import { redirect } from '@sveltejs/kit';
+import { redirect, fail } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
     const supabase = locals.supabase;
     const user = locals.user;
-    const token = params.token;
+    const code = params.token; // token = join_code i URL: /join/xxxxxxx
 
     if (!user) throw redirect(303, '/login');
 
-    // Hitta hushåll via invite_token
+    // Hitta hushåll via join_code (8 tecken)
     const { data: household } = await supabase
         .from('households')
         .select('id')
-        .eq('invite_token', token)
+        .eq('join_code', code)
         .maybeSingle();
 
     if (!household) {
-        throw redirect(303, '/household?error=invalid_token');
+        throw redirect(303, '/household?error=invalid_code');
     }
 
     // Kontrollera om användaren redan är medlem
