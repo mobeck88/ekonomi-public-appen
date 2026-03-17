@@ -1,5 +1,24 @@
 import { redirect, fail } from '@sveltejs/kit';
-import type { Actions } from './$types';
+import type { Actions, PageServerLoad } from './$types';
+
+export const load: PageServerLoad = async ({ locals }) => {
+    const supabase = locals.supabase;
+    const user = locals.user;
+
+    if (!user) throw redirect(303, '/login');
+
+    const { data: membership } = await supabase
+        .from('household_members')
+        .select('household_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+    if (membership?.household_id) {
+        throw redirect(303, '/household');
+    }
+
+    return {};
+};
 
 export const actions: Actions = {
     join: async ({ request, locals }) => {
@@ -29,7 +48,7 @@ export const actions: Actions = {
                 role: 'member'
             });
 
-        if (error) return fail(500, { error: 'Kunde inte lägga till dig i hushållet.' });
+        if (error) return fail(500, { error: 'Kunde inte gå med i hushållet.' });
 
         throw redirect(303, '/household');
     }
