@@ -1,69 +1,50 @@
 import { redirect } from '@sveltejs/kit';
-import { createServerClient } from '@supabase/auth-helpers-sveltekit';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
+import type { Handle } from '@sveltejs/kit';
 
-export const handle = async ({ event, resolve }) => {
-    const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        cookies: {
-            get: (key) => event.cookies.get(key),
-            set: (key, value, options) => event.cookies.set(key, value, options),
-            remove: (key, options) => event.cookies.delete(key, options)
-        }
-    });
-
-    event.locals.supabase = supabase;
-
-    // 🔒 SÄKERT: Hämta verifierad användare från Auth-servern
-    const { data: userData, error: userError } = await supabase.auth.getUser();
-
-    const user = userData?.user ?? null;
-
-    // Offentliga routes som inte kräver login
+export const handle: Handle = async ({ event, resolve }) => {
     const publicRoutes = ['/login', '/register'];
+    const isPublic = publicRoutes.some((route) =>
+        event.url.pathname.startsWith(route)
+    );
 
-    // Ingen användare → endast tillåt public routes
-    if (!user) {
-        if (!publicRoutes.includes(event.url.pathname)) {
-            throw redirect(303, '/login');
-        }
+    // Tillåt POST-actions på /register/next
+    const isRegisterNextAction =
+        event.url.pathname === '/register/next' &&
+        event.request.method === 'POST';
 
-        return resolve(event, {
-            filterSerializedResponseHeaders(name) {
-                return name === 'set-cookie';
-            }
-        });
-    }
-
-    // 🔒 Användare finns och är verifierad
-    event.locals.user = user;
-
-    // Hämta household membership
-    const { data: membership, error: membershipError } = await supabase
-        .from('household_members')
-        .select('household_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-    if (membershipError) {
-        console.error('Membership error:', membershipError);
-    }
-
-    const householdId = membership?.household_id ?? null;
-    event.locals.householdId = householdId;
-
-    // Routes som ska vara tillåtna även utan hushåll
-    const isRegisterRoute = event.url.pathname.startsWith('/register');
     const isJoinRoute = event.url.pathname.startsWith('/join');
-    const isLogoutRoute = event.url.pathname === '/logout';
+    const isLogoutRoute = event.url.pathname.startsWith('/logout');
 
-    if (!householdId && !isRegisterRoute && !isJoinRoute && !isLogoutRoute) {
+    const session = await event.locals.getSession();
+    event.locals.user = session?.user ?? null;
+
+    if (!event.locals.user && !isPublic) {
+        throw redirect(303, '/login');
+    }
+
+    const supabase = event.locals.supabase;
+    const user = event.locals.user;
+
+    if (user) {
+        const { data: membership } = await supabase
+            .from('household_members')
+            .select('household_id')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+        event.locals.householdId = membership?.household_id ?? null;
+    }
+
+    // Viktigt: tillåt POST /register/next?/join och ?/create
+    if (
+        !event.locals.householdId &&
+        !isPublic &&
+        !isJoinRoute &&
+        !isLogoutRoute &&
+        !isRegisterNextAction
+    ) {
         throw redirect(303, '/register/next');
     }
 
-    // Allt OK → fortsätt
-    return resolve(event, {
-        filterSerializedResponseHeaders(name) {
-            return name === 'set-cookie';
-        }
-    });
+    return resolve(event);
 };
