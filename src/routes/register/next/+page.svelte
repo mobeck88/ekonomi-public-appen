@@ -8,8 +8,7 @@
 <div class="section">
     <h2>Gå med i hushåll (rekommenderas)</h2>
 
-    <!-- KORREKT ACTION -->
-    <form method="POST" action="?/join" class="form">
+    <form method="POST" class="form">
         <label for="code">Hushållskod</label>
         <input
             id="code"
@@ -23,16 +22,17 @@
             <p class="error">{form.error}</p>
         {/if}
 
-        <button type="submit">Gå med i hushåll</button>
+        <!-- Viktigt: name="join" triggar actions.join -->
+        <button type="submit" name="join">Gå med i hushåll</button>
     </form>
 </div>
 
 <div class="section" style="margin-top: 1.5rem;">
     <h2>Skapa nytt hushåll</h2>
 
-    <!-- KORREKT ACTION -->
-    <form method="POST" action="?/create">
-        <button type="submit">Skapa nytt hushåll</button>
+    <form method="POST">
+        <!-- Viktigt: name="create" triggar actions.create -->
+        <button type="submit" name="create">Skapa nytt hushåll</button>
     </form>
 </div>
 
