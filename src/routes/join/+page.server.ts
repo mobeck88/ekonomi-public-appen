@@ -1,6 +1,9 @@
 import { redirect, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 
+// TEST: Den här raden SKA synas i Vercel Logs om filen körs
+console.log("JOIN SERVERFILE KÖRS");
+
 export const load: PageServerLoad = async ({ locals }) => {
     const supabase = locals.supabase;
     const user = locals.user;
@@ -9,7 +12,6 @@ export const load: PageServerLoad = async ({ locals }) => {
         throw redirect(303, '/login');
     }
 
-    // Kontrollera om användaren redan är med i ett hushåll
     const { data: membership, error: membershipError } = await supabase
         .from('household_members')
         .select('household_id')
@@ -44,7 +46,6 @@ export const actions: Actions = {
             return fail(400, { error: 'Du måste ange en hushållskod.' });
         }
 
-        // Hitta hushållet baserat på join_code
         const { data: household, error: householdError } = await supabase
             .from('households')
             .select('id')
@@ -60,7 +61,6 @@ export const actions: Actions = {
             return fail(400, { error: 'Hushåll hittades inte.' });
         }
 
-        // Lägg till användaren i hushållet
         const { error: insertError } = await supabase
             .from('household_members')
             .insert({
