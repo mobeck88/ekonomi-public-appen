@@ -22,7 +22,6 @@
             <p class="error">{form.error}</p>
         {/if}
 
-        <!-- Viktigt: name="join" triggar actions.join -->
         <button type="submit" name="join">Gå med i hushåll</button>
     </form>
 </div>
@@ -31,7 +30,6 @@
     <h2>Skapa nytt hushåll</h2>
 
     <form method="POST">
-        <!-- Viktigt: name="create" triggar actions.create -->
         <button type="submit" name="create">Skapa nytt hushåll</button>
     </form>
 </div>

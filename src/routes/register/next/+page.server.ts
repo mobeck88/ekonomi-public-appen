@@ -5,8 +5,11 @@ export const load: PageServerLoad = async ({ locals }) => {
     const supabase = locals.supabase;
     const user = locals.user;
 
-    if (!user) throw redirect(303, '/login');
+    if (!user) {
+        throw redirect(303, '/login');
+    }
 
+    // Se till att profil finns
     const { data: profile } = await supabase
         .from('profiles')
         .select('id')
@@ -20,6 +23,7 @@ export const load: PageServerLoad = async ({ locals }) => {
         });
     }
 
+    // Om användaren redan är med i ett hushåll → skicka till /household
     const { data: membership } = await supabase
         .from('household_members')
         .select('household_id')
@@ -38,10 +42,12 @@ export const actions: Actions = {
         const supabase = locals.supabase;
         const user = locals.user;
 
-        if (!user) throw redirect(303, '/login');
+        if (!user) {
+            throw redirect(303, '/login');
+        }
 
-        const form = await request.formData();
-        let code = form.get('code');
+        const formData = await request.formData();
+        let code = formData.get('code');
 
         if (!code || typeof code !== 'string') {
             return fail(400, { error: 'Du måste ange en hushållskod.' });
@@ -85,7 +91,9 @@ export const actions: Actions = {
         const supabase = locals.supabase;
         const user = locals.user;
 
-        if (!user) throw redirect(303, '/login');
+        if (!user) {
+            throw redirect(303, '/login');
+        }
 
         const { data: newHousehold, error: householdError } = await supabase
             .from('households')
