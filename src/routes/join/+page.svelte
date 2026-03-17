@@ -6,7 +6,7 @@
 <p>Klistra in hushållskoden du fått av ägaren.</p>
 
 <div class="section">
-    <form method="POST" class="form">
+    <form method="POST" action="?/join" class="form">
         <label for="code">Hushållskod</label>
         <input
             id="code"
