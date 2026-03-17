@@ -37,13 +37,13 @@ export const handle = async ({ event, resolve }) => {
     const user = session.user;
     event.locals.user = user;
 
-    // Hämta household membership (RLS filtrerar automatiskt på auth.uid())
+    // Hämta household membership för just denna användare
     const { data: membership, error: membershipError } = await supabase
         .from('household_members')
         .select('household_id')
-        .single();
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-    // Om SELECT misslyckas (t.ex. 500 pga RLS) → kasta vidare för debugging
     if (membershipError) {
         console.error('Membership error:', membershipError);
     }
