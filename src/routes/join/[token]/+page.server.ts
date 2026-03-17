@@ -4,18 +4,18 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ params, locals }) => {
     const supabase = locals.supabase;
     const user = locals.user;
-    const code = params.token; // token = join_code i URL: /join/xxxxxxx
+    const code = params.token; // join_code från URL: /join/xxxxxxx
 
     if (!user) throw redirect(303, '/login');
 
-    // Hitta hushåll via join_code (8 tecken)
-    const { data: household } = await supabase
+    // Hitta hushåll via join_code
+    const { data: household, error: selectError } = await supabase
         .from('households')
         .select('id')
         .eq('join_code', code)
-        .maybeSingle();
+        .single(); // Viktigt: single() istället för maybeSingle()
 
-    if (!household) {
+    if (selectError || !household) {
         throw redirect(303, '/household?error=invalid_code');
     }
 
@@ -29,11 +29,15 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
     // Om inte medlem → lägg till
     if (!existingMember) {
-        await supabase.from('household_members').insert({
+        const { error: insertError } = await supabase.from('household_members').insert({
             household_id: household.id,
             user_id: user.id,
             role: 'member'
         });
+
+        if (insertError) {
+            return fail(500, { error: 'Kunde inte gå med i hushållet.' });
+        }
     }
 
     // Klart → redirect
