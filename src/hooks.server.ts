@@ -17,8 +17,10 @@ export const handle = async ({ event, resolve }) => {
         data: { session }
     } = await supabase.auth.getSession();
 
+    // Offentliga routes som inte kräver login
     const publicRoutes = ['/login', '/register'];
 
+    // Om ingen session → endast tillåt public routes
     if (!session) {
         if (!publicRoutes.includes(event.url.pathname)) {
             throw redirect(303, '/login');
@@ -31,17 +33,29 @@ export const handle = async ({ event, resolve }) => {
         });
     }
 
+    // Användare finns
     const user = session.user;
     event.locals.user = user;
 
+    // Hämta household membership
     const { data: membership } = await supabase
         .from('household_members')
         .select('household_id')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
-    event.locals.householdId = membership?.household_id ?? null;
+    const householdId = membership?.household_id ?? null;
+    event.locals.householdId = householdId;
 
+    // Household-spärr:
+    // Om användaren INTE har household → endast tillåt register-flödet
+    const isRegisterRoute = event.url.pathname.startsWith('/register');
+
+    if (!householdId && !isRegisterRoute) {
+        throw redirect(303, '/register/next');
+    }
+
+    // Allt OK → fortsätt
     return resolve(event, {
         filterSerializedResponseHeaders(name) {
             return name === 'set-cookie';
