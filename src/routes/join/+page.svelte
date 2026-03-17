@@ -20,10 +20,7 @@
             <p class="error">{form.error}</p>
         {/if}
 
-        <button
-            type="submit"
-            formaction="/join?/_action=join"
-        >
+        <button type="submit" name="join">
             Gå med i hushåll
         </button>
     </form>
