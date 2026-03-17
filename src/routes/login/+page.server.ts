@@ -17,17 +17,22 @@ export const actions = {
             return fail(400, { message: error.message });
         }
 
-        // Hämta användaren
         const user = authData.user;
 
-        // Kolla om profil finns
-        const { data: profile } = await supabase
+        // SAFE PROFILE CHECK
+        const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('id')
             .eq('id', user.id)
             .maybeSingle();
 
-        // Om ingen profil → gå till register/next
+        // Om RLS blockerar → vi antar att profil inte finns ännu
+        if (profileError) {
+            console.warn("Profile lookup blocked by RLS:", profileError.message);
+            throw redirect(303, '/register/next');
+        }
+
+        // Om ingen profil hittades → gå till register/next
         if (!profile) {
             throw redirect(303, '/register/next');
         }
