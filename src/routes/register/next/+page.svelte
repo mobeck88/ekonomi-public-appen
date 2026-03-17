@@ -8,8 +8,8 @@
 <div class="section">
     <h2>Gå med i hushåll (rekommenderas)</h2>
 
-    <!-- FIX: Absolut action-path till /register?/join -->
-    <form method="POST" action="/register?/join" class="form">
+    <!-- KORREKT ABSOLUT ACTION -->
+    <form method="POST" action="/register/next?/join" class="form">
         <label for="code">Hushållskod</label>
         <input
             id="code"
@@ -30,8 +30,8 @@
 <div class="section" style="margin-top: 1.5rem;">
     <h2>Skapa nytt hushåll</h2>
 
-    <!-- FIX: Absolut action-path till /register?/create -->
-    <form method="POST" action="/register?/create">
+    <!-- KORREKT ABSOLUT ACTION -->
+    <form method="POST" action="/register/next?/create">
         <button type="submit">Skapa nytt hushåll</button>
     </form>
 </div>
