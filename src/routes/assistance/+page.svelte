@@ -48,7 +48,7 @@
         'Mediciner'
     ];
 
-    // Förbereder raderna i script istället för {@const}
+    // Förbereder raderna i script
     const sumIncome = getRow('Summa inkomst');
     const sumExpenses = getRow('Summa utgifter');
     const balance = getRow('Balans');
@@ -79,14 +79,12 @@
             </tr>
 
             {#each incomeRows as label}
-                {#let row = getRow(label)}
                 <tr class="bg-green-50">
                     <td class="border px-2 py-1">{label}</td>
-                    {#each row.values as v}
+                    {#each getRow(label).values as v}
                         <td class="border px-2 py-1 text-right">{v} kr</td>
                     {/each}
                 </tr>
-            {/let}
             {/each}
 
             <!-- ========================= -->
@@ -97,14 +95,12 @@
             </tr>
 
             {#each otherIncomeRows as label}
-                {#let row = getRow(label)}
                 <tr class="bg-green-50">
                     <td class="border px-2 py-1">{label}</td>
-                    {#each row.values as v}
+                    {#each getRow(label).values as v}
                         <td class="border px-2 py-1 text-right">{v} kr</td>
                     {/each}
                 </tr>
-            {/let}
             {/each}
 
             <!-- ========================= -->
@@ -125,14 +121,12 @@
             </tr>
 
             {#each expenseRows as label}
-                {#let row = getRow(label)}
                 <tr class="bg-red-50">
                     <td class="border px-2 py-1">{label}</td>
-                    {#each row.values as v}
+                    {#each getRow(label).values as v}
                         <td class="border px-2 py-1 text-right">{v} kr</td>
                     {/each}
                 </tr>
-            {/let}
             {/each}
 
             <!-- ========================= -->
