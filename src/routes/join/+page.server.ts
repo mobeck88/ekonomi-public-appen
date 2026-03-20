@@ -24,7 +24,7 @@ export const actions: Actions = {
         const { data: household, error: householdError } = await supabase
             .from('households')
             .select('id')
-            .filter('join_code', 'eq', code)   // ← konsekvent och PostgREST-säkert
+            .filter('join_code', 'eq', code)
             .maybeSingle();
 
         if (householdError) {
@@ -36,13 +36,17 @@ export const actions: Actions = {
             return fail(400, { error: "Ogiltig hushållskod" });
         }
 
-        // Lägg till användaren i hushållet
-        const { error: insertError } = await supabase
+        // Lägg till användaren i hushållet — nu med loggning
+        const { data: insertData, error: insertError } = await supabase
             .from('household_members')
             .insert({
                 user_id: user.id,
                 household_id: household.id
-            });
+            })
+            .select()
+            .single();
+
+        console.log("JOIN INSERT RESULT:", { insertData, insertError });
 
         if (insertError) {
             console.error("Insert error:", insertError);
@@ -51,7 +55,6 @@ export const actions: Actions = {
 
         console.log("JOIN OK → redirect till /");
 
-        // Klart → skicka användaren vidare
         throw redirect(303, '/');
     }
 };
