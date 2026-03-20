@@ -3,18 +3,14 @@ import type { Actions, PageServerLoad } from './$types';
 import { getAccessContext } from '$lib/server/access';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
-    const user = locals.user;
-    const householdId = locals.householdId;
-    const supabase = locals.supabase;
-
-    if (!user) redirect(303, '/login');
-    if (!householdId) return { active: [], history: [], access: null };
-
     const access = await getAccessContext(locals, url);
 
     if (!access.allowed) {
-        throw redirect(303, '/forbidden');
+        return redirect(303, '/login');
     }
+
+    const supabase = locals.supabase;
+    const householdId = locals.householdId;
 
     const targetUserId = access.selectedUserId;
 
@@ -29,7 +25,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
         description,
         allowance_group_id,
         created_at,
-        profiles!allowance_user_fk ( full_name )
+        profiles!allowance_user_fk (
+            full_name
+        )
     `;
 
     const { data: active } = await supabase
@@ -49,40 +47,37 @@ export const load: PageServerLoad = async ({ locals, url }) => {
         .order('start_month', { ascending: true });
 
     return {
+        access,
         active: active ?? [],
-        history: history ?? [],
-        access
+        history: history ?? []
     };
 };
 
 export const actions: Actions = {
     create: async ({ request, locals, url }) => {
-        const user = locals.user;
-        const householdId = locals.householdId;
-        const supabase = locals.supabase;
-
-        if (!user) redirect(303, '/login');
-        if (!householdId) return fail(400, { error: 'Inget hushåll kopplat.' });
-
         const access = await getAccessContext(locals, url);
-        if (!access.allowed || !access.canEdit) return fail(403, { error: 'Ej behörig.' });
+        if (!access.allowed) return redirect(303, '/login');
+
+        const supabase = locals.supabase;
+        const householdId = locals.householdId;
 
         const form = await request.formData();
-        const selected_user_id = form.get('selected_user_id');
+        const selectedUserId = form.get('selected_user_id');
 
-        if (!access.selectableMembers.includes(selected_user_id)) {
-            return fail(403, { error: 'Ej behörig att skapa för denna användare.' });
+        if (!access.selectableMembers.some((m: any) => m.user_id === selectedUserId)) {
+            return fail(403, { error: 'Ingen behörighet att skapa för denna användare.' });
         }
 
         const amount = Number(form.get('amount'));
         const start_raw = form.get('start_month');
         const title = form.get('title');
         const description = form.get('description');
+
         const start_month = `${start_raw}-01`;
 
         const { error } = await supabase.from('allowance').insert({
             household_id: householdId,
-            user_id: selected_user_id,
+            user_id: selectedUserId,
             allowance_group_id: crypto.randomUUID(),
             amount,
             start_month,
@@ -92,25 +87,22 @@ export const actions: Actions = {
         });
 
         if (error) return fail(400, { error: error.message });
+
         return { success: true };
     },
 
     update: async ({ request, locals, url }) => {
-        const user = locals.user;
-        const householdId = locals.householdId;
-        const supabase = locals.supabase;
-
-        if (!user) redirect(303, '/login');
-        if (!householdId) return fail(400, { error: 'Inget hushåll kopplat.' });
-
         const access = await getAccessContext(locals, url);
-        if (!access.allowed || !access.canEdit) return fail(403, { error: 'Ej behörig.' });
+        if (!access.allowed) return redirect(303, '/login');
+
+        const supabase = locals.supabase;
+        const householdId = locals.householdId;
 
         const form = await request.formData();
-        const selected_user_id = form.get('selected_user_id');
+        const selectedUserId = form.get('selected_user_id');
 
-        if (!access.selectableMembers.includes(selected_user_id)) {
-            return fail(403, { error: 'Ej behörig att uppdatera för denna användare.' });
+        if (!access.selectableMembers.some((m: any) => m.user_id === selectedUserId)) {
+            return fail(403, { error: 'Ingen behörighet att uppdatera denna användare.' });
         }
 
         const group_id = form.get('allowance_group_id');
@@ -123,7 +115,7 @@ export const actions: Actions = {
             .select('*')
             .eq('allowance_group_id', group_id)
             .eq('household_id', householdId)
-            .eq('user_id', selected_user_id)
+            .eq('user_id', selectedUserId)
             .is('end_month', null)
             .single();
 
@@ -141,7 +133,7 @@ export const actions: Actions = {
 
         const { error: insertError } = await supabase.from('allowance').insert({
             household_id: householdId,
-            user_id: selected_user_id,
+            user_id: selectedUserId,
             allowance_group_id: group_id,
             amount: new_amount,
             start_month: new_start,
@@ -149,25 +141,22 @@ export const actions: Actions = {
         });
 
         if (insertError) return fail(400, { error: insertError.message });
+
         return { success: true };
     },
 
     end: async ({ request, locals, url }) => {
-        const user = locals.user;
-        const householdId = locals.householdId;
-        const supabase = locals.supabase;
-
-        if (!user) redirect(303, '/login');
-        if (!householdId) return fail(400, { error: 'Inget hushåll kopplat.' });
-
         const access = await getAccessContext(locals, url);
-        if (!access.allowed || !access.canEdit) return fail(403, { error: 'Ej behörig.' });
+        if (!access.allowed) return redirect(303, '/login');
+
+        const supabase = locals.supabase;
+        const householdId = locals.householdId;
 
         const form = await request.formData();
-        const selected_user_id = form.get('selected_user_id');
+        const selectedUserId = form.get('selected_user_id');
 
-        if (!access.selectableMembers.includes(selected_user_id)) {
-            return fail(403, { error: 'Ej behörig att avsluta för denna användare.' });
+        if (!access.selectableMembers.some((m: any) => m.user_id === selectedUserId)) {
+            return fail(403, { error: 'Ingen behörighet att avsluta denna användare.' });
         }
 
         const group_id = form.get('allowance_group_id');
@@ -179,10 +168,11 @@ export const actions: Actions = {
             .update({ end_month })
             .eq('allowance_group_id', group_id)
             .eq('household_id', householdId)
-            .eq('user_id', selected_user_id)
+            .eq('user_id', selectedUserId)
             .is('end_month', null);
 
         if (error) return fail(400, { error: error.message });
+
         return { success: true };
     }
 };

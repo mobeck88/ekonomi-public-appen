@@ -18,18 +18,23 @@
 
 <h1>Fickpengar</h1>
 
-<!-- Dropdown för owner/guardian -->
-{#if data.access && data.access.selectableMembers.length > 1}
-    <form method="get" class="selector">
-        <label for="user">Visa för</label>
-        <select id="user" name="user_id" on:change={() => event.target.form.submit()}>
-            {#each data.access.selectableMembers as m}
-                <option value={m} selected={m === data.access.selectedUserId}>
-                    {m}
-                </option>
-            {/each}
-        </select>
-    </form>
+{#if data.access.isOwner || data.access.isGuardian}
+    <div class="selector">
+        <form method="get">
+            <label for="user_id">Välj medlem</label>
+            <select id="user_id" name="user_id">
+                {#each data.access.selectableMembers as m}
+                    <option
+                        value={m.user_id}
+                        selected={m.user_id === data.access.selectedUserId}
+                    >
+                        {m.profiles?.full_name}
+                    </option>
+                {/each}
+            </select>
+            <button>Visa</button>
+        </form>
+    </div>
 {/if}
 
 <!-- Aktiva perioder -->
@@ -91,7 +96,7 @@
     {/if}
 </div>
 
-<!-- Ny period -->
+<!-- Ny fickpengperiod -->
 {#if data.access.canEdit}
 <div class="section">
     <button class="section-header" on:click={() => showCreate = !showCreate}>
@@ -144,15 +149,134 @@
 </div>
 
 <style>
+    h1 {
+        margin-bottom: 1.2rem;
+        color: #1f2937;
+        font-size: 1.6rem;
+        font-weight: 700;
+    }
+
     .selector {
-        margin-bottom: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .selector form {
         display: flex;
-        gap: 0.5rem;
+        gap: 0.8rem;
         align-items: center;
     }
-    select {
-        padding: 0.4rem;
-        border-radius: 6px;
+
+    .section {
+        margin-bottom: 1.5rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        overflow: hidden;
+        background: #ffffff;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .section-header {
+        width: 100%;
+        background: #f3f4f6;
+        border: none;
+        padding: 1rem 1.2rem;
+        font-size: 1.05rem;
+        font-weight: 600;
+        display: flex;
+        justify-content: space-between;
+        cursor: pointer;
+        color: #111827;
+    }
+
+    .section-header:hover {
+        background: #e5e7eb;
+    }
+
+    .empty {
+        padding: 1rem;
+        color: #6b7280;
+    }
+
+    .card {
+        border-top: 1px solid #e5e7eb;
+        padding: 1rem;
+        background: #ffffff;
+    }
+
+    .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 1.2rem;
+        flex-wrap: wrap;
+    }
+
+    .info {
+        font-size: 0.95rem;
+        color: #374151;
+    }
+
+    .label {
+        color: #6b7280;
+        font-size: 0.85rem;
+    }
+
+    .actions {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        min-width: 200px;
+    }
+
+    .create-form {
+        display: grid;
+        gap: 0.9rem;
+        padding: 1rem;
+        max-width: 420px;
+    }
+
+    input, textarea, select {
+        padding: 0.65rem;
         border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        background: #f9fafb;
+    }
+
+    input:focus, textarea:focus, select:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 2px #dbeafe;
+        background: #ffffff;
+    }
+
+    button {
+        padding: 0.75rem 1rem;
+        border: none;
+        background: #2563eb;
+        color: white;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.95rem;
+        font-weight: 600;
+        transition: background 0.15s;
+    }
+
+    button:hover {
+        background: #1d4ed8;
+    }
+
+    button.danger {
+        background: #dc2626;
+    }
+
+    button.danger:hover {
+        background: #b91c1c;
+    }
+
+    .history {
+        padding: 0.9rem 1rem;
+        border-top: 1px solid #e5e7eb;
+        color: #374151;
+        font-size: 0.95rem;
     }
 </style>
