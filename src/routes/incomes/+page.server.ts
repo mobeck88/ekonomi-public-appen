@@ -649,25 +649,24 @@ export const actions: Actions = {
         const fkInbetaldArr = form.getAll('fk_inbetald_skatt');
         const fkAttBetalaArr = form.getAll('fk_att_betala_ut');
 
-        const fkRows = fkTypArr
-            .map((typ, i) => ({
-                income_month_id,
-                household_id: householdId,
-                user_id: targetUserId,
-                fk_typ: typ || null,
-                fk_typ_ovrigt: fkOvrigtArr[i] || null,
-                ersattning_fore_skatt: fkErsArr[i] || null,
-                inbetald_skatt: fkInbetaldArr[i] || null,
-                att_betala_ut: fkAttBetalaArr[i] || null
-            }))
-            .filter((row) => Object.values
-            }))
-            .filter((row) => Object.values(row).some((v) => v));
+const fkRows = fkTypArr
+    .map((typ, i) => ({
+        income_month_id,
+        household_id: householdId,
+        user_id: targetUserId,
+        fk_typ: typ || null,
+        fk_typ_ovrigt: fkOvrigtArr[i] || null,
+        ersattning_fore_skatt: fkErsArr[i] || null,
+        inbetald_skatt: fkInbetaldArr[i] || null,
+        att_betala_ut: fkAttBetalaArr[i] || null
+    }))
+    .filter((row) => Object.values(row).some((v) => v));
 
-        if (fkRows.length > 0) {
-            const { error } = await supabase.from('income_fk').insert(fkRows);
-            if (error) return fail(400, { message: error.message });
-        }
+if (fkRows.length > 0) {
+    const { error } = await supabase.from('income_fk').insert(fkRows);
+    if (error) return fail(400, { message: error.message });
+}
+
 
         // Synka monthly_income
         await syncMonthlyIncome(supabase, householdId, targetUserId, income_month_id);
