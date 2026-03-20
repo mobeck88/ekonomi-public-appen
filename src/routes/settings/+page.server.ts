@@ -20,7 +20,7 @@ export const load: PageServerLoad = async ({ locals }) => {
         .eq("year", year)
         .maybeSingle();
 
-    // Hämta guardian-flaggan från household_members
+    // Hämta guardian-flaggan från household_members (BOOLEAN)
     const { data: memberData } = await locals.supabase
         .from("household_members")
         .select("guardian_for, household_id")
@@ -29,7 +29,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
     return {
         isMemberOfChurch: churchData?.is_member_of_church ?? true,
-        hasGuardian: memberData?.guardian_for ? true : false,
+        hasGuardian: memberData?.guardian_for ?? false,
         householdId: memberData?.household_id ?? null
     };
 };
@@ -71,7 +71,7 @@ export const actions: Actions = {
         if (!user) throw redirect(303, "/login");
 
         const form = await request.formData();
-        const hasGuardian = form.get("hasGuardian") === "on";
+        const hasGuardian = form.get("hasGuardian") === "on"; // BOOLEAN
 
         // Hämta household_id
         const { data: memberData, error: memberError } = await locals.supabase
@@ -86,10 +86,11 @@ export const actions: Actions = {
 
         const householdId = memberData.household_id;
 
+        // Uppdatera BOOLEAN guardian_for
         const { error } = await locals.supabase
             .from("household_members")
             .update({
-                guardian_for: hasGuardian ? user.id : null
+                guardian_for: hasGuardian
             })
             .eq("user_id", user.id)
             .eq("household_id", householdId);
