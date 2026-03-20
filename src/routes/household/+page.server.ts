@@ -23,7 +23,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     const { data: membership } = await supabase
         .from('household_members')
         .select('role')
-        .eq('user_id', user.id)
+        .filter('user_id', 'eq', user.id)
         .eq('household_id', householdId)
         .single();
 
@@ -113,7 +113,7 @@ export const actions: Actions = {
         const { data: membership } = await supabase
             .from('household_members')
             .select('role')
-            .eq('user_id', user.id)
+            .filter('user_id', 'eq', user.id)
             .eq('household_id', householdId)
             .single();
 
@@ -127,7 +127,7 @@ export const actions: Actions = {
             .from('household_members')
             .delete()
             .eq('household_id', householdId)
-            .eq('user_id', user.id);
+            .filter('user_id', 'eq', user.id);
 
         throw redirect(303, '/household?left=1');
     },
@@ -142,7 +142,7 @@ export const actions: Actions = {
         const { data: membership } = await supabase
             .from('household_members')
             .select('role')
-            .eq('user_id', user.id)
+            .filter('user_id', 'eq', user.id)
             .eq('household_id', householdId)
             .single();
 

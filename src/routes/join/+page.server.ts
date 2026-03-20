@@ -24,7 +24,7 @@ export const actions: Actions = {
         const { data: household, error: householdError } = await supabase
             .from('households')
             .select('id')
-            .eq('join_code', code)
+            .filter('join_code', 'eq', code)   // ← konsekvent och PostgREST-säkert
             .maybeSingle();
 
         if (householdError) {
