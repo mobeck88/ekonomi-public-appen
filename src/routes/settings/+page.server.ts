@@ -6,13 +6,14 @@ export const load: PageServerLoad = async ({ locals }) => {
     if (!user) {
         return {
             isMemberOfChurch: true,
-            hasGuardian: false
+            hasGuardian: false,
+            enableAssistance: false,
+            householdId: null
         };
     }
 
     const year = new Date().getFullYear();
 
-    // Kyrkotillhörighet
     const { data: churchData } = await locals.supabase
         .from("tax_user_settings")
         .select("is_member_of_church")
@@ -20,16 +21,28 @@ export const load: PageServerLoad = async ({ locals }) => {
         .eq("year", year)
         .maybeSingle();
 
-    // Hämta guardian-flaggan från household_members (BOOLEAN)
     const { data: memberData } = await locals.supabase
         .from("household_members")
         .select("guardian_for, household_id")
         .eq("user_id", user.id)
         .maybeSingle();
 
+    let enableAssistance = false;
+
+    if (memberData?.household_id) {
+        const { data: household } = await locals.supabase
+            .from("households")
+            .select("enable_assistance")
+            .eq("id", memberData.household_id)
+            .maybeSingle();
+
+        enableAssistance = household?.enable_assistance ?? false;
+    }
+
     return {
         isMemberOfChurch: churchData?.is_member_of_church ?? true,
         hasGuardian: memberData?.guardian_for ?? false,
+        enableAssistance,
         householdId: memberData?.household_id ?? null
     };
 };
@@ -71,22 +84,20 @@ export const actions: Actions = {
         if (!user) throw redirect(303, "/login");
 
         const form = await request.formData();
-        const hasGuardian = form.get("hasGuardian") === "on"; // BOOLEAN
+        const hasGuardian = form.get("hasGuardian") === "on";
 
-        // Hämta household_id
-        const { data: memberData, error: memberError } = await locals.supabase
+        const { data: memberData } = await locals.supabase
             .from("household_members")
             .select("household_id")
             .eq("user_id", user.id)
             .maybeSingle();
 
-        if (memberError || !memberData) {
+        if (!memberData) {
             return fail(500, { message: "Kunde inte hitta hushållsmedlemskap." });
         }
 
         const householdId = memberData.household_id;
 
-        // Uppdatera BOOLEAN guardian_for
         const { error } = await locals.supabase
             .from("household_members")
             .update({
@@ -105,6 +116,43 @@ export const actions: Actions = {
         return {
             message: "Inställningen sparad.",
             hasGuardian
+        };
+    },
+
+    updateAssistance: async ({ request, locals }) => {
+        const user = locals.user;
+        if (!user) throw redirect(303, "/login");
+
+        const form = await request.formData();
+        const enabled = form.get("enableAssistance") === "on";
+
+        const { data: memberData } = await locals.supabase
+            .from("household_members")
+            .select("household_id")
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+        if (!memberData) {
+            return fail(500, { message: "Kunde inte hitta hushåll." });
+        }
+
+        const householdId = memberData.household_id;
+
+        const { error } = await locals.supabase
+            .from("households")
+            .update({ enable_assistance: enabled })
+            .eq("id", householdId);
+
+        if (error) {
+            return fail(500, {
+                message: "Kunde inte uppdatera inställningen.",
+                enabled
+            });
+        }
+
+        return {
+            message: "Inställningen sparad.",
+            enableAssistance: enabled
         };
     },
 

@@ -2,18 +2,17 @@
     import { page } from "$app/stores";
     export let user;
     export let householdId;
+    export let enable_assistance;
 
     let open = false;
 
-    const links = [
-        // --- MÅNADSKOLL ---
+    const baseLinks = [
         { label: "Månadskoll", header: true },
         { label: "Inkomster", path: "/incomes" },
         { label: "El", path: "/electricity" },
         { label: "Budget", path: "/budget" },
         { label: "Skatt", path: "/skatt" },
 
-        // --- UTGIFTER ---
         { label: "Utgifter", header: true },
         { label: "Utgifter", path: "/expenses" },
         { label: "Fasta kostnader", path: "/fixed_costs" },
@@ -23,29 +22,34 @@
         { label: "Barnens pengar", path: "/kids_allowance" },
         { label: "Lån", path: "/loans" },
 
-        // --- ÖVRIGT ---
         { label: "Övrigt", header: true },
         { label: "Oförutsägbart", path: "/unexpected_expenses" },
-        { label: "Extra inkomster", path: "/extra_income" },
+        { label: "Extra inkomster", path: "/extra_income" }
+    ];
 
-        // --- INSTÄLLNINGAR ---
+    const links = [
+        ...baseLinks,
+        ...(enable_assistance
+            ? [
+                  { label: "Ekonomiskt bistånd", header: true },
+                  { label: "Ekonomiskt bistånd", path: "/assistance" }
+              ]
+            : []),
         { label: "Inställningar", header: true },
         { label: "Inställningar", path: "/settings" }
     ];
 
     const logout = async () => {
-        await fetch("/logout"); // <-- ändrad: tar bort method: "POST"
+        await fetch("/logout");
         window.location.href = "/login";
     };
 </script>
 
-<!-- MOBIL TOPPBAR -->
 <div class="mobile-nav">
     <button class="hamburger" on:click={() => (open = !open)}>☰</button>
     <span class="title">Ekonomi</span>
 </div>
 
-<!-- MOBIL MENY -->
 {#if open}
 <nav class="mobile-menu">
     <div class="mobile-scroll">
@@ -72,7 +76,6 @@
 </nav>
 {/if}
 
-<!-- DESKTOP SIDOMENY -->
 <nav class="desktop-nav">
     <div class="user-box">
         <strong>{user.email}</strong>
@@ -95,7 +98,6 @@
 </nav>
 
 <style>
-    /* MOBIL TOPPBAR */
     .mobile-nav {
         display: flex;
         align-items: center;
@@ -121,7 +123,6 @@
         margin-left: 12px;
     }
 
-    /* MOBIL MENY */
     .mobile-menu {
         background: #fafafa;
         border-bottom: 1px solid #e5e5e5;
@@ -184,7 +185,6 @@
         background: #b91c1c;
     }
 
-    /* DESKTOP SIDOMENY */
     .desktop-nav {
         display: none;
     }
