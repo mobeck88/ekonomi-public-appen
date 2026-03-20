@@ -6,14 +6,20 @@
     let createStart = '';
     let createOwner = 'shared';
 
-    // Accordion states
     let showActive = false;
     let showCreate = false;
     let showHistory = false;
 
+    // ⭐ Dropdown ska byta direkt → ändra URL
+    function changeUser(e) {
+        const id = e.target.value;
+        const url = new URL(window.location.href);
+        url.searchParams.set('user_id', id);
+        window.location.href = url.toString();
+    }
+
     function ownerLabel(owner: string) {
         if (owner === "shared") return "Gemensamt";
-
         const match = data.members.find(m => m.user_id === owner);
         return match?.profiles?.full_name ?? owner;
     }
@@ -26,6 +32,16 @@
 
 <h1>Abonnemang</h1>
 
+<!-- ⭐ Dropdown visas endast för owner/guardian -->
+{#if data.access.selectableMembers.length > 0}
+    <label>Visa abonnemang för</label>
+    <select on:change={changeUser} bind:value={data.access.selectedUserId}>
+        {#each data.access.selectableMembers as m}
+            <option value={m.user_id}>{m.profiles.full_name}</option>
+        {/each}
+    </select>
+{/if}
+
 <!-- ⭐ Sektion: Aktiva abonnemang -->
 <div class="section">
     <button class="section-header" on:click={() => showActive = !showActive}>
@@ -34,7 +50,7 @@
     </button>
 
     {#if showActive}
-        {#if data.active && data.active.length > 0}
+        {#if data.active.length > 0}
             {#each data.active as c}
                 <div class="card">
                     <div class="row">
@@ -51,10 +67,12 @@
                             {/if}
                         </div>
 
+                        {#if data.access.canEdit}
                         <div class="actions">
 
                             <!-- UPPDATERA -->
                             <form method="post" action="?/update">
+                                <input type="hidden" name="selected_user_id" value={data.access.selectedUserId} />
                                 <input type="hidden" name="cost_group_id" value={c.cost_group_id} />
 
                                 <label>Nytt belopp</label>
@@ -76,6 +94,7 @@
 
                             <!-- AVSLUTA -->
                             <form method="post" action="?/end">
+                                <input type="hidden" name="selected_user_id" value={data.access.selectedUserId} />
                                 <input type="hidden" name="cost_group_id" value={c.cost_group_id} />
 
                                 <label>Avsluta från (YYYY-MM)</label>
@@ -85,6 +104,7 @@
                             </form>
 
                         </div>
+                        {/if}
                     </div>
                 </div>
             {/each}
@@ -95,6 +115,7 @@
 </div>
 
 <!-- ⭐ Sektion: Nytt abonnemang -->
+{#if data.access.canEdit}
 <div class="section">
     <button class="section-header" on:click={() => showCreate = !showCreate}>
         <span>Nytt abonnemang</span>
@@ -103,6 +124,7 @@
 
     {#if showCreate}
         <form method="post" action="?/create" class="create-form">
+            <input type="hidden" name="selected_user_id" value={data.access.selectedUserId} />
 
             <label>Abonnemangets namn</label>
             <input name="cost_name" type="text" bind:value={createName} required />
@@ -125,6 +147,7 @@
         </form>
     {/if}
 </div>
+{/if}
 
 <!-- ⭐ Sektion: Historik -->
 <div class="section">
@@ -134,7 +157,7 @@
     </button>
 
     {#if showHistory}
-        {#if data.history && data.history.length > 0}
+        {#if data.history.length > 0}
             {#each data.history as c}
                 <div class="history">
                     <strong>{c.cost_name}</strong><br />

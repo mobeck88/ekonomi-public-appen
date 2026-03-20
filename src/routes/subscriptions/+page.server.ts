@@ -1,16 +1,26 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import { getAccessContext } from '$lib/server/access';
 
-export const load: PageServerLoad = async ({ locals }) => {
-    const user = locals.user;
-    const householdId = locals.householdId;
+export const load: PageServerLoad = async ({ locals, url }) => {
+    const access = await getAccessContext(locals, url);
+
+    if (!access.allowed) throw redirect(303, '/login');
+
     const supabase = locals.supabase;
+    const householdId = locals.householdId;
 
-    if (!user) throw redirect(303, '/login');
-    if (!householdId) return { active: [], history: [], members: [] };
+    if (!householdId) {
+        return {
+            active: [],
+            history: [],
+            members: [],
+            access
+        };
+    }
 
-    // ⭐ Aktiva abonnemang (end_month IS NULL)
-    const { data: active, error: activeError } = await supabase
+    // ⭐ Hämta abonnemang för selectedUserId
+    const { data: active } = await supabase
         .from('subscriptions')
         .select(`
             id,
@@ -26,16 +36,11 @@ export const load: PageServerLoad = async ({ locals }) => {
             profiles!subscriptions_user_id_fkey(full_name)
         `)
         .eq('household_id', householdId)
+        .eq('user_id', access.selectedUserId)
         .is('end_month', null)
         .order('cost_name', { ascending: true });
 
-    if (activeError) {
-        console.error('load subscriptions active error', activeError);
-        return { active: [], history: [], members: [] };
-    }
-
-    // ⭐ Historik (end_month IS NOT NULL)
-    const { data: history, error: historyError } = await supabase
+    const { data: history } = await supabase
         .from('subscriptions')
         .select(`
             id,
@@ -51,47 +56,40 @@ export const load: PageServerLoad = async ({ locals }) => {
             profiles!subscriptions_user_id_fkey(full_name)
         `)
         .eq('household_id', householdId)
+        .eq('user_id', access.selectedUserId)
         .not('end_month', 'is', null)
         .order('cost_name', { ascending: true })
         .order('start_month', { ascending: true });
 
-    if (historyError) {
-        console.error('load subscriptions history error', historyError);
-        return { active: active ?? [], history: [], members: [] };
-    }
-
-    // ⭐ Hämta hushållsmedlemmar + namn
-    const { data: members, error: membersError } = await supabase
+    // ⭐ Hämta hushållsmedlemmar (för dropdown)
+    const { data: members } = await supabase
         .from('household_members')
         .select('user_id, profiles(full_name)')
         .eq('household_id', householdId);
 
-    if (membersError) {
-        console.error('load household_members error', membersError);
-        return {
-            active: active ?? [],
-            history: history ?? [],
-            members: []
-        };
-    }
-
     return {
         active: active ?? [],
         history: history ?? [],
-        members: members ?? []
+        members: members ?? [],
+        access
     };
 };
 
 export const actions: Actions = {
-    create: async ({ request, locals }) => {
-        const user = locals.user;
-        const householdId = locals.householdId;
-        const supabase = locals.supabase;
+    create: async ({ request, locals, url }) => {
+        const access = await getAccessContext(locals, url);
+        if (!access.allowed) throw redirect(303, '/login');
 
-        if (!user) throw redirect(303, '/login');
-        if (!householdId) return fail(400, { error: 'Inget hushåll kopplat.' });
+        const supabase = locals.supabase;
+        const householdId = locals.householdId;
 
         const form = await request.formData();
+        const targetUserId = form.get('selected_user_id');
+
+        // ⭐ Validera att targetUserId är tillåten
+        if (!access.selectableMembers.some(m => m.user_id === targetUserId)) {
+            return fail(403, { error: 'Otillåten användare.' });
+        }
 
         const cost_name = form.get('cost_name');
         const amount = Number(form.get('amount'));
@@ -105,7 +103,7 @@ export const actions: Actions = {
 
         const { error } = await supabase.from('subscriptions').insert({
             household_id: householdId,
-            user_id: user.id,
+            user_id: targetUserId,
             cost_name,
             amount,
             owner,
@@ -113,23 +111,25 @@ export const actions: Actions = {
             end_month: null
         });
 
-        if (error) {
-            console.error('create subscription error', error);
-            return fail(400, { error: error.message });
-        }
+        if (error) return fail(400, { error: error.message });
 
         return { success: true };
     },
 
-    update: async ({ request, locals }) => {
-        const user = locals.user;
-        const householdId = locals.householdId;
-        const supabase = locals.supabase;
+    update: async ({ request, locals, url }) => {
+        const access = await getAccessContext(locals, url);
+        if (!access.allowed) throw redirect(303, '/login');
 
-        if (!user) throw redirect(303, '/login');
-        if (!householdId) return fail(400, { error: 'Inget hushåll kopplat.' });
+        const supabase = locals.supabase;
+        const householdId = locals.householdId;
 
         const form = await request.formData();
+        const targetUserId = form.get('selected_user_id');
+
+        if (!access.selectableMembers.some(m => m.user_id === targetUserId)) {
+            return fail(403, { error: 'Otillåten användare.' });
+        }
+
         const group_id = form.get('cost_group_id');
         const new_amount = Number(form.get('amount'));
         const new_owner = form.get('owner');
@@ -140,39 +140,32 @@ export const actions: Actions = {
         if (isNaN(new_amount)) return fail(400, { error: 'Ogiltigt belopp.' });
         if (!new_start) return fail(400, { error: 'Ny startmånad saknas.' });
 
-        // ⭐ Hämta aktiv post i gruppen
-        const { data: active, error: activeError } = await supabase
+        // ⭐ Hämta aktiv post
+        const { data: active } = await supabase
             .from('subscriptions')
             .select('*')
             .eq('household_id', householdId)
             .eq('cost_group_id', group_id)
+            .eq('user_id', targetUserId)
             .is('end_month', null)
             .single();
 
-        if (activeError || !active) {
-            console.error('fetch active subscription error', activeError);
-            return fail(400, { error: 'Ingen aktiv period hittades.' });
-        }
+        if (!active) return fail(400, { error: 'Ingen aktiv period hittades.' });
 
         // ⭐ Avsluta gamla perioden
         const end_date = new Date(new_start);
         end_date.setMonth(end_date.getMonth() - 1);
         const end_month = end_date.toISOString().slice(0, 10);
 
-        const { error: endError } = await supabase
+        await supabase
             .from('subscriptions')
             .update({ end_month })
             .eq('id', active.id);
 
-        if (endError) {
-            console.error('end old subscription period error', endError);
-            return fail(400, { error: endError.message });
-        }
-
         // ⭐ Skapa ny period
         const { error: insertError } = await supabase.from('subscriptions').insert({
             household_id: householdId,
-            user_id: user.id,
+            user_id: targetUserId,
             cost_group_id: group_id,
             cost_name: active.cost_name,
             amount: new_amount,
@@ -181,23 +174,25 @@ export const actions: Actions = {
             end_month: null
         });
 
-        if (insertError) {
-            console.error('insert new subscription period error', insertError);
-            return fail(400, { error: insertError.message });
-        }
+        if (insertError) return fail(400, { error: insertError.message });
 
         return { success: true };
     },
 
-    end: async ({ request, locals }) => {
-        const user = locals.user;
-        const householdId = locals.householdId;
-        const supabase = locals.supabase;
+    end: async ({ request, locals, url }) => {
+        const access = await getAccessContext(locals, url);
+        if (!access.allowed) throw redirect(303, '/login');
 
-        if (!user) throw redirect(303, '/login');
-        if (!householdId) return fail(400, { error: 'Inget hushåll kopplat.' });
+        const supabase = locals.supabase;
+        const householdId = locals.householdId;
 
         const form = await request.formData();
+        const targetUserId = form.get('selected_user_id');
+
+        if (!access.selectableMembers.some(m => m.user_id === targetUserId)) {
+            return fail(403, { error: 'Otillåten användare.' });
+        }
+
         const group_id = form.get('cost_group_id');
         const raw = form.get('end_month');
         const end_month = raw ? `${raw}-01` : null;
@@ -209,13 +204,11 @@ export const actions: Actions = {
             .from('subscriptions')
             .update({ end_month })
             .eq('household_id', householdId)
+            .eq('user_id', targetUserId)
             .eq('cost_group_id', group_id)
             .is('end_month', null);
 
-        if (error) {
-            console.error('end subscription error', error);
-            return fail(400, { error: error.message });
-        }
+        if (error) return fail(400, { error: error.message });
 
         return { success: true };
     }
