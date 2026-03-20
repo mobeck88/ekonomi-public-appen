@@ -23,7 +23,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     const { data: membership } = await supabase
         .from('household_members')
         .select('role')
-        .filter('user_id', 'eq', user.id)
+        .eq('user_id', user.id)
         .eq('household_id', householdId)
         .single();
 
@@ -108,12 +108,13 @@ export const actions: Actions = {
         const user = locals.user;
         const householdId = locals.householdId;
 
+        if (!user) throw redirect(303, '/login');
         if (!householdId) return fail(400, { error: 'Inget hushåll.' });
 
         const { data: membership } = await supabase
             .from('household_members')
             .select('role')
-            .filter('user_id', 'eq', user.id)
+            .eq('user_id', user.id)
             .eq('household_id', householdId)
             .single();
 
@@ -126,8 +127,7 @@ export const actions: Actions = {
         await supabase
             .from('household_members')
             .delete()
-            .eq('household_id', householdId)
-            .filter('user_id', 'eq', user.id);
+            .match({ household_id: householdId, user_id: user.id });
 
         throw redirect(303, '/household?left=1');
     },
@@ -142,7 +142,7 @@ export const actions: Actions = {
         const { data: membership } = await supabase
             .from('household_members')
             .select('role')
-            .filter('user_id', 'eq', user.id)
+            .eq('user_id', user.id)
             .eq('household_id', householdId)
             .single();
 
