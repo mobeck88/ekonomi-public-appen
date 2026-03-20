@@ -268,8 +268,6 @@
                     <input type="hidden" name="income_month_id" value={selected.id} />
                 {/if}
 
-                <input type="hidden" name="selected_user_id" value={selectedUserId} />
-
                 <label>Månad</label>
                 <input
                     type="month"
