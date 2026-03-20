@@ -8,6 +8,8 @@
     let message = form?.message ?? "";
 
     let showSettings = true;
+    let showPassword = false;
+    let showLogout = false;
 </script>
 
 <h1>Inställningar</h1>
@@ -42,7 +44,7 @@
     {/if}
 </div>
 
-<!-- LÖSENORD -->
+<!-- BYT LÖSENORD -->
 <div class="section">
     <button class="section-header" on:click={() => (showPassword = !showPassword)}>
         <span>Byt lösenord</span>
