@@ -3,9 +3,14 @@ import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
 export const handle = async ({ event, resolve }) => {
-    // Skapa en ren Supabase-klient utan SSR-prefetch
+    // Skapa Supabase-klient med korrekt cookie-hantering för SSR
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        global: { fetch: event.fetch }
+        global: { fetch: event.fetch },
+        cookies: {
+            get: (name) => event.cookies.get(name),
+            set: (name, value, options) => event.cookies.set(name, value, options),
+            remove: (name, options) => event.cookies.delete(name, options)
+        }
     });
 
     event.locals.supabase = supabase;
@@ -16,7 +21,7 @@ export const handle = async ({ event, resolve }) => {
 
     let user = null;
 
-    // Sätt sessionen manuellt om token finns
+    // Sätt sessionen korrekt i SSR
     if (access_token && refresh_token) {
         await supabase.auth.setSession({
             access_token,
@@ -44,11 +49,11 @@ export const handle = async ({ event, resolve }) => {
 
     event.locals.user = user;
 
-    // Hämta hushållsmedlemskap (din SELECT, inga dolda queries)
+    // Hämta hushållsmedlemskap
     const { data: membership } = await supabase
         .from('household_members')
         .select('household_id')
-        .filter('user_id', 'eq', user.id)
+        .eq('user_id', user.id)
         .maybeSingle();
 
     const householdId = membership?.household_id ?? null;
