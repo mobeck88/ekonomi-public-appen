@@ -1,8 +1,25 @@
 export const load = async ({ locals }) => {
     const user = locals.user;
-    const householdId = locals.householdId;
     const supabase = locals.supabase;
 
+    if (!user) {
+        return {
+            user: null,
+            householdId: null,
+            enable_assistance: false
+        };
+    }
+
+    // 1. Hämta hushåll via user_households
+    const { data: householdLink } = await supabase
+        .from("user_households")
+        .select("household_id")
+        .eq("user_id", user.id)
+        .single();
+
+    const householdId = householdLink?.household_id ?? null;
+
+    // 2. Hämta enable_assistance från households
     let enable_assistance = false;
 
     if (householdId) {
