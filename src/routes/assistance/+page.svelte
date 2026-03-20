@@ -1,73 +1,112 @@
 <script lang="ts">
     export let data;
 
-    // Faktiska månader från servern
-    const months = data.months;
+    // Servern skickar redan färdiga rader:
+    // {
+    //   month_date,
+    //   primary_netto,
+    //   extra_netto,
+    //   a_kassa,
+    //   foraldrapenning,
+    //   vab,
+    //   sjukpenning,
+    //   bostadsbidrag,
+    //   underhallsstod,
+    //   etableringsersattning,
+    //   ovrigt,
+    //   total_netto,
+    //   total_expenses,
+    //   correction_income,
+    //   correction_expense,
+    //   soc_decision_balance,
+    //   soc_decision_notes,
+    //   id
+    // }
 
-    // Beräkna biståndsmånad (en månad framåt)
-    function getNextMonth(year: number, month: number) {
-        const d = new Date(year, month - 1, 1);
-        d.setMonth(d.getMonth() + 1);
-        return {
-            year: d.getFullYear(),
-            month: d.getMonth() + 1
-        };
+    const rows = data.rows;
+
+    function formatMonth(dateStr: string) {
+        const d = new Date(dateStr);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     }
 
-    // För varje faktisk månad skapar vi en biståndsmånad
-    const assistanceMonths = months.map((m) => {
-        const next = getNextMonth(m.year, m.month);
-        return {
-            actual: m,
-            assistance: {
-                year: next.year,
-                month: next.month
-            }
-        };
-    });
+    function nextMonth(dateStr: string) {
+        const d = new Date(dateStr);
+        d.setMonth(d.getMonth() + 1);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
 </script>
 
 <h1 class="text-2xl font-bold mb-6">Bistånd</h1>
 
 <div class="space-y-10">
-    {#each assistanceMonths as row}
-        <!-- ========================= -->
-        <!-- FAKTISK MÅNAD -->
-        <!-- ========================= -->
+    {#each rows as row}
+        <!-- ====================================================== -->
+        <!-- FAKTISK MÅNAD (inkomster + utgifter) -->
+        <!-- ====================================================== -->
         <div class="border rounded p-4 bg-gray-50">
-            <h2 class="text-xl font-semibold mb-2">
-                {row.actual.year}-{String(row.actual.month).padStart(2, '0')} (Faktisk månad)
+            <h2 class="text-xl font-semibold mb-4">
+                {formatMonth(row.month_date)} (Faktisk månad)
             </h2>
 
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <p class="font-medium">Inkomster:</p>
-                    <p>{row.actual.total_income} kr</p>
+                    <p class="font-medium">Inkomster totalt</p>
+                    <p>{row.total_netto} kr</p>
                 </div>
 
                 <div>
-                    <p class="font-medium">Utgifter:</p>
-                    <p>{row.actual.total_expenses} kr</p>
+                    <p class="font-medium">Utgifter totalt</p>
+                    <p>{row.total_expenses ?? 0} kr</p>
                 </div>
 
                 <div>
-                    <p class="font-medium">Differens:</p>
-                    <p class={row.actual.total_income - row.actual.total_expenses < 0 ? 'text-red-600' : 'text-green-600'}>
-                        {row.actual.total_income - row.actual.total_expenses} kr
+                    <p class="font-medium">Differens</p>
+                    <p class={row.total_netto - (row.total_expenses ?? 0) < 0 ? 'text-red-600' : 'text-green-600'}>
+                        {row.total_netto - (row.total_expenses ?? 0)} kr
                     </p>
                 </div>
             </div>
+
+            <!-- Detaljerad inkomsttabell -->
+            <div class="mt-6">
+                <h3 class="font-semibold mb-2">Inkomster (detaljer)</h3>
+                <table class="w-full text-sm border">
+                    <thead class="bg-gray-200">
+                        <tr>
+                            <th class="p-2 border">Typ</th>
+                            <th class="p-2 border">Belopp</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td class="p-2 border">Lön (primary)</td><td class="p-2 border">{row.primary_netto} kr</td></tr>
+                        <tr><td class="p-2 border">Extra jobb</td><td class="p-2 border">{row.extra_netto} kr</td></tr>
+                        <tr><td class="p-2 border">A‑kassa</td><td class="p-2 border">{row.a_kassa} kr</td></tr>
+                        <tr><td class="p-2 border">Föräldrapenning</td><td class="p-2 border">{row.foraldrapenning} kr</td></tr>
+                        <tr><td class="p-2 border">VAB</td><td class="p-2 border">{row.vab} kr</td></tr>
+                        <tr><td class="p-2 border">Sjukpenning</td><td class="p-2 border">{row.sjukpenning} kr</td></tr>
+                        <tr><td class="p-2 border">Bostadsbidrag</td><td class="p-2 border">{row.bostadsbidrag} kr</td></tr>
+                        <tr><td class="p-2 border">Underhållsstöd</td><td class="p-2 border">{row.underhallsstod} kr</td></tr>
+                        <tr><td class="p-2 border">Etableringsersättning</td><td class="p-2 border">{row.etableringsersattning} kr</td></tr>
+                        <tr><td class="p-2 border">Övrigt</td><td class="p-2 border">{row.ovrigt} kr</td></tr>
+                        <tr class="font-semibold bg-gray-100">
+                            <td class="p-2 border">Summa</td>
+                            <td class="p-2 border">{row.total_netto} kr</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
-        <!-- ========================= -->
-        <!-- BISTÅNDSMÅNAD (UI-BERÄKNAD) -->
-        <!-- ========================= -->
+        <!-- ====================================================== -->
+        <!-- BISTÅNDSMÅNAD (en månad framåt) -->
+        <!-- ====================================================== -->
         <form method="post" action="?/save" class="border rounded p-4 bg-white">
-            <h2 class="text-xl font-semibold mb-2">
-                {row.assistance.year}-{String(row.assistance.month).padStart(2, '0')} (Biståndsmånad)
+            <h2 class="text-xl font-semibold mb-4">
+                {nextMonth(row.month_date)} (Biståndsmånad)
             </h2>
 
-            <input type="hidden" name="id" value={row.actual.id} />
+            <input type="hidden" name="id" value={row.id} />
 
             <div class="grid grid-cols-2 gap-4">
                 <div>
@@ -75,7 +114,7 @@
                     <input
                         type="number"
                         name="correction_income"
-                        value={row.actual.correction_income}
+                        value={row.correction_income ?? 0}
                         class="input"
                     />
                 </div>
@@ -85,7 +124,7 @@
                     <input
                         type="number"
                         name="correction_expense"
-                        value={row.actual.correction_expense}
+                        value={row.correction_expense ?? 0}
                         class="input"
                     />
                 </div>
@@ -95,7 +134,7 @@
                     <input
                         type="number"
                         name="soc_decision_balance"
-                        value={row.actual.soc_decision_balance}
+                        value={row.soc_decision_balance ?? 0}
                         class="input"
                     />
                 </div>
@@ -105,7 +144,7 @@
                     <textarea
                         name="soc_decision_notes"
                         class="textarea"
-                    >{row.actual.soc_decision_notes}</textarea>
+                    >{row.soc_decision_notes ?? ''}</textarea>
                 </div>
 
                 <div class="col-span-2">

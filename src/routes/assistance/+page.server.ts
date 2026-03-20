@@ -11,97 +11,145 @@ export const load: PageServerLoad = async ({ locals }) => {
     }
 
     if (!householdId) {
-        return { months: [] };
+        return { rows: [] };
     }
 
-    // Hämta de senaste 5 månaderna (inkl. nuvarande)
-    const now = new Date();
-    const monthsToLoad = [];
-
-    for (let i = 0; i < 5; i++) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        monthsToLoad.push({
-            year: d.getFullYear(),
-            month: d.getMonth() + 1
-        });
-    }
-
-    // Kör SQL-funktionen för varje månad
-    for (const m of monthsToLoad) {
-        const { error } = await supabase.rpc('update_assistance_month', {
-            in_household_id: householdId,
-            in_year: m.year,
-            in_month: m.month
-        });
-
-        if (error) {
-            console.error("ASSISTANCE UPDATE ERROR:", error);
-        }
-    }
-
-    // Hämta resultatet från assistance_months
-    const { data: months, error } = await supabase
-        .from('assistance_months')
-        .select(`
-            id,
-            household_id,
-            year,
-            month,
-            total_income,
-            total_expenses,
-            correction_income,
-            correction_expense,
-            soc_decision_balance,
-            soc_decision_notes,
-            created_at,
-            updated_at
-        `)
+    // Hämta alla månader för användaren
+    const { data: months, error: monthsError } = await supabase
+        .from('income_months')
+        .select('id, month_date')
         .eq('household_id', householdId)
-        .in('month', monthsToLoad.map(m => m.month))
-        .in('year', monthsToLoad.map(m => m.year))
-        .order('year', { ascending: false })
-        .order('month', { ascending: false });
+        .eq('user_id', user.id)
+        .order('month_date', { ascending: false });
 
-    if (error) {
-        console.error("ASSISTANCE LOAD ERROR:", error);
-        return { months: [] };
+    if (monthsError || !months) {
+        console.error("INCOME LOAD ERROR:", monthsError);
+        return { rows: [] };
     }
 
-    return { months };
-};
+    const monthIds = months.map((m) => m.id);
 
-export const actions: Actions = {
-    save: async ({ request, locals }) => {
-        const user = locals.user;
-        const householdId = locals.householdId;
-        const supabase = locals.supabase;
+    // Hämta primary
+    const { data: primary } = await supabase
+        .from('income_primary_job')
+        .select('income_month_id, att_betala_ut')
+        .in('income_month_id', monthIds)
+        .eq('household_id', householdId)
+        .eq('user_id', user.id);
 
-        if (!user) return redirect(303, '/login');
-        if (!householdId) return fail(400, { error: 'Inget hushåll kopplat.' });
+    // Hämta extra jobb
+    const { data: extra } = await supabase
+        .from('income_extra_jobs')
+        .select('income_month_id, att_betala_ut')
+        .in('income_month_id', monthIds)
+        .eq('household_id', householdId)
+        .eq('user_id', user.id);
 
-        const form = await request.formData();
+    // Hämta FK
+    const { data: fk } = await supabase
+        .from('income_fk')
+        .select('income_month_id, fk_typ, att_betala_ut')
+        .in('income_month_id', monthIds)
+        .eq('household_id', householdId)
+        .eq('user_id', user.id);
 
-        const id = form.get('id');
-        const correction_income = Number(form.get('correction_income'));
-        const correction_expense = Number(form.get('correction_expense'));
-        const soc_decision_balance = Number(form.get('soc_decision_balance'));
-        const soc_decision_notes = form.get('soc_decision_notes') as string;
+    // Aggregation
+    const primaryByMonth = new Map<string, number>();
+    (primary ?? []).forEach((p) => {
+        primaryByMonth.set(
+            p.income_month_id,
+            p.att_betala_ut ? Number(p.att_betala_ut) : 0
+        );
+    });
 
-        const { error } = await supabase
-            .from('assistance_months')
-            .update({
-                correction_income,
-                correction_expense,
-                soc_decision_balance,
-                soc_decision_notes,
-                updated_at: new Date().toISOString()
-            })
-            .eq('id', id);
+    const extraByMonth = new Map<string, number>();
+    (extra ?? []).forEach((e) => {
+        const key = e.income_month_id;
+        const val = e.att_betala_ut ? Number(e.att_betala_ut) : 0;
+        extraByMonth.set(key, (extraByMonth.get(key) ?? 0) + val);
+    });
 
-        if (error) {
-            return fail(400, { error: error.message });
+    type FkAgg = {
+        a_kassa: number;
+        foraldrapenning: number;
+        vab: number;
+        sjukpenning: number;
+        bostadsbidrag: number;
+        underhallsstod: number;
+        etableringsersattning: number;
+        ovrigt: number;
+        total_fk: number;
+    };
+
+    const fkByMonth = new Map<string, FkAgg>();
+
+    (fk ?? []).forEach((row) => {
+        const key = row.income_month_id;
+        const typ = row.fk_typ;
+        const val = row.att_betala_ut ? Number(row.att_betala_ut) : 0;
+
+        if (!fkByMonth.has(key)) {
+            fkByMonth.set(key, {
+                a_kassa: 0,
+                foraldrapenning: 0,
+                vab: 0,
+                sjukpenning: 0,
+                bostadsbidrag: 0,
+                underhallsstod: 0,
+                etableringsersattning: 0,
+                ovrigt: 0,
+                total_fk: 0
+            });
         }
 
-        return { success: true };
-    }
+        const agg = fkByMonth.get(key)!;
+
+        switch (typ) {
+            case 'A-kassa': agg.a_kassa += val; break;
+            case 'Föräldrapenning': agg.foraldrapenning += val; break;
+            case 'VAB': agg.vab += val; break;
+            case 'Sjukpenning': agg.sjukpenning += val; break;
+            case 'Bostadsbidrag': agg.bostadsbidrag += val; break;
+            case 'Underhållsstöd': agg.underhallsstod += val; break;
+            case 'Etableringsersättning': agg.etableringsersattning += val; break;
+            case 'Övrigt': agg.ovrigt += val; break;
+            default: agg.ovrigt += val; break;
+        }
+
+        agg.total_fk += val;
+    });
+
+    // Bygg rader
+    const rows = months.map((m) => {
+        const key = m.id;
+
+        const primary_netto = primaryByMonth.get(key) ?? 0;
+        const extra_netto = extraByMonth.get(key) ?? 0;
+        const fkAgg = fkByMonth.get(key) ?? {
+            a_kassa: 0,
+            foraldrapenning: 0,
+            vab: 0,
+            sjukpenning: 0,
+            bostadsbidrag: 0,
+            underhallsstod: 0,
+            etableringsersattning: 0,
+            ovrigt: 0,
+            total_fk: 0
+        };
+
+        const total_netto = primary_netto + extra_netto + fkAgg.total_fk;
+
+        return {
+            month_date: m.month_date,
+            primary_netto,
+            extra_netto,
+            ...fkAgg,
+            total_netto
+        };
+    });
+
+    return { rows };
 };
+
+// Ingen actions behövs för översikten
+export const actions: Actions = {};
