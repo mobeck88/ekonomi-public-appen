@@ -22,7 +22,12 @@
     <div class="selector">
         <form method="get">
             <label for="user_id">Välj medlem</label>
-            <select id="user_id" name="user_id">
+
+            <select
+                id="user_id"
+                name="user_id"
+                on:change={(e) => e.target.form?.submit()}
+            >
                 {#each data.access.selectableMembers as m}
                     <option
                         value={m.user_id}
@@ -32,12 +37,10 @@
                     </option>
                 {/each}
             </select>
-            <button>Visa</button>
         </form>
     </div>
 {/if}
 
-<!-- Aktiva perioder -->
 <div class="section">
     <button class="section-header" on:click={() => showActive = !showActive}>
         <span>Aktiva perioder</span>
@@ -96,7 +99,6 @@
     {/if}
 </div>
 
-<!-- Ny fickpengperiod -->
 {#if data.access.canEdit}
 <div class="section">
     <button class="section-header" on:click={() => showCreate = !showCreate}>
@@ -126,7 +128,6 @@
 </div>
 {/if}
 
-<!-- Historik -->
 <div class="section">
     <button class="section-header" on:click={() => showHistory = !showHistory}>
         <span>Historik</span>
