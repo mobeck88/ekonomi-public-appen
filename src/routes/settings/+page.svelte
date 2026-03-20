@@ -7,80 +7,31 @@
     let enableAssistance = form?.enableAssistance ?? data.enableAssistance;
     let message = form?.message ?? "";
 
-    let showChurch = false;
-    let showPassword = false;
-    let showLogout = false;
-    let showHousehold = false;
-    let showGuardian = false;
-    let showAssistance = false;
+    let showSettings = true;
 </script>
 
 <h1>Inställningar</h1>
 
-<!-- Hushåll -->
+<!-- SAMLAD SEKTION -->
 <div class="section">
-    <button class="section-header" on:click={() => (showHousehold = !showHousehold)}>
-        <span>Hushåll</span>
-        <span>{showHousehold ? "▲" : "▼"}</span>
+    <button class="section-header" on:click={() => (showSettings = !showSettings)}>
+        <span>Allmänna inställningar</span>
+        <span>{showSettings ? "▲" : "▼"}</span>
     </button>
 
-    {#if showHousehold}
-        <div class="form">
-            <p>Hantera hushåll, bjud in partner eller gå med i ett hushåll.</p>
-            <a href="/household">
-                <button type="button">Gå till hushållsinställningar</button>
-            </a>
-        </div>
-    {/if}
-</div>
+    {#if showSettings}
+        <form method="POST" action="?/updateSettings" class="form">
 
-<!-- Ekonomiskt bistånd -->
-<div class="section">
-    <button class="section-header" on:click={() => (showAssistance = !showAssistance)}>
-        <span>Ekonomiskt bistånd</span>
-        <span>{showAssistance ? "▲" : "▼"}</span>
-    </button>
-
-    {#if showAssistance}
-        <form method="POST" action="?/updateAssistance" class="form">
             <label class="checkbox-row">
                 <input type="checkbox" name="enableAssistance" bind:checked={enableAssistance}>
                 Visa ekonomiskt bistånd i menyn
             </label>
 
-            <button type="submit">Spara</button>
-        </form>
-    {/if}
-</div>
-
-<!-- God man -->
-<div class="section">
-    <button class="section-header" on:click={() => (showGuardian = !showGuardian)}>
-        <span>God man</span>
-        <span>{showGuardian ? "▲" : "▼"}</span>
-    </button>
-
-    {#if showGuardian}
-        <form method="POST" action="?/updateGuardianStatus" class="form">
             <label class="checkbox-row">
                 <input type="checkbox" name="hasGuardian" bind:checked={hasGuardian}>
                 Jag har en god man
             </label>
 
-            <button type="submit">Spara</button>
-        </form>
-    {/if}
-</div>
-
-<!-- Kyrkotillhörighet -->
-<div class="section">
-    <button class="section-header" on:click={() => (showChurch = !showChurch)}>
-        <span>Kyrkotillhörighet</span>
-        <span>{showChurch ? "▲" : "▼"}</span>
-    </button>
-
-    {#if showChurch}
-        <form method="POST" action="?/updateChurch" class="form">
             <label class="checkbox-row">
                 <input type="checkbox" name="isMember" bind:checked={isMember}>
                 Jag är medlem i Svenska kyrkan
@@ -91,7 +42,7 @@
     {/if}
 </div>
 
-<!-- Byt lösenord -->
+<!-- LÖSENORD -->
 <div class="section">
     <button class="section-header" on:click={() => (showPassword = !showPassword)}>
         <span>Byt lösenord</span>
@@ -108,7 +59,7 @@
     {/if}
 </div>
 
-<!-- Logga ut -->
+<!-- LOGGA UT -->
 <div class="section">
     <button class="section-header" on:click={() => (showLogout = !showLogout)}>
         <span>Logga ut</span>
