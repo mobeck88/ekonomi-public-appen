@@ -40,7 +40,7 @@ export const handle = async ({ event, resolve }) => {
     const { data: membership } = await supabase
         .from('household_members')
         .select('household_id')
-        .eq('user_id', user.id)
+        .filter('user_id', 'eq', user.id)   // ← FIX: undviker PostgREST 42P17-buggen
         .maybeSingle();
 
     const householdId = membership?.household_id ?? null;
