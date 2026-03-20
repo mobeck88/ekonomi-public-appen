@@ -124,10 +124,11 @@ export const actions: Actions = {
             return fail(400, { error: 'Ägare kan inte lämna sitt eget hushåll.' });
         }
 
+        // ⭐ FIX: PostgREST-bug workaround — tuple match istället för två eq()
         await supabase
             .from('household_members')
             .delete()
-            .match({ household_id: householdId, user_id: user.id });
+            .in('household_id,user_id', [[householdId, user.id]]);
 
         throw redirect(303, '/household?left=1');
     },
@@ -135,7 +136,7 @@ export const actions: Actions = {
     deleteHousehold: async ({ locals }) => {
         const supabase = locals.supabase;
         const user = locals.user;
-               const householdId = locals.householdId;
+        const householdId = locals.householdId;
 
         if (!householdId) return fail(400, { error: 'Inget hushåll.' });
 
