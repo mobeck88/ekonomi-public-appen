@@ -2,13 +2,23 @@
     export let data;
 </script>
 
-<h1>Går med i hushåll…</h1>
+<h1>Gå med i hushåll</h1>
 
 <div class="section">
     {#if data.error}
         <p class="error">{data.error}</p>
     {:else}
-        <p>Du läggs till i hushållet. Vänta ett ögonblick…</p>
+        <form method="POST" class="join-form">
+            <p>Du har blivit inbjuden till ett hushåll.</p>
+
+            <label for="role">Välj din roll</label>
+            <select id="role" name="role" required>
+                <option value="member">Medlem</option>
+                <option value="guardian">God man</option>
+            </select>
+
+            <button type="submit">Gå med</button>
+        </form>
     {/if}
 </div>
 
@@ -29,8 +39,42 @@
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
 
+    .join-form {
+        display: grid;
+        gap: 1rem;
+    }
+
+    label {
+        font-weight: 600;
+        color: #374151;
+    }
+
+    select {
+        padding: 0.65rem;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        background: #f9fafb;
+    }
+
     .error {
         color: #dc2626;
         font-size: 0.95rem;
+    }
+
+    button {
+        padding: 0.75rem 1rem;
+        border: none;
+        background: #2563eb;
+        color: white;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.95rem;
+        font-weight: 600;
+        transition: background 0.15s;
+    }
+
+    button:hover {
+        background: #1d4ed8;
     }
 </style>

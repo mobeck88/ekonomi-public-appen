@@ -5,16 +5,19 @@ export const actions: Actions = {
     default: async ({ request, locals }) => {
         const data = await request.formData();
         const code = data.get('code');
+        const role = data.get('role');
 
-        console.log("JOIN ACTION KÖRS, code (raw):", code);
+        console.log("JOIN ACTION KÖRS, code:", code, "role:", role);
 
         if (!code || typeof code !== 'string') {
             return fail(400, { error: "Ingen kod angiven" });
         }
 
-        const trimmedCode = code.trim();
-        console.log("JOIN ACTION, code (trimmed):", trimmedCode);
+        if (!role || (role !== 'member' && role !== 'guardian')) {
+            return fail(400, { error: "Ogiltig roll" });
+        }
 
+        const trimmedCode = code.trim();
         const supabase = locals.supabase;
         const user = locals.user;
 
@@ -27,8 +30,6 @@ export const actions: Actions = {
             .select('id, join_code')
             .eq('join_code', trimmedCode)
             .maybeSingle();
-
-        console.log("JOIN HOUSEHOLD RESULT:", { household, householdError });
 
         if (householdError) {
             console.error("Household error:", householdError);
@@ -43,19 +44,16 @@ export const actions: Actions = {
             .from('household_members')
             .insert({
                 user_id: user.id,
-                household_id: household.id
+                household_id: household.id,
+                role: role   // ← SÄTTER ROLLEN DIREKT
             })
             .select()
             .single();
-
-        console.log("JOIN INSERT RESULT:", { insertData, insertError });
 
         if (insertError) {
             console.error("Insert error:", insertError);
             return fail(500, { error: "Kunde inte gå med i hushållet" });
         }
-
-        console.log("JOIN OK → redirect till /");
 
         throw redirect(303, '/');
     }

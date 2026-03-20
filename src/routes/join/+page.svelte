@@ -14,6 +14,12 @@
             placeholder="Ange koden du fått"
         />
 
+        <label for="role">Din roll i hushållet</label>
+        <select id="role" name="role" required>
+            <option value="member">Medlem</option>
+            <option value="guardian">God man</option>
+        </select>
+
         {#if form?.error}
             <p class="error">{form.error}</p>
         {/if}
@@ -49,7 +55,7 @@
         color: #374151;
     }
 
-    input {
+    input, select {
         padding: 0.65rem;
         border: 1px solid #d1d5db;
         border-radius: 8px;
@@ -57,7 +63,7 @@
         background: #f9fafb;
     }
 
-    input:focus {
+    input:focus, select:focus {
         outline: none;
         border-color: #2563eb;
         box-shadow: 0 0 0 2px #dbeafe;
