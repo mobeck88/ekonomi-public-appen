@@ -129,8 +129,8 @@ export const load = async ({ locals, url }) => {
 };
 
 export const actions = {
-    create_employer: async ({ request, locals }) => {
-        const access = await getAccessContext(locals, new URL(request.url));
+    create_employer: async ({ request, locals, url }) => {
+        const access = await getAccessContext(locals, url);
         if (!access.allowed) throw redirect(303, '/login');
         if (!access.canEdit) return fail(403, { message: 'Ingen behörighet' });
 
@@ -158,8 +158,8 @@ export const actions = {
         });
     },
 
-    create_income: async ({ request, locals }) => {
-        const access = await getAccessContext(locals, new URL(request.url));
+    create_income: async ({ request, locals, url }) => {
+        const access = await getAccessContext(locals, url);
         if (!access.allowed) throw redirect(303, '/login');
         if (!access.canEdit) return fail(403, { message: 'Ingen behörighet' });
 
@@ -265,8 +265,8 @@ export const actions = {
         throw redirect(303, `/incomes?user_id=${encodeURIComponent(targetUserId)}`);
     },
 
-    update_income: async ({ request, locals }) => {
-        const access = await getAccessContext(locals, new URL(request.url));
+    update_income: async ({ request, locals, url }) => {
+        const access = await getAccessContext(locals, url);
         if (!access.allowed) throw redirect(303, '/login');
         if (!access.canEdit) return fail(403, { message: 'Ingen behörighet' });
 
