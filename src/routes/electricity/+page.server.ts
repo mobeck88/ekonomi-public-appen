@@ -1,17 +1,19 @@
 import { redirect, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
+import { getAccessContext } from '$lib/server/access';
 
-export const load: PageServerLoad = async ({ locals }) => {
-    const user = locals.user;
-    const householdId = locals.householdId;
-    const supabase = locals.supabase;
+export const load: PageServerLoad = async ({ locals, url }) => {
+    const access = await getAccessContext(locals, url);
 
-    if (!user) {
+    if (!access.allowed) {
         return redirect(303, '/login');
     }
 
+    const supabase = locals.supabase;
+    const householdId = locals.householdId;
+
     if (!householdId) {
-        return { entries: [] };
+        return { entries: [], access };
     }
 
     const { data: entries, error } = await supabase
@@ -29,26 +31,44 @@ export const load: PageServerLoad = async ({ locals }) => {
             )
         `)
         .eq('household_id', householdId)
+        .eq('user_id', access.selectedUserId)
         .order('month', { ascending: false });
 
-    if (error) {
-        console.error("ELECTRICITY LOAD ERROR:", error);
-        return { entries: [] };
-    }
-
-    return { entries };
+    return {
+        entries: error ? [] : entries,
+        access
+    };
 };
 
 export const actions: Actions = {
-    save: async ({ request, locals }) => {
-        const user = locals.user;
-        const householdId = locals.householdId;
-        const supabase = locals.supabase;
+    save: async ({ request, locals, url }) => {
+        const access = await getAccessContext(locals, url);
 
-        if (!user) return redirect(303, '/login');
-        if (!householdId) return fail(400, { error: 'Inget hushåll kopplat.' });
+        if (!access.allowed) {
+            return redirect(303, '/login');
+        }
+
+        const supabase = locals.supabase;
+        const householdId = locals.householdId;
+
+        if (!householdId) {
+            return fail(400, { error: 'Inget hushåll kopplat.' });
+        }
 
         const form = await request.formData();
+        const selected_user_id = form.get('selected_user_id');
+
+        if (!selected_user_id || typeof selected_user_id !== 'string') {
+            return fail(400, { error: 'selected_user_id saknas.' });
+        }
+
+        const allowed = access.selectableMembers.some(
+            (m: any) => m.user_id === selected_user_id
+        );
+
+        if (!allowed) {
+            return fail(403, { error: 'Otillåten användare.' });
+        }
 
         const month = form.get('month');
         const eon_amount = Number(form.get('eon_amount'));
@@ -56,7 +76,7 @@ export const actions: Actions = {
 
         const { error } = await supabase.from('electricity').upsert({
             household_id: householdId,
-            user_id: user.id,
+            user_id: selected_user_id,
             month: `${month}-01`,
             eon_amount,
             tibber_amount

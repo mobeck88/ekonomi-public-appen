@@ -5,20 +5,37 @@
     let eonAmount = '';
     let tibberAmount = '';
 
-    // Konvertera YYYY-MM-01 → YYYY-MM
     function toMonthInput(dateString: string | null) {
         if (!dateString) return "";
         return dateString.slice(0, 7);
     }
 
-    // Accordion states
+    let selectedUserId = data.access.selectedUserId;
+    let selectable = data.access.selectableMembers;
+
+    $: if (selectedUserId) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('user_id', selectedUserId);
+        history.replaceState({}, '', url);
+    }
+
     let showForm = false;
     let showList = false;
 </script>
 
 <h1>Elkostnader</h1>
 
-<!-- ⭐ Sektion: Lägg till / ändra månad -->
+{#if selectable.length > 0}
+    <div class="selector">
+        <label>Användare</label>
+        <select bind:value={selectedUserId}>
+            {#each selectable as m}
+                <option value={m.user_id}>{m.profiles.full_name}</option>
+            {/each}
+        </select>
+    </div>
+{/if}
+
 <div class="section">
     <button class="section-header" on:click={() => showForm = !showForm}>
         <span>Lägg till / ändra månad</span>
@@ -27,6 +44,8 @@
 
     {#if showForm}
         <form method="post" action="?/save" class="create-form">
+            <input type="hidden" name="selected_user_id" value={selectedUserId} />
+
             <label for="month">Månad</label>
             <input id="month" name="month" type="month" bind:value={month} required />
 
@@ -41,7 +60,6 @@
     {/if}
 </div>
 
-<!-- ⭐ Sektion: Alla månader -->
 <div class="section">
     <button class="section-header" on:click={() => showList = !showList}>
         <span>Alla månader</span>
@@ -74,6 +92,20 @@
         color: #1f2937;
         font-size: 1.6rem;
         font-weight: 700;
+    }
+
+    .selector {
+        margin-bottom: 1.2rem;
+        display: grid;
+        gap: 0.4rem;
+        max-width: 260px;
+    }
+
+    .selector select {
+        padding: 0.6rem;
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+        background: #f9fafb;
     }
 
     .section {
