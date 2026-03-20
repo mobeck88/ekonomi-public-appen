@@ -8,45 +8,52 @@
     let showList = false;
     let showForm = false;
 
+    // Vem sidan visar inkomster för just nu (user_id)
+    let selectedUserId = data.selectedUserId;
+    const currentUserId = data.currentUserId;
+    const isOwner = data.isOwner;
+    const isGuardian = data.isGuardian;
+    const guardianForMemberId = data.guardianForMemberId;
+    const members = data.members ?? [];
+
     const FK_TYPES = [
-        "Sjukpenning",
-        "Tillfällig föräldrapenning (VAB)",
-        "Graviditetspenning",
-        "Sjukersättning",
-        "Aktivitetsersättning",
-        "Aktivitetsstöd",
-        "Smittbärarpenning",
-        "Närståendepenning",
-        "Livränta vid arbetsskada",
-        "Etableringsersättning",
-        "Utvecklingsersättning",
-        "Barnbidrag",
-        "Förlängt barnbidrag",
-        "Studiebidrag (CSN)",
-        "Bostadsbidrag",
-        "Bostadstillägg",
-        "Underhållsstöd",
-        "Övrigt"
+        'Sjukpenning',
+        'Tillfällig föräldrapenning (VAB)',
+        'Graviditetspenning',
+        'Sjukersättning',
+        'Aktivitetsersättning',
+        'Aktivitetsstöd',
+        'Smittbärarpenning',
+        'Närståendepenning',
+        'Livränta vid arbetsskada',
+        'Etableringsersättning',
+        'Utvecklingsersättning',
+        'Barnbidrag',
+        'Förlängt barnbidrag',
+        'Studiebidrag (CSN)',
+        'Bostadsbidrag',
+        'Bostadstillägg',
+        'Underhållsstöd',
+        'Övrigt'
     ];
 
-    // De typer vi behandlar som "bidrag" där bara "Att betala ut" ska fyllas i
     const FK_BENEFIT_TYPES = [
-        "Barnbidrag",
-        "Förlängt barnbidrag",
-        "Studiebidrag (CSN)",
-        "Bostadsbidrag",
-        "Bostadstillägg",
-        "Underhållsstöd"
+        'Barnbidrag',
+        'Förlängt barnbidrag',
+        'Studiebidrag (CSN)',
+        'Bostadsbidrag',
+        'Bostadstillägg',
+        'Underhållsstöd'
     ];
 
     function isBenefitType(t) {
-        return FK_BENEFIT_TYPES.includes(t ?? "");
+        return FK_BENEFIT_TYPES.includes(t ?? '');
     }
 
     function onFkTypeChange(fk) {
         if (isBenefitType(fk.fk_typ)) {
-            fk.ersattning_fore_skatt = "";
-            fk.inbetald_skatt = "";
+            fk.ersattning_fore_skatt = '';
+            fk.inbetald_skatt = '';
         }
     }
 
@@ -61,29 +68,27 @@
         selected = structuredClone(m);
         showForm = true;
 
-        // Extra jobb med employer_id + per-rad state för ny arbetsgivare
         extraJobs = m.extra_jobs
-            ? m.extra_jobs.map(e => ({
-                employer_id: e.employer_id ?? "",
-                lon_fore_skatt: e.lon_fore_skatt ?? "",
-                franvaro: e.franvaro ?? "",
-                inbetald_skatt: e.inbetald_skatt ?? "",
-                frivillig_skatt: e.frivillig_skatt ?? "",
-                att_betala_ut: e.att_betala_ut ?? "",
-                isAddingEmployer: false,
-                newEmployerName: ""
-            }))
+            ? m.extra_jobs.map((e) => ({
+                    employer_id: e.employer_id ?? '',
+                    lon_fore_skatt: e.lon_fore_skatt ?? '',
+                    franvaro: e.franvaro ?? '',
+                    inbetald_skatt: e.inbetald_skatt ?? '',
+                    frivillig_skatt: e.frivillig_skatt ?? '',
+                    att_betala_ut: e.att_betala_ut ?? '',
+                    isAddingEmployer: false,
+                    newEmployerName: ''
+              }))
             : [];
 
-        // FK-lista
         fkList = m.fk_list
-            ? m.fk_list.map(f => ({
-                fk_typ: f.fk_typ ?? "",
-                fk_typ_ovrigt: f.fk_typ_ovrigt ?? "",
-                ersattning_fore_skatt: f.ersattning_fore_skatt ?? "",
-                inbetald_skatt: f.inbetald_skatt ?? "",
-                att_betala_ut: f.att_betala_ut ?? ""
-            }))
+            ? m.fk_list.map((f) => ({
+                    fk_typ: f.fk_typ ?? '',
+                    fk_typ_ovrigt: f.fk_typ_ovrigt ?? '',
+                    ersattning_fore_skatt: f.ersattning_fore_skatt ?? '',
+                    inbetald_skatt: f.inbetald_skatt ?? '',
+                    att_betala_ut: f.att_betala_ut ?? ''
+              }))
             : [];
     }
 
@@ -91,14 +96,14 @@
         extraJobs = [
             ...extraJobs,
             {
-                employer_id: "",
-                lon_fore_skatt: "",
-                franvaro: "",
-                inbetald_skatt: "",
-                frivillig_skatt: "",
-                att_betala_ut: "",
+                employer_id: '',
+                lon_fore_skatt: '',
+                franvaro: '',
+                inbetald_skatt: '',
+                frivillig_skatt: '',
+                att_betala_ut: '',
                 isAddingEmployer: false,
-                newEmployerName: ""
+                newEmployerName: ''
             }
         ];
     }
@@ -107,16 +112,15 @@
         extraJobs = extraJobs.filter((_, idx) => idx !== i);
     }
 
-    // FK-funktioner
     function addFk() {
         fkList = [
             ...fkList,
             {
-                fk_typ: "",
-                fk_typ_ovrigt: "",
-                ersattning_fore_skatt: "",
-                inbetald_skatt: "",
-                att_betala_ut: ""
+                fk_typ: '',
+                fk_typ_ovrigt: '',
+                ersattning_fore_skatt: '',
+                inbetald_skatt: '',
+                att_betala_ut: ''
             }
         ];
     }
@@ -126,40 +130,37 @@
     }
 
     function toMonthInput(dateString) {
-        if (!dateString) return "";
+        if (!dateString) return '';
         return dateString.slice(0, 7);
     }
 
-    // När man väljer arbetsgivare i dropdownen
     function handleEmployerSelect(index, event) {
         const value = event.target.value;
         const job = extraJobs[index];
 
-        if (value === "__new__") {
-            // Växla till "lägg till ny"-läge
+        if (value === '__new__') {
             job.isAddingEmployer = true;
-            job.newEmployerName = "";
-            job.employer_id = "";
+            job.newEmployerName = '';
+            job.employer_id = '';
         } else {
             job.employer_id = value;
             job.isAddingEmployer = false;
-            job.newEmployerName = "";
+            job.newEmployerName = '';
         }
 
         extraJobs = [...extraJobs];
     }
 
-    // Skapa arbetsgivare för en specifik extra-jobb-rad
     async function createEmployerForIndex(index) {
         const job = extraJobs[index];
         const name = job.newEmployerName?.trim();
         if (!name) return;
 
         const form = new FormData();
-        form.append("name", name);
+        form.append('name', name);
 
-        const res = await fetch("?/create_employer", {
-            method: "POST",
+        const res = await fetch('?/create_employer', {
+            method: 'POST',
             body: form
         });
 
@@ -167,10 +168,9 @@
             const emp = await res.json();
             data.employers = [...data.employers, emp];
 
-            // Sätt den nya arbetsgivaren på raden
             job.employer_id = emp.id;
             job.isAddingEmployer = false;
-            job.newEmployerName = "";
+            job.newEmployerName = '';
 
             extraJobs = [...extraJobs];
         }
@@ -179,19 +179,49 @@
     function cancelNewEmployer(index) {
         const job = extraJobs[index];
         job.isAddingEmployer = false;
-        job.newEmployerName = "";
-        job.employer_id = "";
+        job.newEmployerName = '';
+        job.employer_id = '';
         extraJobs = [...extraJobs];
     }
+
+    // Medlemmar som ska visas i dropdown
+    $: selectableMembers = (() => {
+        if (isOwner) {
+            return members;
+        }
+        if (isGuardian && guardianForMemberId) {
+            return members.filter((m) => m.id === guardianForMemberId);
+        }
+        return [];
+    })();
 </script>
 
 <h1>Inkomster</h1>
 
+{#if isOwner || isGuardian}
+    <div class="section">
+        <div class="member-selector">
+            <form method="GET">
+                <label for="user_id">Visa inkomster för</label>
+                <select id="user_id" name="user_id" bind:value={selectedUserId}>
+                    {#each selectableMembers as m}
+                        <option value={m.user_id}>
+                            {m.role}
+                            {m.user_id === currentUserId ? ' (du)' : ''}
+                        </option>
+                    {/each}
+                </select>
+                <button type="submit">Byt</button>
+            </form>
+        </div>
+    </div>
+{/if}
+
 <!-- ⭐ Lista månader -->
 <div class="section">
-    <button class="section-header" on:click={() => showList = !showList}>
+    <button class="section-header" on:click={() => (showList = !showList)}>
         <span>Sparade månader</span>
-        <span>{showList ? "▲" : "▼"}</span>
+        <span>{showList ? '▲' : '▼'}</span>
     </button>
 
     {#if showList}
@@ -205,13 +235,13 @@
                             <td>{toMonthInput(m.month)}</td>
 
                             <td>
-                                <strong>Ordinarie</strong><br>
+                                <strong>Ordinarie</strong><br />
                                 {m.primary_netto} kr
                             </td>
 
                             {#each m.extra_jobs as job}
                                 <td>
-                                    <strong>{job.employer_name}</strong><br>
+                                    <strong>{job.employer_name}</strong><br />
                                     {Number(job.att_betala_ut ?? 0)} kr
                                 </td>
                             {/each}
@@ -219,14 +249,14 @@
                             {#each m.fk_list as fk}
                                 <td>
                                     <strong>
-                                        FK – {fk.fk_typ === "Övrigt" ? fk.fk_typ_ovrigt : fk.fk_typ}
-                                    </strong><br>
+                                        FK – {fk.fk_typ === 'Övrigt' ? fk.fk_typ_ovrigt : fk.fk_typ}
+                                    </strong><br />
                                     {Number(fk.att_betala_ut ?? 0)} kr
                                 </td>
                             {/each}
 
                             <td>
-                                <strong>Total</strong><br>
+                                <strong>Total</strong><br />
                                 {m.total} kr
                             </td>
                         </tr>
@@ -239,20 +269,23 @@
 
 <!-- ⭐ Formulär -->
 <div class="section">
-    <button class="section-header" on:click={() => showForm = !showForm}>
-        <span>{selected ? "Redigera inkomst" : "Ny inkomst"}</span>
-        <span>{showForm ? "▲" : "▼"}</span>
+    <button class="section-header" on:click={() => (showForm = !showForm)}>
+        <span>{selected ? 'Redigera inkomst' : 'Ny inkomst'}</span>
+        <span>{showForm ? '▲' : '▼'}</span>
     </button>
 
     {#if showForm}
         <form
             method="POST"
-            action={selected ? "?/update_income" : "?/create_income"}
+            action={selected ? '?/update_income' : '?/create_income'}
             class="create-form"
         >
             {#if selected}
                 <input type="hidden" name="income_month_id" value={selected.id} />
             {/if}
+
+            <!-- Vem gäller inkomsten för (servern validerar) -->
+            <input type="hidden" name="selected_user_id" value={selectedUserId} />
 
             <!-- Månad -->
             <label>Månad</label>
@@ -260,7 +293,7 @@
                 type="month"
                 name="month"
                 required
-                value={selected ? toMonthInput(selected.month) : ""}
+                value={selected ? toMonthInput(selected.month) : ''}
             />
 
             <!-- ⭐ Ordinarie arbete -->
@@ -271,7 +304,7 @@
                 type="number"
                 step="0.01"
                 name="primary_lon_fore_skatt"
-                value={selected?.primary_job?.lon_fore_skatt ?? ""}
+                value={selected?.primary_job?.lon_fore_skatt ?? ''}
             />
 
             <label>Frånvaro</label>
@@ -279,7 +312,7 @@
                 type="number"
                 step="0.01"
                 name="primary_franvaro"
-                value={selected?.primary_job?.franvaro ?? ""}
+                value={selected?.primary_job?.franvaro ?? ''}
             />
 
             <label>Inbetald skatt</label>
@@ -287,7 +320,7 @@
                 type="number"
                 step="0.01"
                 name="primary_inbetald_skatt"
-                value={selected?.primary_job?.inbetald_skatt ?? ""}
+                value={selected?.primary_job?.inbetald_skatt ?? ''}
             />
 
             <label>Frivillig skatt</label>
@@ -295,7 +328,7 @@
                 type="number"
                 step="0.01"
                 name="primary_frivillig_skatt"
-                value={selected?.primary_job?.frivillig_skatt ?? ""}
+                value={selected?.primary_job?.frivillig_skatt ?? ''}
             />
 
             <label>Att betala ut</label>
@@ -303,7 +336,7 @@
                 type="number"
                 step="0.01"
                 name="primary_att_betala_ut"
-                value={selected?.primary_job?.att_betala_ut ?? ""}
+                value={selected?.primary_job?.att_betala_ut ?? ''}
             />
 
             <!-- ⭐ Extra arbeten -->
@@ -311,7 +344,6 @@
 
             {#each extraJobs as job, i}
                 <div class="card">
-
                     <label>Arbetsgivare</label>
 
                     {#if job.isAddingEmployer}
@@ -346,7 +378,6 @@
                         </select>
                     {/if}
 
-                    <!-- Övriga fält -->
                     <label>Lön före skatt</label>
                     <input
                         type="number"
@@ -412,13 +443,9 @@
                         {/each}
                     </select>
 
-                    {#if fk.fk_typ === "Övrigt"}
+                    {#if fk.fk_typ === 'Övrigt'}
                         <label>Beskrivning</label>
-                        <input
-                            type="text"
-                            name="fk_typ_ovrigt"
-                            bind:value={fk.fk_typ_ovrigt}
-                        />
+                        <input type="text" name="fk_typ_ovrigt" bind:value={fk.fk_typ_ovrigt} />
                     {/if}
 
                     {#if !isBenefitType(fk.fk_typ)}
@@ -455,16 +482,14 @@
 
             <button type="button" on:click={addFk}>Lägg till FK‑ersättning</button>
 
-            <!-- ⭐ Spara -->
             <button type="submit">
-                {selected ? "Spara ändringar" : "Spara inkomst"}
+                {selected ? 'Spara ändringar' : 'Spara inkomst'}
             </button>
         </form>
     {/if}
 </div>
 
 <style>
-    /* exakt samma CSS som tidigare */
     h1 {
         margin-bottom: 1.2rem;
         color: #1f2937;
@@ -478,7 +503,7 @@
         border-radius: 12px;
         overflow: hidden;
         background: #ffffff;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
 
     .section-header {
@@ -510,7 +535,8 @@
         max-width: 420px;
     }
 
-    input, select {
+    input,
+    select {
         padding: 0.65rem;
         border: 1px solid #d1d5db;
         border-radius: 8px;
@@ -518,7 +544,8 @@
         background: #f9fafb;
     }
 
-    input:focus, select:focus {
+    input:focus,
+    select:focus {
         outline: none;
         border-color: #2563eb;
         box-shadow: 0 0 0 2px #dbeafe;
@@ -554,7 +581,7 @@
         border-radius: 12px;
         padding: 1rem;
         background: #ffffff;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         display: grid;
         gap: 0.8rem;
         margin-bottom: 1rem;
@@ -565,7 +592,8 @@
         border-collapse: collapse;
     }
 
-    td, th {
+    td,
+    th {
         padding: 0.75rem;
         border-bottom: 1px solid #e5e7eb;
         font-size: 0.95rem;
@@ -575,5 +603,19 @@
     tr:hover {
         background: #f3f4f6;
         cursor: pointer;
+    }
+
+    .member-selector {
+        padding: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .member-selector form {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+        flex-wrap: wrap;
     }
 </style>
