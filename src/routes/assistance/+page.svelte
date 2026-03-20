@@ -1,7 +1,7 @@
 <script lang="ts">
     export let data;
 
-    // Förväntat från servern:
+    // Servern skickar:
     // data.months: string[] (5 månader)
     // data.rows: { label: string; values: number[] }[]
 
@@ -11,6 +11,11 @@
     const rowMap = new Map<string, { label: string; values: number[] }>();
     rows.forEach((r) => rowMap.set(r.label, r));
 
+    function getRow(label: string) {
+        return rowMap.get(label) ?? { label, values: months.map(() => 0) };
+    }
+
+    // Fasta rader i exakt din ordning
     const incomeRows = [
         'Arbete',
         'A-kassa',
@@ -43,9 +48,12 @@
         'Mediciner'
     ];
 
-    function getRow(label: string) {
-        return rowMap.get(label) ?? { label, values: months.map(() => 0) };
-    }
+    // Förbereder raderna i script istället för {@const}
+    const sumIncome = getRow('Summa inkomst');
+    const sumExpenses = getRow('Summa utgifter');
+    const balance = getRow('Balans');
+    const assist = getRow('Biståndsmånad');
+    const calendar = getRow('Kalendermånad');
 </script>
 
 <h1 class="text-2xl font-bold mb-6">Bistånd</h1>
@@ -71,13 +79,14 @@
             </tr>
 
             {#each incomeRows as label}
-                {@const row = getRow(label)}
+                {#let row = getRow(label)}
                 <tr class="bg-green-50">
                     <td class="border px-2 py-1">{label}</td>
                     {#each row.values as v}
                         <td class="border px-2 py-1 text-right">{v} kr</td>
                     {/each}
                 </tr>
+            {/let}
             {/each}
 
             <!-- ========================= -->
@@ -88,19 +97,19 @@
             </tr>
 
             {#each otherIncomeRows as label}
-                {@const row = getRow(label)}
+                {#let row = getRow(label)}
                 <tr class="bg-green-50">
                     <td class="border px-2 py-1">{label}</td>
                     {#each row.values as v}
                         <td class="border px-2 py-1 text-right">{v} kr</td>
                     {/each}
                 </tr>
+            {/let}
             {/each}
 
             <!-- ========================= -->
             <!-- SUMMA INKOMST -->
             <!-- ========================= -->
-            {@const sumIncome = getRow('Summa inkomst')}
             <tr class="bg-green-200 font-semibold">
                 <td class="border px-2 py-1">Summa inkomst</td>
                 {#each sumIncome.values as v}
@@ -116,22 +125,22 @@
             </tr>
 
             {#each expenseRows as label}
-                {@const row = getRow(label)}
+                {#let row = getRow(label)}
                 <tr class="bg-red-50">
                     <td class="border px-2 py-1">{label}</td>
                     {#each row.values as v}
                         <td class="border px-2 py-1 text-right">{v} kr</td>
                     {/each}
                 </tr>
+            {/let}
             {/each}
 
             <!-- ========================= -->
             <!-- SUMMA UTGIFTER -->
             <!-- ========================= -->
-            {@const sumExp = getRow('Summa utgifter')}
             <tr class="bg-red-200 font-semibold">
                 <td class="border px-2 py-1">Summa utgifter</td>
-                {#each sumExp.values as v}
+                {#each sumExpenses.values as v}
                     <td class="border px-2 py-1 text-right">{v} kr</td>
                 {/each}
             </tr>
@@ -139,7 +148,6 @@
             <!-- ========================= -->
             <!-- BALANS -->
             <!-- ========================= -->
-            {@const balance = getRow('Balans')}
             <tr class="bg-gray-200 font-semibold">
                 <td class="border px-2 py-1">Balans</td>
                 {#each balance.values as v}
@@ -150,7 +158,6 @@
             <!-- ========================= -->
             <!-- BISTÅNDSMÅNAD -->
             <!-- ========================= -->
-            {@const assist = getRow('Biståndsmånad')}
             <tr class="bg-gray-100">
                 <td class="border px-2 py-1">Biståndsmånad</td>
                 {#each assist.values as v}
@@ -161,10 +168,9 @@
             <!-- ========================= -->
             <!-- KALENDERMÅNAD -->
             <!-- ========================= -->
-            {@const cal = getRow('Kalendermånad')}
             <tr class="bg-gray-100">
                 <td class="border px-2 py-1">Kalendermånad</td>
-                {#each cal.values as v}
+                {#each calendar.values as v}
                     <td class="border px-2 py-1 text-right">{v}</td>
                 {/each}
             </tr>
