@@ -1,592 +1,420 @@
-<script>
-    export let data;
+import { redirect, fail } from '@sveltejs/kit';
+import { getAccessContext } from '$lib/server/access';
 
-    const access = data.access;
+function parseMonth(value: any): string | null {
+    if (!value) return null;
+    const s = value.toString();
+    if (!/^\d{4}-\d{2}$/.test(s)) return null;
+    return `${s}-01`;
+}
 
-    let selected = null;
-    let extraJobs = [];
-    let fkList = [];
+async function syncMonthlyIncome(supabase, householdId, userId, incomeMonthId) {
+    const { data: primary } = await supabase
+        .from('income_primary_job')
+        .select('att_betala_ut')
+        .eq('income_month_id', incomeMonthId)
+        .maybeSingle();
 
-    let showList = false;
-    let showForm = false;
+    const { data: extra } = await supabase
+        .from('income_extra_jobs')
+        .select('att_betala_ut')
+        .eq('income_month_id', incomeMonthId);
 
-    const members = access.selectableMembers ?? [];
-    let selectedUserId = access.selectedUserId;
+    const { data: fk } = await supabase
+        .from('income_fk')
+        .select('att_betala_ut')
+        .eq('income_month_id', incomeMonthId);
 
-    const FK_TYPES = [
-        'Sjukpenning',
-        'Tillfällig föräldrapenning (VAB)',
-        'Graviditetspenning',
-        'Sjukersättning',
-        'Aktivitetsersättning',
-        'Aktivitetsstöd',
-        'Smittbärarpenning',
-        'Närståendepenning',
-        'Livränta vid arbetsskada',
-        'Etableringsersättning',
-        'Utvecklingsersättning',
-        'Barnbidrag',
-        'Förlängt barnbidrag',
-        'Studiebidrag (CSN)',
-        'Bostadsbidrag',
-        'Bostadstillägg',
-        'Underhållsstöd',
-        'Övrigt'
-    ];
+    const p = primary?.att_betala_ut ? Number(primary.att_betala_ut) : 0;
+    const e = (extra ?? []).reduce((s, r) => s + (r.att_betala_ut ? Number(r.att_betala_ut) : 0), 0);
+    const f = (fk ?? []).reduce((s, r) => s + (r.att_betala_ut ? Number(r.att_betala_ut) : 0), 0);
 
-    const FK_BENEFIT_TYPES = [
-        'Barnbidrag',
-        'Förlängt barnbidrag',
-        'Studiebidrag (CSN)',
-        'Bostadsbidrag',
-        'Bostadstillägg',
-        'Underhållsstöd'
-    ];
+    const total = p + e + f;
 
-    function isBenefitType(t) {
-        return FK_BENEFIT_TYPES.includes(t ?? '');
+    await supabase
+        .from('income_months')
+        .update({ total })
+        .eq('id', incomeMonthId)
+        .eq('household_id', householdId)
+        .eq('user_id', userId);
+}
+
+export const load = async ({ locals, url }) => {
+    const access = await getAccessContext(locals, url);
+    if (!access.allowed) throw redirect(303, '/login');
+
+    const supabase = locals.supabase;
+    const householdId = locals.householdId;
+    const selectedUserId = access.selectedUserId;
+
+    const { data: months } = await supabase
+        .from('income_months')
+        .select('*')
+        .eq('household_id', householdId)
+        .eq('user_id', selectedUserId)
+        .order('month_date', { ascending: false });
+
+    const { data: employers } = await supabase
+        .from('income_employers')
+        .select('*')
+        .eq('household_id', householdId)
+        .order('name', { ascending: true });
+
+    if (!months || months.length === 0) {
+        return {
+            access,
+            months: [],
+            employers: employers ?? []
+        };
     }
 
-    function onFkTypeChange(fk) {
-        if (isBenefitType(fk.fk_typ)) {
-            fk.ersattning_fore_skatt = '';
-            fk.inbetald_skatt = '';
-        }
-    }
+    const { data: primary } = await supabase
+        .from('income_primary_job')
+        .select('*')
+        .eq('household_id', householdId)
+        .eq('user_id', selectedUserId);
 
-    function toMonthInput(dateString) {
-        if (!dateString) return '';
-        return dateString.slice(0, 7);
-    }
+    const { data: extra } = await supabase
+        .from('income_extra_jobs')
+        .select('*')
+        .eq('household_id', householdId)
+        .eq('user_id', selectedUserId);
 
-    function newIncome() {
-        selected = null;
-        extraJobs = [];
-        fkList = [];
-        showForm = true;
-    }
+    const { data: fk } = await supabase
+        .from('income_fk')
+        .select('*')
+        .eq('household_id', householdId)
+        .eq('user_id', selectedUserId);
 
-    function editIncome(m) {
-        selected = structuredClone(m);
-        showForm = true;
+    const employersMap = new Map();
+    (employers ?? []).forEach((e) => {
+        if (e.id) employersMap.set(e.id, e.name);
+    });
 
-        extraJobs = m.extra_jobs.map((e) => ({
-            employer_id: e.employer_id ?? '',
-            lon_fore_skatt: e.lon_fore_skatt ?? '',
-            franvaro: e.franvaro ?? '',
-            inbetald_skatt: e.inbetald_skatt ?? '',
-            frivillig_skatt: e.frivillig_skatt ?? '',
-            att_betala_ut: e.att_betala_ut ?? '',
-            isAddingEmployer: false,
-            newEmployerName: ''
+    const enriched = months.map((m) => {
+        const p = primary?.find((x) => x.income_month_id === m.id) ?? null;
+        const e = (extra ?? []).filter((x) => x.income_month_id === m.id);
+        const f = (fk ?? []).filter((x) => x.income_month_id === m.id);
+
+        const extraWithNames = e.map((row) => ({
+            ...row,
+            employer_name: row.employer_id ? employersMap.get(row.employer_id) ?? null : null
         }));
 
-        fkList = m.fk_list.map((f) => ({
-            fk_typ: f.fk_typ ?? '',
-            fk_typ_ovrigt: f.fk_typ_ovrigt ?? '',
-            ersattning_fore_skatt: f.ersattning_fore_skatt ?? '',
-            inbetald_skatt: f.inbetald_skatt ?? '',
-            att_betala_ut: f.att_betala_ut ?? ''
-        }));
+        const pNet = p?.att_betala_ut ? Number(p.att_betala_ut) : 0;
+        const eNet = extraWithNames.reduce(
+            (s, r) => s + (r.att_betala_ut ? Number(r.att_betala_ut) : 0),
+            0
+        );
+        const fNet = f.reduce((s, r) => s + (r.att_betala_ut ? Number(r.att_betala_ut) : 0), 0);
+
+        return {
+            ...m,
+            month: m.month_date.slice(0, 7),
+            primary_job: p,
+            extra_jobs: extraWithNames,
+            fk_list: f,
+            primary_netto: pNet,
+            extra_netto: eNet,
+            fk_netto: fNet,
+            total: pNet + eNet + fNet
+        };
+    });
+
+    return {
+        access,
+        months: enriched,
+        employers: employers ?? []
+    };
+};
+
+function resolveTargetUserId(access, form: FormData): string {
+    const selected = form.get('selected_user_id')?.toString();
+
+    if (!selected) {
+        return access.selectedUserId;
     }
 
-    function addExtraJob() {
-        extraJobs = [
-            ...extraJobs,
-            {
-                employer_id: '',
-                lon_fore_skatt: '',
-                franvaro: '',
-                inbetald_skatt: '',
-                frivillig_skatt: '',
-                att_betala_ut: '',
-                isAddingEmployer: false,
-                newEmployerName: ''
-            }
-        ];
+    const allowed = (access.selectableMembers ?? []).map((m) => m.user_id);
+
+    if (!allowed.includes(selected)) {
+        throw redirect(303, '/login');
     }
 
-    function removeExtraJob(i) {
-        extraJobs = extraJobs.filter((_, idx) => idx !== i);
-    }
+    return selected;
+}
 
-    function addFk() {
-        fkList = [
-            ...fkList,
-            {
-                fk_typ: '',
-                fk_typ_ovrigt: '',
-                ersattning_fore_skatt: '',
-                inbetald_skatt: '',
-                att_betala_ut: ''
-            }
-        ];
-    }
+export const actions = {
+    create_employer: async ({ request, locals, url }) => {
+        const access = await getAccessContext(locals, url);
+        if (!access.allowed) throw redirect(303, '/login');
+        if (!access.canEdit) return fail(403, { message: 'Ingen behörighet' });
 
-    function removeFk(i) {
-        fkList = fkList.filter((_, idx) => idx !== i);
-    }
+        const supabase = locals.supabase;
+        const householdId = locals.householdId;
 
-    function handleEmployerSelect(index, event) {
-        const value = event.target.value;
-        const job = extraJobs[index];
+        const form = await request.formData();
+        const name = form.get('name')?.toString().trim();
+        if (!name) return fail(400, { message: 'Namn saknas' });
 
-        if (value === '__new__') {
-            job.isAddingEmployer = true;
-            job.newEmployerName = '';
-            job.employer_id = '';
-        } else {
-            job.employer_id = value;
-            job.isAddingEmployer = false;
-            job.newEmployerName = '';
-        }
+        const { data, error } = await supabase
+            .from('income_employers')
+            .insert({
+                household_id: householdId,
+                user_id: access.currentUserId,
+                name
+            })
+            .select('*')
+            .single();
 
-        extraJobs = [...extraJobs];
-    }
+        if (error) return fail(400, { message: error.message });
 
-    async function createEmployerForIndex(index) {
-        const job = extraJobs[index];
-        const name = job.newEmployerName?.trim();
-        if (!name) return;
-
-        const form = new FormData();
-        form.append('name', name);
-
-        const res = await fetch('?/create_employer', {
-            method: 'POST',
-            body: form
+        return new Response(JSON.stringify(data), {
+            headers: { 'Content-Type': 'application/json' }
         });
+    },
 
-        if (res.ok) {
-            const emp = await res.json();
-            data.employers = [...data.employers, emp];
+    create_income: async ({ request, locals, url }) => {
+        const access = await getAccessContext(locals, url);
+        if (!access.allowed) throw redirect(303, '/login');
+        if (!access.canEdit) return fail(403, { message: 'Ingen behörighet' });
 
-            job.employer_id = emp.id;
-            job.isAddingEmployer = false;
-            job.newEmployerName = '';
+        const supabase = locals.supabase;
+        const householdId = locals.householdId;
 
-            extraJobs = [...extraJobs];
+        const form = await request.formData();
+        const targetUserId = resolveTargetUserId(access, form);
+
+        const month = parseMonth(form.get('month'));
+        if (!month) return fail(400, { message: 'Ogiltig månad' });
+
+        const { data: monthRow, error: monthErr } = await supabase
+            .from('income_months')
+            .insert({
+                household_id: householdId,
+                user_id: targetUserId,
+                month_date: month
+            })
+            .select('id')
+            .single();
+
+        if (monthErr || !monthRow) return fail(400, { message: monthErr?.message });
+
+        const income_month_id = monthRow.id;
+
+        const primaryPayload = {
+            income_month_id,
+            household_id: householdId,
+            user_id: targetUserId,
+            lon_fore_skatt: form.get('primary_lon_fore_skatt') || null,
+            franvaro: form.get('primary_franvaro') || null,
+            inbetald_skatt: form.get('primary_inbetald_skatt') || null,
+            frivillig_skatt: form.get('primary_frivillig_skatt') || null,
+            att_betala_ut: form.get('primary_att_betala_ut') || null
+        };
+
+        const hasPrimary = Object.values(primaryPayload).some(
+            (v) => v && v !== income_month_id && v !== householdId && v !== targetUserId
+        );
+
+        if (hasPrimary) {
+            const { error } = await supabase.from('income_primary_job').insert(primaryPayload);
+            if (error) return fail(400, { message: error.message });
         }
+
+        const employerIdArr = form.getAll('extra_employer_id');
+        const lonArr = form.getAll('extra_lon_fore_skatt');
+        const franvaroArr = form.getAll('extra_franvaro');
+        const inbetaldArr = form.getAll('extra_inbetald_skatt');
+        const frivilligArr = form.getAll('extra_frivillig_skatt');
+        const attBetalaArr = form.getAll('extra_att_betala_ut');
+
+        const extraRows = employerIdArr
+            .map((employerId, i) => ({
+                income_month_id,
+                household_id: householdId,
+                user_id: targetUserId,
+                employer_id: employerId?.toString().trim() || null,
+                lon_fore_skatt: lonArr[i] || null,
+                franvaro: franvaroArr[i] || null,
+                inbetald_skatt: inbetaldArr[i] || null,
+                frivillig_skatt: frivilligArr[i] || null,
+                att_betala_ut: attBetalaArr[i] || null
+            }))
+            .filter((row) => row.employer_id)
+            .filter((row) =>
+                Object.values(row).some(
+                    (v) => v && v !== income_month_id && v !== householdId && v !== targetUserId
+                )
+            );
+
+        if (extraRows.length > 0) {
+            const { error } = await supabase.from('income_extra_jobs').insert(extraRows);
+            if (error) return fail(400, { message: error.message });
+        }
+
+        const fkTypArr = form.getAll('fk_typ');
+        const fkOvrigtArr = form.getAll('fk_typ_ovrigt');
+        const fkErsArr = form.getAll('fk_ersattning_fore_skatt');
+        const fkInbetaldArr = form.getAll('fk_inbetald_skatt');
+        const fkAttBetalaArr = form.getAll('fk_att_betala_ut');
+
+        const fkRows = fkTypArr
+            .map((typ, i) => ({
+                income_month_id,
+                household_id: householdId,
+                user_id: targetUserId,
+                fk_typ: typ || null,
+                fk_typ_ovrigt: fkOvrigtArr[i] || null,
+                ersattning_fore_skatt: fkErsArr[i] || null,
+                inbetald_skatt: fkInbetaldArr[i] || null,
+                att_betala_ut: fkAttBetalaArr[i] || null
+            }))
+            .filter((row) => Object.values(row).some((v) => v));
+
+        if (fkRows.length > 0) {
+            const { error } = await supabase.from('income_fk').insert(fkRows);
+            if (error) return fail(400, { message: error.message });
+        }
+
+        await syncMonthlyIncome(supabase, householdId, targetUserId, income_month_id);
+
+        throw redirect(303, `/incomes?user_id=${encodeURIComponent(targetUserId)}`);
+    },
+
+    update_income: async ({ request, locals, url }) => {
+        const access = await getAccessContext(locals, url);
+        if (!access.allowed) throw redirect(303, '/login');
+        if (!access.canEdit) return fail(403, { message: 'Ingen behörighet' });
+
+        const supabase = locals.supabase;
+        const householdId = locals.householdId;
+
+        const form = await request.formData();
+        const targetUserId = resolveTargetUserId(access, form);
+
+        const income_month_id = form.get('income_month_id')?.toString();
+        if (!income_month_id) return fail(400, { message: 'Saknar income_month_id' });
+
+        const month = parseMonth(form.get('month'));
+        if (month) {
+            const { error } = await supabase
+                .from('income_months')
+                .update({ month_date: month })
+                .eq('id', income_month_id)
+                .eq('household_id', householdId)
+                .eq('user_id', targetUserId);
+
+            if (error) return fail(400, { message: error.message });
+        }
+
+        const primaryPayload = {
+            lon_fore_skatt: form.get('primary_lon_fore_skatt') || null,
+            franvaro: form.get('primary_franvaro') || null,
+            inbetald_skatt: form.get('primary_inbetald_skatt') || null,
+            frivillig_skatt: form.get('primary_frivillig_skatt') || null,
+            att_betala_ut: form.get('primary_att_betala_ut') || null
+        };
+
+        const { data: existingPrimary } = await supabase
+            .from('income_primary_job')
+            .select('id')
+            .eq('income_month_id', income_month_id)
+            .eq('household_id', householdId)
+            .eq('user_id', targetUserId)
+            .maybeSingle();
+
+        const hasPrimary = Object.values(primaryPayload).some((v) => v);
+
+        if (existingPrimary) {
+            if (hasPrimary) {
+                const { error } = await supabase
+                    .from('income_primary_job')
+                    .update(primaryPayload)
+                    .eq('id', existingPrimary.id);
+
+                if (error) return fail(400, { message: error.message });
+            } else {
+                await supabase.from('income_primary_job').delete().eq('id', existingPrimary.id);
+            }
+        } else if (hasPrimary) {
+            const { error } = await supabase.from('income_primary_job').insert({
+                income_month_id,
+                household_id: householdId,
+                user_id: targetUserId,
+                ...primaryPayload
+            });
+
+            if (error) return fail(400, { message: error.message });
+        }
+
+        await supabase
+            .from('income_extra_jobs')
+            .delete()
+            .eq('income_month_id', income_month_id)
+            .eq('household_id', householdId)
+            .eq('user_id', targetUserId);
+
+        const employerIdArr = form.getAll('extra_employer_id');
+        const lonArr = form.getAll('extra_lon_fore_skatt');
+        const franvaroArr = form.getAll('extra_franvaro');
+        const inbetaldArr = form.getAll('extra_inbetald_skatt');
+        const frivilligArr = form.getAll('extra_frivillig_skatt');
+        const attBetalaArr = form.getAll('extra_att_betala_ut');
+
+        const extraRows = employerIdArr
+            .map((employerId, i) => ({
+                income_month_id,
+                household_id: householdId,
+                user_id: targetUserId,
+                employer_id: employerId?.toString().trim() || null,
+                lon_fore_skatt: lonArr[i] || null,
+                franvaro: franvaroArr[i] || null,
+                inbetald_skatt: inbetaldArr[i] || null,
+                frivillig_skatt: frivilligArr[i] || null,
+                att_betala_ut: attBetalaArr[i] || null
+            }))
+            .filter((row) => row.employer_id)
+            .filter((row) => Object.values(row).some((v) => v));
+
+        if (extraRows.length > 0) {
+            const { error } = await supabase.from('income_extra_jobs').insert(extraRows);
+            if (error) return fail(400, { message: error.message });
+        }
+
+        await supabase
+            .from('income_fk')
+            .delete()
+            .eq('income_month_id', income_month_id)
+            .eq('household_id', householdId)
+            .eq('user_id', targetUserId);
+
+        const fkTypArr = form.getAll('fk_typ');
+        const fkOvrigtArr = form.getAll('fk_typ_ovrigt');
+        const fkErsArr = form.getAll('fk_ersattning_fore_skatt');
+        const fkInbetaldArr = form.getAll('fk_inbetald_skatt');
+        const fkAttBetalaArr = form.getAll('fk_att_betala_ut');
+
+        const fkRows = fkTypArr
+            .map((typ, i) => ({
+                income_month_id,
+                household_id: householdId,
+                user_id: targetUserId,
+                fk_typ: typ || null,
+                fk_typ_ovrigt: fkOvrigtArr[i] || null,
+                ersattning_fore_skatt: fkErsArr[i] || null,
+                inbetald_skatt: fkInbetaldArr[i] || null,
+                att_betala_ut: fkAttBetalaArr[i] || null
+            }))
+            .filter((row) => Object.values(row).some((v) => v));
+
+        if (fkRows.length > 0) {
+            const { error } = await supabase.from('income_fk').insert(fkRows);
+            if (error) return fail(400, { message: error.message });
+        }
+
+        await syncMonthlyIncome(supabase, householdId, targetUserId, income_month_id);
+
+        throw redirect(303, `/incomes?user_id=${encodeURIComponent(targetUserId)}`);
     }
-
-    function cancelNewEmployer(index) {
-        const job = extraJobs[index];
-        job.isAddingEmployer = false;
-        job.newEmployerName = '';
-        job.employer_id = '';
-        extraJobs = [...extraJobs];
-    }
-</script>
-
-<h1>Inkomster</h1>
-
-{#if access.isOwner || access.isGuardian}
-    <div class="section">
-        <form method="GET" class="member-selector">
-            <label for="user_id">Visa inkomster för</label>
-
-            <select
-                id="user_id"
-                name="user_id"
-                bind:value={selectedUserId}
-                on:change={(e) => e.target.form.submit()}
-            >
-                {#each members as m}
-                    <option value={m.user_id}>
-                        {m.profiles.full_name}
-                        {m.user_id === access.currentUserId ? ' (du)' : ''}
-                    </option>
-                {/each}
-            </select>
-        </form>
-    </div>
-{/if}
-
-<div class="section">
-    <button class="section-header" on:click={() => (showList = !showList)}>
-        <span>Sparade månader</span>
-        <span>{showList ? '▲' : '▼'}</span>
-    </button>
-
-    {#if showList}
-        {#if data.months.length === 0}
-            <p class="empty">Inga inkomster registrerade ännu.</p>
-        {:else}
-            <table class="month-list">
-                <tbody>
-                    {#each data.months as m}
-                        <tr on:click={() => access.canEdit && editIncome(m)}>
-                            <td>{toMonthInput(m.month)}</td>
-
-                            <td>
-                                <strong>Ordinarie</strong><br />
-                                {m.primary_netto} kr
-                            </td>
-
-                            {#each m.extra_jobs as job}
-                                <td>
-                                    <strong>{job.employer_name}</strong><br />
-                                    {Number(job.att_betala_ut ?? 0)} kr
-                                </td>
-                            {/each}
-
-                            {#each m.fk_list as fk}
-                                <td>
-                                    <strong>
-                                        FK – {fk.fk_typ === 'Övrigt' ? fk.fk_typ_ovrigt : fk.fk_typ}
-                                    </strong><br />
-                                    {Number(fk.att_betala_ut ?? 0)} kr
-                                </td>
-                            {/each}
-
-                            <td>
-                                <strong>Total</strong><br />
-                                {m.total} kr
-                            </td>
-                        </tr>
-                    {/each}
-                </tbody>
-            </table>
-        {/if}
-    {/if}
-</div>
-
-{#if access.canEdit}
-    <div class="section">
-        <button class="section-header" on:click={() => (showForm = !showForm)}>
-            <span>{selected ? 'Redigera inkomst' : 'Ny inkomst'}</span>
-            <span>{showForm ? '▲' : '▼'}</span>
-        </button>
-
-        {#if showForm}
-            <form
-                method="POST"
-                action={selected ? '?/update_income' : '?/create_income'}
-                class="create-form"
-            >
-                {#if selected}
-                    <input type="hidden" name="income_month_id" value={selected.id} />
-                {/if}
-
-                <label>Månad</label>
-                <input
-                    type="month"
-                    name="month"
-                    required
-                    value={selected ? toMonthInput(selected.month) : ''}
-                />
-
-                <h3>Ordinarie arbete</h3>
-
-                <label>Lön före skatt</label>
-                <input
-                    type="number"
-                    step="0.01"
-                    name="primary_lon_fore_skatt"
-                    value={selected?.primary_job?.lon_fore_skatt ?? ''}
-                />
-
-                <label>Frånvaro</label>
-                <input
-                    type="number"
-                    step="0.01"
-                    name="primary_franvaro"
-                    value={selected?.primary_job?.franvaro ?? ''}
-                />
-
-                <label>Inbetald skatt</label>
-                <input
-                    type="number"
-                    step="0.01"
-                    name="primary_inbetald_skatt"
-                    value={selected?.primary_job?.inbetald_skatt ?? ''}
-                />
-
-                <label>Frivillig skatt</label>
-                <input
-                    type="number"
-                    step="0.01"
-                    name="primary_frivillig_skatt"
-                    value={selected?.primary_job?.frivillig_skatt ?? ''}
-                />
-
-                <label>Att betala ut</label>
-                <input
-                    type="number"
-                    step="0.01"
-                    name="primary_att_betala_ut"
-                    value={selected?.primary_job?.att_betala_ut ?? ''}
-                />
-
-                <h3>Extra arbeten</h3>
-
-                {#each extraJobs as job, i}
-                    <div class="card">
-                        <label>Arbetsgivare</label>
-
-                        {#if job.isAddingEmployer}
-                            <input
-                                type="text"
-                                placeholder="Ny arbetsgivare…"
-                                bind:value={job.newEmployerName}
-                            />
-                            <div style="display:flex; gap:0.5rem;">
-                                <button type="button" on:click={() => createEmployerForIndex(i)}>
-                                    Spara
-                                </button>
-                                <button
-                                    type="button"
-                                    class="danger"
-                                    on:click={() => cancelNewEmployer(i)}
-                                >
-                                    Ångra
-                                </button>
-                            </div>
-                        {:else}
-                            <select
-                                name="extra_employer_id"
-                                value={job.employer_id}
-                                on:change={(e) => handleEmployerSelect(i, e)}
-                            >
-                                <option value="">Välj arbetsgivare…</option>
-                                {#each data.employers as emp}
-                                    <option value={emp.id}>{emp.name}</option>
-                                {/each}
-                                <option value="__new__">Lägg till ny…</option>
-                            </select>
-                        {/if}
-
-                        <label>Lön före skatt</label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            name="extra_lon_fore_skatt"
-                            bind:value={job.lon_fore_skatt}
-                        />
-
-                        <label>Frånvaro</label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            name="extra_franvaro"
-                            bind:value={job.franvaro}
-                        />
-
-                        <label>Inbetald skatt</label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            name="extra_inbetald_skatt"
-                            bind:value={job.inbetald_skatt}
-                        />
-
-                        <label>Frivillig skatt</label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            name="extra_frivillig_skatt"
-                            bind:value={job.frivillig_skatt}
-                        />
-
-                        <label>Att betala ut</label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            name="extra_att_betala_ut"
-                            bind:value={job.att_betala_ut}
-                        />
-
-                        <button type="button" class="danger" on:click={() => removeExtraJob(i)}>
-                            Ta bort
-                        </button>
-                    </div>
-                {/each}
-
-                <button type="button" on:click={addExtraJob}>Lägg till extra arbete</button>
-
-                <h3>Försäkringskassan</h3>
-
-                {#each fkList as fk, i}
-                    <div class="card">
-                        <label>Typ av ersättning</label>
-                        <select
-                            name="fk_typ"
-                            bind:value={fk.fk_typ}
-                            on:change={() => onFkTypeChange(fk)}
-                        >
-                            <option value="">Välj typ…</option>
-                            {#each FK_TYPES as t}
-                                <option value={t}>{t}</option>
-                            {/each}
-                        </select>
-
-                        {#if fk.fk_typ === 'Övrigt'}
-                            <label>Beskrivning</label>
-                            <input type="text" name="fk_typ_ovrigt" bind:value={fk.fk_typ_ovrigt} />
-                        {/if}
-
-                        {#if !isBenefitType(fk.fk_typ)}
-                            <label>Ersättning före skatt</label>
-                            <input
-                                type="number"
-                                step="0.01"
-                                name="fk_ersattning_fore_skatt"
-                                bind:value={fk.ersattning_fore_skatt}
-                            />
-
-                            <label>Inbetald skatt</label>
-                            <input
-                                type="number"
-                                step="0.01"
-                                name="fk_inbetald_skatt"
-                                bind:value={fk.inbetald_skatt}
-                            />
-                        {/if}
-
-                        <label>Att betala ut</label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            name="fk_att_betala_ut"
-                            bind:value={fk.att_betala_ut}
-                        />
-
-                        <button type="button" class="danger" on:click={() => removeFk(i)}>
-                            Ta bort
-                        </button>
-                    </div>
-                {/each}
-
-                <button type="button" on:click={addFk}>Lägg till FK‑ersättning</button>
-
-                <button type="submit">
-                    {selected ? 'Spara ändringar' : 'Spara inkomst'}
-                </button>
-            </form>
-        {/if}
-    </div>
-{/if}
-
-<style>
-    h1 {
-        margin-bottom: 1.2rem;
-        color: #1f2937;
-        font-size: 1.6rem;
-        font-weight: 700;
-    }
-
-    .section {
-        margin-bottom: 1.5rem;
-        border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        overflow: hidden;
-        background: #ffffff;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    }
-
-    .section-header {
-        width: 100%;
-        background: #f3f4f6;
-        border: none;
-        padding: 1rem 1.2rem;
-        font-size: 1.05rem;
-        font-weight: 600;
-        display: flex;
-        justify-content: space-between;
-        cursor: pointer;
-        color: #111827;
-    }
-
-    .section-header:hover {
-        background: #e5e7eb;
-    }
-
-    .empty {
-        padding: 1rem;
-        color: #6b7280;
-    }
-
-    .create-form {
-        display: grid;
-        gap: 0.9rem;
-        padding: 1rem;
-        max-width: 420px;
-    }
-
-    input,
-    select {
-        padding: 0.65rem;
-        border: 1px solid #d1d5db;
-        border-radius: 8px;
-        font-size: 0.95rem;
-        background: #f9fafb;
-    }
-
-    input:focus,
-    select:focus {
-        outline: none;
-        border-color: #2563eb;
-        box-shadow: 0 0 0 2px #dbeafe;
-        background: #ffffff;
-    }
-
-    button {
-        padding: 0.75rem 1rem;
-        border: none;
-        background: #2563eb;
-        color: white;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 0.95rem;
-        font-weight: 600;
-        transition: background 0.15s;
-    }
-
-    button:hover {
-        background: #1d4ed8;
-    }
-
-    button.danger {
-        background: #dc2626;
-    }
-
-    button.danger:hover {
-        background: #b91c1c;
-    }
-
-    .card {
-        border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        padding: 1rem;
-        background: #ffffff;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        display: grid;
-        gap: 0.8rem;
-        margin-bottom: 1rem;
-    }
-
-    table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-
-    td,
-    th {
-        padding: 0.75rem;
-        border-bottom: 1px solid #e5e7eb;
-        font-size: 0.95rem;
-        vertical-align: top;
-    }
-
-    tr:hover {
-        background: #f3f4f6;
-        cursor: pointer;
-    }
-
-    .member-selector {
-        padding: 1rem;
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-    }
-</style>
+};

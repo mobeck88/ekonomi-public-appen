@@ -128,6 +128,22 @@ export const load = async ({ locals, url }) => {
     };
 };
 
+function resolveTargetUserId(access, form: FormData): string {
+    const selected = form.get('selected_user_id')?.toString();
+
+    if (!selected) {
+        return access.selectedUserId;
+    }
+
+    const allowed = (access.selectableMembers ?? []).map((m) => m.user_id);
+
+    if (!allowed.includes(selected)) {
+        throw redirect(303, '/login');
+    }
+
+    return selected;
+}
+
 export const actions = {
     create_employer: async ({ request, locals, url }) => {
         const access = await getAccessContext(locals, url);
@@ -165,9 +181,10 @@ export const actions = {
 
         const supabase = locals.supabase;
         const householdId = locals.householdId;
-        const targetUserId = access.selectedUserId;
 
         const form = await request.formData();
+        const targetUserId = resolveTargetUserId(access, form);
+
         const month = parseMonth(form.get('month'));
         if (!month) return fail(400, { message: 'Ogiltig månad' });
 
@@ -272,9 +289,10 @@ export const actions = {
 
         const supabase = locals.supabase;
         const householdId = locals.householdId;
-        const targetUserId = access.selectedUserId;
 
         const form = await request.formData();
+        const targetUserId = resolveTargetUserId(access, form);
+
         const income_month_id = form.get('income_month_id')?.toString();
         if (!income_month_id) return fail(400, { message: 'Saknar income_month_id' });
 
