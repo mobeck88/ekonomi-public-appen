@@ -2,10 +2,8 @@
     export let data;
 
     // Förväntat från servern:
-    // data.months: string[] (t.ex. ['2025-12', '2026-01', '2026-02', '2026-03', '2026-04'])
+    // data.months: string[] (5 månader)
     // data.rows: { label: string; values: number[] }[]
-    //
-    // values[i] motsvarar months[i]
 
     const months: string[] = data.months ?? [];
     const rows: { label: string; values: number[] }[] = data.rows ?? [];
@@ -45,8 +43,6 @@
         'Mediciner'
     ];
 
-    const systemRows = ['Summa inkomst', 'Summa utgifter', 'Balans', 'Biståndsmånad', 'Kalendermånad'];
-
     function getRow(label: string) {
         return rowMap.get(label) ?? { label, values: months.map(() => 0) };
     }
@@ -64,14 +60,18 @@
                 {/each}
             </tr>
         </thead>
+
         <tbody>
+
+            <!-- ========================= -->
             <!-- INKOMSTER -->
+            <!-- ========================= -->
             <tr class="bg-green-100 font-semibold">
                 <td class="border px-2 py-1" colspan={1 + months.length}>Inkomster</td>
             </tr>
 
             {#each incomeRows as label}
-                {#const row = getRow(label)}
+                {@const row = getRow(label)}
                 <tr class="bg-green-50">
                     <td class="border px-2 py-1">{label}</td>
                     {#each row.values as v}
@@ -80,13 +80,15 @@
                 </tr>
             {/each}
 
+            <!-- ========================= -->
             <!-- ÖVRIGA INKOMSTER -->
+            <!-- ========================= -->
             <tr class="bg-green-100 font-semibold">
                 <td class="border px-2 py-1" colspan={1 + months.length}>Övriga inkomster</td>
             </tr>
 
             {#each otherIncomeRows as label}
-                {#const row = getRow(label)}
+                {@const row = getRow(label)}
                 <tr class="bg-green-50">
                     <td class="border px-2 py-1">{label}</td>
                     {#each row.values as v}
@@ -95,8 +97,10 @@
                 </tr>
             {/each}
 
+            <!-- ========================= -->
             <!-- SUMMA INKOMST -->
-            {#const sumIncome = getRow('Summa inkomst')}
+            <!-- ========================= -->
+            {@const sumIncome = getRow('Summa inkomst')}
             <tr class="bg-green-200 font-semibold">
                 <td class="border px-2 py-1">Summa inkomst</td>
                 {#each sumIncome.values as v}
@@ -104,13 +108,15 @@
                 {/each}
             </tr>
 
+            <!-- ========================= -->
             <!-- UTGIFTER -->
+            <!-- ========================= -->
             <tr class="bg-red-100 font-semibold">
                 <td class="border px-2 py-1" colspan={1 + months.length}>Utgifter</td>
             </tr>
 
             {#each expenseRows as label}
-                {#const row = getRow(label)}
+                {@const row = getRow(label)}
                 <tr class="bg-red-50">
                     <td class="border px-2 py-1">{label}</td>
                     {#each row.values as v}
@@ -119,8 +125,10 @@
                 </tr>
             {/each}
 
+            <!-- ========================= -->
             <!-- SUMMA UTGIFTER -->
-            {#const sumExp = getRow('Summa utgifter')}
+            <!-- ========================= -->
+            {@const sumExp = getRow('Summa utgifter')}
             <tr class="bg-red-200 font-semibold">
                 <td class="border px-2 py-1">Summa utgifter</td>
                 {#each sumExp.values as v}
@@ -128,8 +136,10 @@
                 {/each}
             </tr>
 
+            <!-- ========================= -->
             <!-- BALANS -->
-            {#const balance = getRow('Balans')}
+            <!-- ========================= -->
+            {@const balance = getRow('Balans')}
             <tr class="bg-gray-200 font-semibold">
                 <td class="border px-2 py-1">Balans</td>
                 {#each balance.values as v}
@@ -137,8 +147,10 @@
                 {/each}
             </tr>
 
+            <!-- ========================= -->
             <!-- BISTÅNDSMÅNAD -->
-            {#const assist = getRow('Biståndsmånad')}
+            <!-- ========================= -->
+            {@const assist = getRow('Biståndsmånad')}
             <tr class="bg-gray-100">
                 <td class="border px-2 py-1">Biståndsmånad</td>
                 {#each assist.values as v}
@@ -146,14 +158,17 @@
                 {/each}
             </tr>
 
+            <!-- ========================= -->
             <!-- KALENDERMÅNAD -->
-            {#const cal = getRow('Kalendermånad')}
+            <!-- ========================= -->
+            {@const cal = getRow('Kalendermånad')}
             <tr class="bg-gray-100">
                 <td class="border px-2 py-1">Kalendermånad</td>
                 {#each cal.values as v}
                     <td class="border px-2 py-1 text-right">{v}</td>
                 {/each}
             </tr>
+
         </tbody>
     </table>
 </div>
