@@ -22,7 +22,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
     const { data: membership } = await supabase
         .from('household_members')
-        .select('role')
+        .select('id, role')
         .eq('user_id', user.id)
         .eq('household_id', householdId)
         .single();
@@ -113,7 +113,7 @@ export const actions: Actions = {
 
         const { data: membership } = await supabase
             .from('household_members')
-            .select('role')
+            .select('id, role')
             .eq('user_id', user.id)
             .eq('household_id', householdId)
             .single();
@@ -124,11 +124,12 @@ export const actions: Actions = {
             return fail(400, { error: 'Ägare kan inte lämna sitt eget hushåll.' });
         }
 
-        // ⭐ FIX: PostgREST-bug workaround — tuple match istället för två eq()
+        // ⭐ Nu när household_members har en riktig primary key (id)
+        // kan vi äntligen göra en stabil DELETE utan PostgREST-buggar.
         await supabase
             .from('household_members')
             .delete()
-            .in('household_id,user_id', [[householdId, user.id]]);
+            .eq('id', membership.id);
 
         throw redirect(303, '/household?left=1');
     },
