@@ -186,12 +186,9 @@
 
     // Medlemmar som ska visas i dropdown
     $: selectableMembers = (() => {
-        if (isOwner) {
-            return members;
-        }
-        if (isGuardian && guardianForMemberId) {
+        if (isOwner) return members;
+        if (isGuardian && guardianForMemberId)
             return members.filter((m) => m.id === guardianForMemberId);
-        }
         return [];
     })();
 </script>
@@ -203,15 +200,20 @@
         <div class="member-selector">
             <form method="GET">
                 <label for="user_id">Visa inkomster för</label>
-                <select id="user_id" name="user_id" bind:value={selectedUserId}>
+
+                <select
+                    id="user_id"
+                    name="user_id"
+                    bind:value={selectedUserId}
+                    on:change={() => event.target.form.submit()}
+                >
                     {#each selectableMembers as m}
                         <option value={m.user_id}>
-                            {m.role}
+                            {m.profiles.full_name}
                             {m.user_id === currentUserId ? ' (du)' : ''}
                         </option>
                     {/each}
                 </select>
-                <button type="submit">Byt</button>
             </form>
         </div>
     </div>
@@ -266,7 +268,6 @@
         {/if}
     {/if}
 </div>
-
 <!-- ⭐ Formulär -->
 <div class="section">
     <button class="section-header" on:click={() => (showForm = !showForm)}>
