@@ -3,21 +3,27 @@ import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
 export const handle = async ({ event, resolve }) => {
-    // Skapa en ren Supabase-klient utan SSR-prefetch eller auth-helpers
+    // Skapa en ren Supabase-klient utan SSR-prefetch
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         global: { fetch: event.fetch }
     });
 
     event.locals.supabase = supabase;
 
-    // Läs session-token från cookies
+    // Läs tokens från cookies
     const access_token = event.cookies.get('sb-access-token');
+    const refresh_token = event.cookies.get('sb-refresh-token');
 
     let user = null;
 
-    if (access_token) {
-        // Verifiera token manuellt
-        const { data } = await supabase.auth.getUser(access_token);
+    // Sätt sessionen manuellt om token finns
+    if (access_token && refresh_token) {
+        await supabase.auth.setSession({
+            access_token,
+            refresh_token
+        });
+
+        const { data } = await supabase.auth.getUser();
         user = data?.user ?? null;
     }
 
