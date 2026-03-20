@@ -1,11 +1,11 @@
 <script lang="ts">
     export let data;
 
-    // months = faktiska månader från DB
+    // Faktiska månader från servern
     const months = data.months;
 
-    // Hjälpfunktion: skapa biståndsmånad (en månad framåt)
-    function nextMonth(year: number, month: number) {
+    // Beräkna biståndsmånad (en månad framåt)
+    function getNextMonth(year: number, month: number) {
         const d = new Date(year, month - 1, 1);
         d.setMonth(d.getMonth() + 1);
         return {
@@ -19,7 +19,9 @@
 
 <div class="space-y-10">
     {#each months as m}
-        <!-- Faktisk månad -->
+        <!-- ========================= -->
+        <!-- FAKTISK MÅNAD -->
+        <!-- ========================= -->
         <div class="border rounded p-4 bg-gray-50">
             <h2 class="text-xl font-semibold mb-2">
                 {m.year}-{String(m.month).padStart(2, '0')} (Faktisk månad)
@@ -45,61 +47,67 @@
             </div>
         </div>
 
-        <!-- Biståndsmånad -->
+        <!-- ========================= -->
+        <!-- BISTÅNDSMÅNAD (UI-BERÄKNAD) -->
+        <!-- ========================= -->
         {#key m.id}
-            {#let b = nextMonth(m.year, m.month)}
-                <form method="post" action="?/save" class="border rounded p-4 bg-white">
-                    <h2 class="text-xl font-semibold mb-2">
-                        {b.year}-{String(b.month).padStart(2, '0')} (Biståndsmånad)
-                    </h2>
+            { 
+                const next = getNextMonth(m.year, m.month);
+                const byear = next.year;
+                const bmonth = next.month;
+            }
 
-                    <input type="hidden" name="id" value={m.id} />
+            <form method="post" action="?/save" class="border rounded p-4 bg-white">
+                <h2 class="text-xl font-semibold mb-2">
+                    {byear}-{String(bmonth).padStart(2, '0')} (Biståndsmånad)
+                </h2>
 
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="font-medium">Korrigering inkomst</label>
-                            <input
-                                type="number"
-                                name="correction_income"
-                                value={m.correction_income}
-                                class="input"
-                            />
-                        </div>
+                <input type="hidden" name="id" value={m.id} />
 
-                        <div>
-                            <label class="font-medium">Korrigering utgift</label>
-                            <input
-                                type="number"
-                                name="correction_expense"
-                                value={m.correction_expense}
-                                class="input"
-                            />
-                        </div>
-
-                        <div>
-                            <label class="font-medium">Soc beslut (saldo)</label>
-                            <input
-                                type="number"
-                                name="soc_decision_balance"
-                                value={m.soc_decision_balance}
-                                class="input"
-                            />
-                        </div>
-
-                        <div class="col-span-2">
-                            <label class="font-medium">Soc anteckningar</label>
-                            <textarea
-                                name="soc_decision_notes"
-                                class="textarea"
-                            >{m.soc_decision_notes}</textarea>
-                        </div>
-
-                        <div class="col-span-2">
-                            <button class="btn-primary">Spara</button>
-                        </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="font-medium">Korrigering inkomst</label>
+                        <input
+                            type="number"
+                            name="correction_income"
+                            value={m.correction_income}
+                            class="input"
+                        />
                     </div>
-                </form>
-            {/let}
+
+                    <div>
+                        <label class="font-medium">Korrigering utgift</label>
+                        <input
+                            type="number"
+                            name="correction_expense"
+                            value={m.correction_expense}
+                            class="input"
+                        />
+                    </div>
+
+                    <div>
+                        <label class="font-medium">Soc beslut (saldo)</label>
+                        <input
+                            type="number"
+                            name="soc_decision_balance"
+                            value={m.soc_decision_balance}
+                            class="input"
+                        />
+                    </div>
+
+                    <div class="col-span-2">
+                        <label class="font-medium">Soc anteckningar</label>
+                        <textarea
+                            name="soc_decision_notes"
+                            class="textarea"
+                        >{m.soc_decision_notes}</textarea>
+                    </div>
+
+                    <div class="col-span-2">
+                        <button class="btn-primary">Spara</button>
+                    </div>
+                </div>
+            </form>
         {/key}
     {/each}
 </div>
