@@ -1,217 +1,51 @@
-import { fail, redirect } from '@sveltejs/kit';
-import type { Actions, PageServerLoad } from './$types';
+import { redirect, fail } from '@sveltejs/kit';
+import { getAccessContext } from '$lib/server/access';
 
-/* -------------------------------------------------------
-   HJÄLPFUNKTION: Synka monthly_income för en månad
-------------------------------------------------------- */
-async function syncMonthlyIncome(
-    supabase: any,
-    householdId: string,
-    userId: string,
-    income_month_id: string
-) {
-    const { data: monthRow, error: monthError } = await supabase
-        .from('income_months')
-        .select('month_date')
-        .eq('id', income_month_id)
-        .eq('household_id', householdId)
-        .single();
+function parseMonth(value: any): string | null {
+    if (!value) return null;
+    const s = value.toString();
+    if (!/^\d{4}-\d{2}$/.test(s)) return null;
+    return `${s}-01`;
+}
 
-    if (monthError || !monthRow) return;
-
-    const month_date = monthRow.month_date;
-
+async function syncMonthlyIncome(supabase, householdId, userId, incomeMonthId) {
     const { data: primary } = await supabase
         .from('income_primary_job')
-        .select('*')
-        .eq('income_month_id', income_month_id)
-        .eq('household_id', householdId)
-        .eq('user_id', userId);
+        .select('att_betala_ut')
+        .eq('income_month_id', incomeMonthId)
+        .maybeSingle();
 
     const { data: extra } = await supabase
         .from('income_extra_jobs')
-        .select('*')
-        .eq('income_month_id', income_month_id)
-        .eq('household_id', householdId)
-        .eq('user_id', userId);
+        .select('att_betala_ut')
+        .eq('income_month_id', incomeMonthId);
 
     const { data: fk } = await supabase
         .from('income_fk')
-        .select('*')
-        .eq('income_month_id', income_month_id)
+        .select('att_betala_ut')
+        .eq('income_month_id', incomeMonthId);
+
+    const p = primary?.att_betala_ut ? Number(primary.att_betala_ut) : 0;
+    const e = (extra ?? []).reduce((s, r) => s + (r.att_betala_ut ? Number(r.att_betala_ut) : 0), 0);
+    const f = (fk ?? []).reduce((s, r) => s + (r.att_betala_ut ? Number(r.att_betala_ut) : 0), 0);
+
+    const total = p + e + f;
+
+    await supabase
+        .from('income_months')
+        .update({ total })
+        .eq('id', incomeMonthId)
         .eq('household_id', householdId)
         .eq('user_id', userId);
-
-    const p = primary && primary.length > 0 ? primary[0] : null;
-
-    const ord_lon_fore_skatt = p?.lon_fore_skatt ? Number(p.lon_fore_skatt) : 0;
-    const ord_franvaro = p?.franvaro ? Number(p.franvaro) : 0;
-    const ord_skatt = p?.inbetald_skatt ? Number(p.inbetald_skatt) : 0;
-    const ord_nettolon = p?.att_betala_ut ? Number(p.att_betala_ut) : 0;
-
-    const ass_lon_fore_skatt =
-        extra?.reduce((sum: number, row: any) => sum + Number(row.lon_fore_skatt || 0), 0) ?? 0;
-    const ass_skatt =
-        extra?.reduce((sum: number, row: any) => sum + Number(row.inbetald_skatt || 0), 0) ?? 0;
-    const ass_frivillig_skatt =
-        extra?.reduce((sum: number, row: any) => sum + Number(row.frivillig_skatt || 0), 0) ?? 0;
-    const ass_nettolon =
-        extra?.reduce((sum: number, row: any) => sum + Number(row.att_betala_ut || 0), 0) ?? 0;
-
-    const fk_lon_fore_skatt =
-        fk?.reduce((sum: number, row: any) => sum + Number(row.ersattning_fore_skatt || 0), 0) ?? 0;
-    const fk_skatt =
-        fk?.reduce((sum: number, row: any) => sum + Number(row.inbetald_skatt || 0), 0) ?? 0;
-    const fk_nettolon =
-        fk?.reduce((sum: number, row: any) => sum + Number(row.att_betala_ut || 0), 0) ?? 0;
-
-    const payload = {
-        user_id: userId,
-        month: month_date,
-        ord_lon_fore_skatt,
-        ord_franvaro,
-        ord_skatt,
-        ord_nettolon,
-        ass_lon_fore_skatt,
-        ass_skatt,
-        ass_frivillig_skatt,
-        ass_nettolon,
-        fk_lon_fore_skatt,
-        fk_skatt,
-        fk_nettolon,
-        inserted_at: new Date().toISOString()
-    };
-
-    const { data: existing } = await supabase
-        .from('monthly_income')
-        .select('user_id, month')
-        .eq('user_id', userId)
-        .eq('month', month_date)
-        .maybeSingle();
-
-    if (existing) {
-        await supabase
-            .from('monthly_income')
-            .update(payload)
-            .eq('user_id', userId)
-            .eq('month', month_date);
-    } else {
-        await supabase.from('monthly_income').insert(payload);
-    }
 }
 
-/* -------------------------------------------------------
-   HJÄLPFUNKTION: Hämta medlemskap + roll + guardian-target
-------------------------------------------------------- */
-async function getMembershipContext(
-    supabase: any,
-    householdId: string,
-    userId: string
-): Promise<{
-    membership: any | null;
-    isOwner: boolean;
-    isGuardian: boolean;
-    targetUserIdForGuardian: string | null;
-}> {
-    const { data: membership } = await supabase
-        .from('household_members')
-        .select('id, role, guardian_for, user_id')
-        .eq('household_id', householdId)
-        .eq('user_id', userId)
-        .maybeSingle();
+export const load = async ({ locals, url }) => {
+    const access = await getAccessContext(locals, url);
+    if (!access.allowed) throw redirect(303, '/login');
 
-    const role = membership?.role ?? null;
-    const isOwner = role === 'owner';
-    const isGuardian = role === 'guardian';
-
-    let targetUserIdForGuardian: string | null = null;
-
-    if (isGuardian && membership?.guardian_for) {
-        const { data: guardianTarget } = await supabase
-            .from('household_members')
-            .select('id, user_id')
-            .eq('id', membership.guardian_for)
-            .eq('household_id', householdId)
-            .maybeSingle();
-
-        if (guardianTarget?.user_id) {
-            targetUserIdForGuardian = guardianTarget.user_id;
-        }
-    }
-
-    return { membership, isOwner, isGuardian, targetUserIdForGuardian };
-}
-
-/* -------------------------------------------------------
-   PARSE MONTH
-------------------------------------------------------- */
-function parseMonth(raw: FormDataEntryValue | null): string | null {
-    if (!raw) return null;
-
-    const s = raw.toString().trim();
-
-    if (/^\d{4}-\d{2}$/.test(s)) {
-        const d = new Date(`${s}-01`);
-        if (Number.isNaN(d.getTime())) return null;
-        return d.toISOString().slice(0, 10);
-    }
-
-    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-        const d = new Date(s);
-        if (Number.isNaN(d.getTime())) return null;
-        return d.toISOString().slice(0, 10);
-    }
-
-    return null;
-}
-
-/* -------------------------------------------------------
-   LOAD
-------------------------------------------------------- */
-export const load: PageServerLoad = async ({ locals, url }) => {
-    const user = locals.user;
-    const householdId = locals.householdId;
     const supabase = locals.supabase;
-
-    if (!user) throw redirect(303, '/login');
-    if (!householdId) {
-        return {
-            months: [],
-            employers: [],
-            members: [],
-            selectedUserId: user.id,
-            currentUserId: user.id,
-            isOwner: false,
-            isGuardian: false,
-            guardianForMemberId: null
-        };
-    }
-
-    const { membership, isOwner, isGuardian, targetUserIdForGuardian } =
-        await getMembershipContext(supabase, householdId, user.id);
-
-    /* ⭐ HÄMTA MEDLEMMAR + FULL_NAME */
-    const { data: members } = await supabase
-        .from('household_members')
-        .select('id, user_id, role, guardian_for, profiles(full_name)')
-         .eq('household_id', householdId);
-
-    const userIdParam = url.searchParams.get('user_id');
-
-    let selectedUserId: string = user.id;
-
-    if (isOwner) {
-        if (userIdParam) {
-            const match = members?.find((m: any) => m.user_id === userIdParam);
-            selectedUserId = match ? userIdParam : user.id;
-        } else {
-            selectedUserId = user.id;
-        }
-    } else if (isGuardian && targetUserIdForGuardian) {
-        selectedUserId = targetUserIdForGuardian;
-    } else {
-        selectedUserId = user.id;
-    }
+    const householdId = locals.householdId;
+    const selectedUserId = access.selectedUserId;
 
     const { data: months } = await supabase
         .from('income_months')
@@ -220,22 +54,17 @@ export const load: PageServerLoad = async ({ locals, url }) => {
         .eq('user_id', selectedUserId)
         .order('month_date', { ascending: false });
 
-    if (!months || months.length === 0) {
-        const { data: employers } = await supabase
-            .from('income_employers')
-            .select('*')
-            .eq('household_id', householdId)
-            .order('name', { ascending: true });
+    const { data: employers } = await supabase
+        .from('income_employers')
+        .select('*')
+        .eq('household_id', householdId)
+        .order('name', { ascending: true });
 
+    if (!months || months.length === 0) {
         return {
+            access,
             months: [],
-            employers: employers ?? [],
-            members: members ?? [],
-            selectedUserId,
-            currentUserId: user.id,
-            isOwner,
-            isGuardian,
-            guardianForMemberId: membership?.guardian_for ?? null
+            employers: employers ?? []
         };
     }
 
@@ -257,87 +86,66 @@ export const load: PageServerLoad = async ({ locals, url }) => {
         .eq('household_id', householdId)
         .eq('user_id', selectedUserId);
 
-    const { data: employers } = await supabase
-        .from('income_employers')
-        .select('*')
-        .eq('household_id', householdId)
-        .order('name', { ascending: true });
-
-    const employersMap = new Map<string, { id: string; name: string }>();
-    (employers ?? []).forEach((e: any) => {
-        if (e.id) employersMap.set(e.id, { id: e.id, name: e.name });
+    const employersMap = new Map();
+    (employers ?? []).forEach((e) => {
+        if (e.id) employersMap.set(e.id, e.name);
     });
 
     const enriched = months.map((m) => {
-        const p = primary?.find((p) => p.income_month_id === m.id) ?? null;
-        const e = (extra ?? []).filter((e) => e.income_month_id === m.id);
-        const f = (fk ?? []).filter((f) => f.income_month_id === m.id);
+        const p = primary?.find((x) => x.income_month_id === m.id) ?? null;
+        const e = (extra ?? []).filter((x) => x.income_month_id === m.id);
+        const f = (fk ?? []).filter((x) => x.income_month_id === m.id);
 
-        const extraWithEmployer = e.map((row) => {
-            const employer = row.employer_id ? employersMap.get(row.employer_id) : undefined;
-            return {
-                ...row,
-                employer_name: employer?.name ?? null
-            };
-        });
+        const extraWithNames = e.map((row) => ({
+            ...row,
+            employer_name: row.employer_id ? employersMap.get(row.employer_id) ?? null : null
+        }));
 
-        const primary_netto = p?.att_betala_ut ? Number(p.att_betala_ut) : 0;
-        const extra_netto = extraWithEmployer.reduce(
-            (sum, row) => sum + (row.att_betala_ut ? Number(row.att_betala_ut) : 0),
+        const pNet = p?.att_betala_ut ? Number(p.att_betala_ut) : 0;
+        const eNet = extraWithNames.reduce(
+            (s, r) => s + (r.att_betala_ut ? Number(r.att_betala_ut) : 0),
             0
         );
-        const fk_netto = f.reduce(
-            (sum, row) => sum + (row.att_betala_ut ? Number(row.att_betala_ut) : 0),
-            0
-        );
+        const fNet = f.reduce((s, r) => s + (r.att_betala_ut ? Number(r.att_betala_ut) : 0), 0);
 
         return {
             ...m,
             month: m.month_date.slice(0, 7),
             primary_job: p,
-            extra_jobs: extraWithEmployer,
+            extra_jobs: extraWithNames,
             fk_list: f,
-            primary_netto,
-            extra_netto,
-            fk_netto,
-            total: primary_netto + extra_netto + fk_netto
+            primary_netto: pNet,
+            extra_netto: eNet,
+            fk_netto: fNet,
+            total: pNet + eNet + fNet
         };
     });
 
     return {
+        access,
         months: enriched,
-        employers: employers ?? [],
-        members: members ?? [],
-        selectedUserId,
-        currentUserId: user.id,
-        isOwner,
-        isGuardian,
-        guardianForMemberId: membership?.guardian_for ?? null
+        employers: employers ?? []
     };
 };
 
-/* -------------------------------------------------------
-   ACTIONS
-------------------------------------------------------- */
-export const actions: Actions = {
+export const actions = {
     create_employer: async ({ request, locals }) => {
-        const user = locals.user;
-        const householdId = locals.householdId;
-        const supabase = locals.supabase;
+        const access = await getAccessContext(locals, new URL(request.url));
+        if (!access.allowed) throw redirect(303, '/login');
+        if (!access.canEdit) return fail(403, { message: 'Ingen behörighet' });
 
-        if (!user) throw redirect(303, '/login');
-        if (!householdId) return fail(400, { message: 'Saknar hushåll' });
+        const supabase = locals.supabase;
+        const householdId = locals.householdId;
 
         const form = await request.formData();
         const name = form.get('name')?.toString().trim();
-
         if (!name) return fail(400, { message: 'Namn saknas' });
 
         const { data, error } = await supabase
             .from('income_employers')
             .insert({
                 household_id: householdId,
-                user_id: user.id,
+                user_id: access.currentUserId,
                 name
             })
             .select('*')
@@ -351,49 +159,19 @@ export const actions: Actions = {
     },
 
     create_income: async ({ request, locals }) => {
-        const user = locals.user;
-        const householdId = locals.householdId;
-        const supabase = locals.supabase;
+        const access = await getAccessContext(locals, new URL(request.url));
+        if (!access.allowed) throw redirect(303, '/login');
+        if (!access.canEdit) return fail(403, { message: 'Ingen behörighet' });
 
-        if (!user) throw redirect(303, '/login');
-        if (!householdId) return fail(400, { message: 'Saknar hushåll' });
+        const supabase = locals.supabase;
+        const householdId = locals.householdId;
+        const targetUserId = access.selectedUserId;
 
         const form = await request.formData();
-
-        const { membership, isOwner, isGuardian, targetUserIdForGuardian } =
-            await getMembershipContext(supabase, householdId, user.id);
-
-        const selectedUserIdRaw = form.get('selected_user_id');
-        const selectedUserIdFromForm = selectedUserIdRaw ? selectedUserIdRaw.toString() : null;
-
-        let targetUserId: string = user.id;
-
-        if (isOwner) {
-            if (selectedUserIdFromForm) {
-                const { data: memberMatch } = await supabase
-                    .from('household_members')
-                    .select('id')
-                    .eq('household_id', householdId)
-                    .eq('user_id', selectedUserIdFromForm)
-                    .maybeSingle();
-
-                targetUserId = memberMatch ? selectedUserIdFromForm : user.id;
-            } else {
-                targetUserId = user.id;
-            }
-        } else if (isGuardian) {
-            if (!targetUserIdForGuardian) {
-                return fail(400, { message: 'Guardian saknar huvudman' });
-            }
-            targetUserId = targetUserIdForGuardian;
-        } else {
-            targetUserId = user.id;
-        }
-
         const month = parseMonth(form.get('month'));
-        if (!month) return fail(400, { message: 'Ogiltigt månadsvärde' });
+        if (!month) return fail(400, { message: 'Ogiltig månad' });
 
-        const { data: monthRow, error: monthError } = await supabase
+        const { data: monthRow, error: monthErr } = await supabase
             .from('income_months')
             .insert({
                 household_id: householdId,
@@ -403,9 +181,9 @@ export const actions: Actions = {
             .select('id')
             .single();
 
-        if (monthError || !monthRow) return fail(400, { message: monthError?.message });
+        if (monthErr || !monthRow) return fail(400, { message: monthErr?.message });
 
-        const income_month_id: string = monthRow.id;
+        const income_month_id = monthRow.id;
 
         const primaryPayload = {
             income_month_id,
@@ -435,29 +213,23 @@ export const actions: Actions = {
         const attBetalaArr = form.getAll('extra_att_betala_ut');
 
         const extraRows = employerIdArr
-            .map((employerId, i) => {
-                const employer_id = employerId?.toString().trim() || null;
-
-                const row = {
-                    income_month_id,
-                    household_id: householdId,
-                    user_id: targetUserId,
-                    employer_id,
-                    lon_fore_skatt: lonArr[i] || null,
-                    franvaro: franvaroArr[i] || null,
-                    inbetald_skatt: inbetaldArr[i] || null,
-                    frivillig_skatt: frivilligArr[i] || null,
-                    att_betala_ut: attBetalaArr[i] || null
-                };
-
-                return row;
-            })
+            .map((employerId, i) => ({
+                income_month_id,
+                household_id: householdId,
+                user_id: targetUserId,
+                employer_id: employerId?.toString().trim() || null,
+                lon_fore_skatt: lonArr[i] || null,
+                franvaro: franvaroArr[i] || null,
+                inbetald_skatt: inbetaldArr[i] || null,
+                frivillig_skatt: frivilligArr[i] || null,
+                att_betala_ut: attBetalaArr[i] || null
+            }))
+            .filter((row) => row.employer_id)
             .filter((row) =>
                 Object.values(row).some(
                     (v) => v && v !== income_month_id && v !== householdId && v !== targetUserId
                 )
-            )
-            .filter((row) => row.employer_id);
+            );
 
         if (extraRows.length > 0) {
             const { error } = await supabase.from('income_extra_jobs').insert(extraRows);
@@ -481,11 +253,7 @@ export const actions: Actions = {
                 inbetald_skatt: fkInbetaldArr[i] || null,
                 att_betala_ut: fkAttBetalaArr[i] || null
             }))
-            .filter((row) =>
-                Object.values(row).some(
-                    (v) => v && v !== income_month_id && v !== householdId && v !== targetUserId
-                )
-            );
+            .filter((row) => Object.values(row).some((v) => v));
 
         if (fkRows.length > 0) {
             const { error } = await supabase.from('income_fk').insert(fkRows);
@@ -498,53 +266,19 @@ export const actions: Actions = {
     },
 
     update_income: async ({ request, locals }) => {
-        const user = locals.user;
-        const householdId = locals.householdId;
-        const supabase = locals.supabase;
+        const access = await getAccessContext(locals, new URL(request.url));
+        if (!access.allowed) throw redirect(303, '/login');
+        if (!access.canEdit) return fail(403, { message: 'Ingen behörighet' });
 
-        if (!user) throw redirect(303, '/login');
-        if (!householdId) return fail(400, { message: 'Saknar hushåll' });
+        const supabase = locals.supabase;
+        const householdId = locals.householdId;
+        const targetUserId = access.selectedUserId;
 
         const form = await request.formData();
-
-        const income_month_id_raw = form.get('income_month_id');
-        if (!income_month_id_raw) return fail(400, { message: 'Saknar income_month_id' });
-        const income_month_id = income_month_id_raw.toString();
-
-        const { membership, isOwner, isGuardian, targetUserIdForGuardian } =
-            await getMembershipContext(supabase, householdId, user.id);
-
-        const { data: monthOwner, error: monthOwnerError } = await supabase
-            .from('income_months')
-            .select('user_id, household_id')
-            .eq('id', income_month_id)
-            .single();
-
-        if (monthOwnerError || !monthOwner) {
-            return fail(400, { message: 'Kunde inte hitta inkomstmånad' });
-        }
-
-        if (monthOwner.household_id !== householdId) {
-            return fail(403, { message: 'Fel hushåll' });
-        }
-
-        const monthUserId: string = monthOwner.user_id;
-
-        if (isOwner) {
-        } else if (isGuardian) {
-            if (!targetUserIdForGuardian || monthUserId !== targetUserIdForGuardian) {
-                return fail(403, { message: 'Guardian saknar behörighet för denna månad' });
-            }
-        } else {
-            if (monthUserId !== user.id) {
-                return fail(403, { message: 'Ingen behörighet att ändra denna inkomst' });
-            }
-        }
-
-        const targetUserId = monthUserId;
+        const income_month_id = form.get('income_month_id')?.toString();
+        if (!income_month_id) return fail(400, { message: 'Saknar income_month_id' });
 
         const month = parseMonth(form.get('month'));
-
         if (month) {
             const { error } = await supabase
                 .from('income_months')
@@ -611,25 +345,19 @@ export const actions: Actions = {
         const attBetalaArr = form.getAll('extra_att_betala_ut');
 
         const extraRows = employerIdArr
-            .map((employerId, i) => {
-                const employer_id = employerId?.toString().trim() || null;
-
-                const row = {
-                    income_month_id,
-                    household_id: householdId,
-                    user_id: targetUserId,
-                    employer_id,
-                    lon_fore_skatt: lonArr[i] || null,
-                    franvaro: franvaroArr[i] || null,
-                    inbetald_skatt: inbetaldArr[i] || null,
-                    frivillig_skatt: frivilligArr[i] || null,
-                    att_betala_ut: attBetalaArr[i] || null
-                };
-
-                return row;
-            })
-            .filter((row) => Object.values(row).some((v) => v))
-            .filter((row) => row.employer_id);
+            .map((employerId, i) => ({
+                income_month_id,
+                household_id: householdId,
+                user_id: targetUserId,
+                employer_id: employerId?.toString().trim() || null,
+                lon_fore_skatt: lonArr[i] || null,
+                franvaro: franvaroArr[i] || null,
+                inbetald_skatt: inbetaldArr[i] || null,
+                frivillig_skatt: frivilligArr[i] || null,
+                att_betala_ut: attBetalaArr[i] || null
+            }))
+            .filter((row) => row.employer_id)
+            .filter((row) => Object.values(row).some((v) => v));
 
         if (extraRows.length > 0) {
             const { error } = await supabase.from('income_extra_jobs').insert(extraRows);
@@ -649,30 +377,26 @@ export const actions: Actions = {
         const fkInbetaldArr = form.getAll('fk_inbetald_skatt');
         const fkAttBetalaArr = form.getAll('fk_att_betala_ut');
 
-const fkRows = fkTypArr
-    .map((typ, i) => ({
-        income_month_id,
-        household_id: householdId,
-        user_id: targetUserId,
-        fk_typ: typ || null,
-        fk_typ_ovrigt: fkOvrigtArr[i] || null,
-        ersattning_fore_skatt: fkErsArr[i] || null,
-        inbetald_skatt: fkInbetaldArr[i] || null,
-        att_betala_ut: fkAttBetalaArr[i] || null
-    }))
-    .filter((row) => Object.values(row).some((v) => v));
+        const fkRows = fkTypArr
+            .map((typ, i) => ({
+                income_month_id,
+                household_id: householdId,
+                user_id: targetUserId,
+                fk_typ: typ || null,
+                fk_typ_ovrigt: fkOvrigtArr[i] || null,
+                ersattning_fore_skatt: fkErsArr[i] || null,
+                inbetald_skatt: fkInbetaldArr[i] || null,
+                att_betala_ut: fkAttBetalaArr[i] || null
+            }))
+            .filter((row) => Object.values(row).some((v) => v));
 
-if (fkRows.length > 0) {
-    const { error } = await supabase.from('income_fk').insert(fkRows);
-    if (error) return fail(400, { message: error.message });
-}
+        if (fkRows.length > 0) {
+            const { error } = await supabase.from('income_fk').insert(fkRows);
+            if (error) return fail(400, { message: error.message });
+        }
 
-
-        // Synka monthly_income
         await syncMonthlyIncome(supabase, householdId, targetUserId, income_month_id);
 
         throw redirect(303, `/incomes?user_id=${encodeURIComponent(targetUserId)}`);
     }
 };
-
-            
