@@ -5,17 +5,16 @@
     // data.months: string[] (5 månader)
     // data.rows: { label: string; values: number[] }[]
 
-    const months: string[] = data.months ?? [];
-    const rows: { label: string; values: number[] }[] = data.rows ?? [];
+    const months = data.months ?? [];
+    const rows = data.rows ?? [];
 
-    const rowMap = new Map<string, { label: string; values: number[] }>();
+    const rowMap = new Map();
     rows.forEach((r) => rowMap.set(r.label, r));
 
     function getRow(label: string) {
         return rowMap.get(label) ?? { label, values: months.map(() => 0) };
     }
 
-    // Fasta rader i exakt din ordning
     const incomeRows = [
         'Arbete',
         'A-kassa',
@@ -48,7 +47,6 @@
         'Mediciner'
     ];
 
-    // Förbereder raderna i script
     const sumIncome = getRow('Summa inkomst');
     const sumExpenses = getRow('Summa utgifter');
     const balance = getRow('Balans');
@@ -71,9 +69,7 @@
 
         <tbody>
 
-            <!-- ========================= -->
             <!-- INKOMSTER -->
-            <!-- ========================= -->
             <tr class="bg-green-100 font-semibold">
                 <td class="border px-2 py-1" colspan={1 + months.length}>Inkomster</td>
             </tr>
@@ -87,9 +83,7 @@
                 </tr>
             {/each}
 
-            <!-- ========================= -->
             <!-- ÖVRIGA INKOMSTER -->
-            <!-- ========================= -->
             <tr class="bg-green-100 font-semibold">
                 <td class="border px-2 py-1" colspan={1 + months.length}>Övriga inkomster</td>
             </tr>
@@ -103,9 +97,7 @@
                 </tr>
             {/each}
 
-            <!-- ========================= -->
             <!-- SUMMA INKOMST -->
-            <!-- ========================= -->
             <tr class="bg-green-200 font-semibold">
                 <td class="border px-2 py-1">Summa inkomst</td>
                 {#each sumIncome.values as v}
@@ -113,9 +105,7 @@
                 {/each}
             </tr>
 
-            <!-- ========================= -->
             <!-- UTGIFTER -->
-            <!-- ========================= -->
             <tr class="bg-red-100 font-semibold">
                 <td class="border px-2 py-1" colspan={1 + months.length}>Utgifter</td>
             </tr>
@@ -129,9 +119,7 @@
                 </tr>
             {/each}
 
-            <!-- ========================= -->
             <!-- SUMMA UTGIFTER -->
-            <!-- ========================= -->
             <tr class="bg-red-200 font-semibold">
                 <td class="border px-2 py-1">Summa utgifter</td>
                 {#each sumExpenses.values as v}
@@ -139,9 +127,7 @@
                 {/each}
             </tr>
 
-            <!-- ========================= -->
             <!-- BALANS -->
-            <!-- ========================= -->
             <tr class="bg-gray-200 font-semibold">
                 <td class="border px-2 py-1">Balans</td>
                 {#each balance.values as v}
@@ -149,9 +135,7 @@
                 {/each}
             </tr>
 
-            <!-- ========================= -->
             <!-- BISTÅNDSMÅNAD -->
-            <!-- ========================= -->
             <tr class="bg-gray-100">
                 <td class="border px-2 py-1">Biståndsmånad</td>
                 {#each assist.values as v}
@@ -159,9 +143,7 @@
                 {/each}
             </tr>
 
-            <!-- ========================= -->
             <!-- KALENDERMÅNAD -->
-            <!-- ========================= -->
             <tr class="bg-gray-100">
                 <td class="border px-2 py-1">Kalendermånad</td>
                 {#each calendar.values as v}
