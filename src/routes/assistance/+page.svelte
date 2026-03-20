@@ -1,201 +1,117 @@
 <script lang="ts">
-  export let monthName = "Oktober";
-  export let calendarMonth = "Oktober";
+    export let data;
 
-  // Dessa kommer senare från databasen
-  export let incomes = {
-    arbete: 0,
-    akassa: 0,
-    forsorjningsstod: 0,
-    barnbidrag: 0,
-    bostadsbidrag: 0,
-    underhallsbidrag: 0,
-    fp: 0,
-    vab: 0,
-    sjukersattning: 0,
-    ovriga: 0,
-    overskott: 0,
-    korrigering: 0
-  };
+    // months = faktiska månader från DB
+    const months = data.months;
 
-  export let expenses = {
-    hyra: 0,
-    el: 0,
-    hemforsakring: 0,
-    matVuxen: 0,
-    matBarn: 0,
-    ovrigtBarn: 0,
-    internet: 0,
-
-    facket: 0,
-    akassa: 0,
-
-    barnomsorg: 0,
-    samhallsavgifter: 0,
-    sjukhus: 0,
-    mediciner: 0,
-
-    korrigering: 0
-  };
-
-  // Summeringar
-  $: totalIncome =
-    incomes.arbete +
-    incomes.akassa +
-    incomes.forsorjningsstod +
-    incomes.barnbidrag +
-    incomes.bostadsbidrag +
-    incomes.underhallsbidrag +
-    incomes.fp +
-    incomes.vab +
-    incomes.sjukersattning +
-    incomes.ovriga +
-    incomes.overskott +
-    incomes.korrigering;
-
-  $: totalExpenses =
-    expenses.hyra +
-    expenses.el +
-    expenses.hemforsakring +
-    expenses.matVuxen +
-    expenses.matBarn +
-    expenses.ovrigtBarn +
-    expenses.internet +
-    expenses.facket +
-    expenses.akassa +
-    expenses.barnomsorg +
-    expenses.samhallsavgifter +
-    expenses.sjukhus +
-    expenses.mediciner +
-    expenses.korrigering;
-
-  $: balance = totalIncome - totalExpenses;
+    // Hjälpfunktion: skapa biståndsmånad (en månad framåt)
+    function nextMonth(year: number, month: number) {
+        const d = new Date(year, month - 1, 1);
+        d.setMonth(d.getMonth() + 1);
+        return {
+            year: d.getFullYear(),
+            month: d.getMonth() + 1
+        };
+    }
 </script>
 
-<div class="budget-container">
-  <!-- Översta sammanfattningen -->
-  <table class="summary">
-    <tr>
-      <th>In</th>
-      <th>Ut</th>
-      <th>Balans</th>
-      <th>Biståndsmånad</th>
-      <th>Kalendermånad</th>
-    </tr>
-    <tr>
-      <td class="green">{totalIncome} kr</td>
-      <td class="red">{totalExpenses} kr</td>
-      <td class={balance >= 0 ? "green" : "red"}>{balance} kr</td>
-      <td>{monthName}</td>
-      <td>{calendarMonth}</td>
-    </tr>
-  </table>
+<h1 class="text-2xl font-bold mb-6">Bistånd</h1>
 
-  <!-- Inkomster -->
-  <h3>Inkomster</h3>
-  <table>
-    <tr><td>Arbete</td><td>{incomes.arbete} kr</td></tr>
-    <tr><td>A‑kassa</td><td>{incomes.akassa} kr</td></tr>
-    <tr><td>Försörjningsstöd</td><td>{incomes.forsorjningsstod} kr</td></tr>
-    <tr><td>Barnbidrag</td><td>{incomes.barnbidrag} kr</td></tr>
-    <tr><td>Bostadsbidrag</td><td>{incomes.bostadsbidrag} kr</td></tr>
-    <tr><td>Underhållsbidrag</td><td>{incomes.underhallsbidrag} kr</td></tr>
-    <tr><td>Dagersättning (FP)</td><td>{incomes.fp} kr</td></tr>
-    <tr><td>Dagersättning (VAB)</td><td>{incomes.vab} kr</td></tr>
-    <tr><td>Sjukersättning</td><td>{incomes.sjukersattning} kr</td></tr>
-    <tr><td>Övriga insättningar</td><td>{incomes.ovriga} kr</td></tr>
-    <tr><td>Överskridande överskott</td><td>{incomes.overskott} kr</td></tr>
+<div class="space-y-10">
+    {#each months as m}
+        <!-- Faktisk månad -->
+        <div class="border rounded p-4 bg-gray-50">
+            <h2 class="text-xl font-semibold mb-2">
+                {m.year}-{String(m.month).padStart(2, '0')} (Faktisk månad)
+            </h2>
 
-    <!-- Korrigeringsrad -->
-    <tr class="correction">
-      <td>Korrigering (inkomst)</td>
-      <td>{incomes.korrigering} kr</td>
-    </tr>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <p class="font-medium">Inkomster:</p>
+                    <p>{m.total_income} kr</p>
+                </div>
 
-    <tr class="sum">
-      <td><strong>Summa inkomst</strong></td>
-      <td><strong>{totalIncome} kr</strong></td>
-    </tr>
-  </table>
+                <div>
+                    <p class="font-medium">Utgifter:</p>
+                    <p>{m.total_expenses} kr</p>
+                </div>
 
-  <!-- Utgifter -->
-  <h3>Utgifter</h3>
+                <div>
+                    <p class="font-medium">Differens:</p>
+                    <p class={m.total_income - m.total_expenses < 0 ? 'text-red-600' : 'text-green-600'}>
+                        {m.total_income - m.total_expenses} kr
+                    </p>
+                </div>
+            </div>
+        </div>
 
-  <h4>Hem</h4>
-  <table>
-    <tr><td>Hyra</td><td>{expenses.hyra} kr</td></tr>
-    <tr><td>El</td><td>{expenses.el} kr</td></tr>
-    <tr><td>Hemförsäkring</td><td>{expenses.hemforsakring} kr</td></tr>
-    <tr><td>Mat vuxen</td><td>{expenses.matVuxen} kr</td></tr>
-    <tr><td>Mat barn</td><td>{expenses.matBarn} kr</td></tr>
-    <tr><td>Övriga kostnad barn</td><td>{expenses.ovrigtBarn} kr</td></tr>
-    <tr><td>Internet</td><td>{expenses.internet} kr</td></tr>
-  </table>
+        <!-- Biståndsmånad -->
+        {#key m.id}
+            {#let b = nextMonth(m.year, m.month)}
+                <form method="post" action="?/save" class="border rounded p-4 bg-white">
+                    <h2 class="text-xl font-semibold mb-2">
+                        {b.year}-{String(b.month).padStart(2, '0')} (Biståndsmånad)
+                    </h2>
 
-  <h4>Arbete</h4>
-  <table>
-    <tr><td>Facket</td><td>{expenses.facket} kr</td></tr>
-    <tr><td>A‑kassa</td><td>{expenses.akassa} kr</td></tr>
-  </table>
+                    <input type="hidden" name="id" value={m.id} />
 
-  <h4>Samhäll</h4>
-  <table>
-    <tr><td>Barnomsorg</td><td>{expenses.barnomsorg} kr</td></tr>
-    <tr><td>Samhäll</td><td>{expenses.samhallsavgifter} kr</td></tr>
-    <tr><td>Sjukhuskostnader</td><td>{expenses.sjukhus} kr</td></tr>
-    <tr><td>Mediciner</td><td>{expenses.mediciner} kr</td></tr>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="font-medium">Korrigering inkomst</label>
+                            <input
+                                type="number"
+                                name="correction_income"
+                                value={m.correction_income}
+                                class="input"
+                            />
+                        </div>
 
-    <!-- Korrigeringsrad -->
-    <tr class="correction">
-      <td>Korrigering (utgift)</td>
-      <td>{expenses.korrigering} kr</td>
-    </tr>
+                        <div>
+                            <label class="font-medium">Korrigering utgift</label>
+                            <input
+                                type="number"
+                                name="correction_expense"
+                                value={m.correction_expense}
+                                class="input"
+                            />
+                        </div>
 
-    <tr class="sum">
-      <td><strong>Summa utgifter</strong></td>
-      <td><strong>{totalExpenses} kr</strong></td>
-    </tr>
-  </table>
+                        <div>
+                            <label class="font-medium">Soc beslut (saldo)</label>
+                            <input
+                                type="number"
+                                name="soc_decision_balance"
+                                value={m.soc_decision_balance}
+                                class="input"
+                            />
+                        </div>
+
+                        <div class="col-span-2">
+                            <label class="font-medium">Soc anteckningar</label>
+                            <textarea
+                                name="soc_decision_notes"
+                                class="textarea"
+                            >{m.soc_decision_notes}</textarea>
+                        </div>
+
+                        <div class="col-span-2">
+                            <button class="btn-primary">Spara</button>
+                        </div>
+                    </div>
+                </form>
+            {/let}
+        {/key}
+    {/each}
 </div>
 
 <style>
-  .budget-container {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-  }
-
-  table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  td, th {
-    padding: 6px 4px;
-    border-bottom: 1px solid #ddd;
-  }
-
-  .green { color: #0a7a0a; font-weight: 600; }
-  .red { color: #b30000; font-weight: 600; }
-
-  .sum td {
-    background: #f0f0f0;
-    font-weight: bold;
-  }
-
-  .correction td {
-    background: #fff7d6;
-  }
-
-  h3 {
-    margin-top: 12px;
-    margin-bottom: 4px;
-  }
-
-  h4 {
-    margin-top: 16px;
-    margin-bottom: 4px;
-    font-size: 15px;
-    color: #444;
-  }
+    .input {
+        @apply w-full border rounded px-2 py-1;
+    }
+    .textarea {
+        @apply w-full border rounded px-2 py-1 h-24;
+    }
+    .btn-primary {
+        @apply bg-blue-600 text-white px-4 py-2 rounded;
+    }
 </style>
