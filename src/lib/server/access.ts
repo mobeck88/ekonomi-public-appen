@@ -1,5 +1,3 @@
-// src/lib/server/access.ts
-
 type Locals = {
     user: { id: string } | null;
     householdId: string | null;
@@ -12,19 +10,14 @@ export async function getAccessContext(locals: Locals, url: URL) {
     const supabase = locals.supabase;
 
     if (!user) {
-        return {
-            allowed: false,
-            reason: 'not_logged_in' as const
-        };
+        return { allowed: false, reason: 'not_logged_in' as const };
     }
 
     if (!householdId) {
-        return {
-            allowed: false,
-            reason: 'no_household' as const
-        };
+        return { allowed: false, reason: 'no_household' as const };
     }
 
+    // Hämta medlemskap
     const { data: membership } = await supabase
         .from('household_members')
         .select('id, role, guardian_for, user_id')
@@ -37,23 +30,7 @@ export async function getAccessContext(locals: Locals, url: URL) {
     const isGuardian = role === 'guardian';
     const isMember = role === 'member';
 
-    let guardianForMemberId: string | null = null;
-    let guardianForUserId: string | null = null;
-
-    if (isGuardian && membership?.guardian_for) {
-        const { data: target } = await supabase
-            .from('household_members')
-            .select('id, user_id')
-            .eq('id', membership.guardian_for)
-            .eq('household_id', householdId)
-            .maybeSingle();
-
-        if (target) {
-            guardianForMemberId = target.id;
-            guardianForUserId = target.user_id;
-        }
-    }
-
+    // Hämta alla medlemmar
     const { data: members } = await supabase
         .from('household_members')
         .select('id, user_id, role, guardian_for, profiles(full_name)')
@@ -62,30 +39,51 @@ export async function getAccessContext(locals: Locals, url: URL) {
     const userIdParam = url.searchParams.get('user_id');
     let selectedUserId = user.id;
 
+    // OWNER: får hantera alla UTOM guardians
     if (isOwner) {
         if (userIdParam) {
-            const match = members?.find((m: any) => m.user_id === userIdParam);
+            const match = members?.find(
+                (m: any) => m.user_id === userIdParam && m.role !== 'guardian'
+            );
             selectedUserId = match ? userIdParam : user.id;
         }
-    } else if (isGuardian) {
-        selectedUserId = guardianForUserId ?? user.id;
-    } else {
+    }
+
+    // GUARDIAN: får hantera alla med guardian_for = true
+    else if (isGuardian) {
+        const allowedTargets = (members ?? []).filter(
+            (m: any) => m.guardian_for === true
+        );
+
+        if (userIdParam) {
+            const match = allowedTargets.find((m: any) => m.user_id === userIdParam);
+            selectedUserId = match ? userIdParam : allowedTargets[0]?.user_id ?? user.id;
+        } else {
+            selectedUserId = allowedTargets[0]?.user_id ?? user.id;
+        }
+    }
+
+    // MEMBER: får bara hantera sig själv
+    else if (isMember) {
         selectedUserId = user.id;
     }
 
+    // Dropdown‑val
     let selectableMembers: any[] = [];
 
     if (isOwner) {
-        selectableMembers = members ?? [];
-    } else if (isGuardian && guardianForMemberId) {
-        selectableMembers = (members ?? []).filter((m: any) => m.id === guardianForMemberId);
+        selectableMembers = (members ?? []).filter((m: any) => m.role !== 'guardian');
+    } else if (isGuardian) {
+        selectableMembers = (members ?? []).filter((m: any) => m.guardian_for === true);
     } else {
         selectableMembers = [];
     }
 
+    // Redigeringsrättigheter
     const canEdit =
         isOwner ||
-        (isGuardian && selectedUserId === guardianForUserId) ||
+        (isGuardian &&
+            selectableMembers.some((m: any) => m.user_id === selectedUserId)) ||
         (isMember && selectedUserId === user.id);
 
     return {
@@ -99,8 +97,6 @@ export async function getAccessContext(locals: Locals, url: URL) {
         selectableMembers,
         selectedUserId,
         currentUserId: user.id,
-        guardianForMemberId,
-        guardianForUserId,
         canEdit
     };
 }

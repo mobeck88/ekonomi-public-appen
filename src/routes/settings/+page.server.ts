@@ -5,25 +5,32 @@ export const load: PageServerLoad = async ({ locals }) => {
     const user = locals.user;
     if (!user) {
         return {
-            isMemberOfChurch: true
+            isMemberOfChurch: true,
+            hasGuardian: false
         };
     }
 
     const year = new Date().getFullYear();
 
-    const { data, error } = await locals.supabase
+    // Kyrkotillhörighet
+    const { data: churchData } = await locals.supabase
         .from("tax_user_settings")
         .select("is_member_of_church")
         .eq("user_id", user.id)
         .eq("year", year)
         .maybeSingle();
 
-    if (error) {
-        console.error("load tax_user_settings error:", error);
-    }
+    // Hämta guardian-flaggan från household_members
+    const { data: memberData } = await locals.supabase
+        .from("household_members")
+        .select("guardian_for, household_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
 
     return {
-        isMemberOfChurch: data?.is_member_of_church ?? true
+        isMemberOfChurch: churchData?.is_member_of_church ?? true,
+        hasGuardian: memberData?.guardian_for ? true : false,
+        householdId: memberData?.household_id ?? null
     };
 };
 
@@ -50,16 +57,53 @@ export const actions: Actions = {
             );
 
         if (error) {
-            console.error("updateChurch error:", error);
             return fail(500, {
                 message: "Kunde inte uppdatera kyrkotillhörighet: " + error.message,
                 isMember
             });
         }
 
+        return { message: "Kyrkotillhörighet uppdaterad.", isMember };
+    },
+
+    updateGuardianStatus: async ({ request, locals }) => {
+        const user = locals.user;
+        if (!user) throw redirect(303, "/login");
+
+        const form = await request.formData();
+        const hasGuardian = form.get("hasGuardian") === "on";
+
+        // Hämta household_id
+        const { data: memberData, error: memberError } = await locals.supabase
+            .from("household_members")
+            .select("household_id")
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+        if (memberError || !memberData) {
+            return fail(500, { message: "Kunde inte hitta hushållsmedlemskap." });
+        }
+
+        const householdId = memberData.household_id;
+
+        const { error } = await locals.supabase
+            .from("household_members")
+            .update({
+                guardian_for: hasGuardian ? user.id : null
+            })
+            .eq("user_id", user.id)
+            .eq("household_id", householdId);
+
+        if (error) {
+            return fail(500, {
+                message: "Kunde inte uppdatera inställningen.",
+                hasGuardian
+            });
+        }
+
         return {
-            message: "Kyrkotillhörighet uppdaterad.",
-            isMember
+            message: "Inställningen sparad.",
+            hasGuardian
         };
     },
 
@@ -72,7 +116,6 @@ export const actions: Actions = {
         });
 
         if (error) {
-            console.error("changePassword error:", error);
             return fail(500, { message: "Fel: " + error.message });
         }
 
