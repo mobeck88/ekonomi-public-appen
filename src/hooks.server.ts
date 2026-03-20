@@ -8,6 +8,9 @@ export const handle = async ({ event, resolve }) => {
             get: (key) => event.cookies.get(key),
             set: (key, value, options) => event.cookies.set(key, value, options),
             remove: (key, options) => event.cookies.delete(key, options)
+        },
+        global: {
+            fetch: event.fetch   // ← STOPPAR Supabase SSR från att göra interna SELECT-anrop
         }
     });
 
@@ -40,7 +43,7 @@ export const handle = async ({ event, resolve }) => {
     const { data: membership } = await supabase
         .from('household_members')
         .select('household_id')
-        .filter('user_id', 'eq', user.id)   // ← FIX: undviker PostgREST 42P17-buggen
+        .filter('user_id', 'eq', user.id)   // ← säkert för PostgREST
         .maybeSingle();
 
     const householdId = membership?.household_id ?? null;
@@ -56,7 +59,7 @@ export const handle = async ({ event, resolve }) => {
         event.url.pathname === '/register/next' &&
         event.request.method === 'POST';
 
-    // ⭐ NYTT: Tillåt POST på /join
+    // Tillåt POST på /join
     const isJoinAction =
         event.url.pathname === '/join' &&
         event.request.method === 'POST';
