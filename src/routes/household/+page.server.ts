@@ -135,7 +135,7 @@ export const actions: Actions = {
     deleteHousehold: async ({ locals }) => {
         const supabase = locals.supabase;
         const user = locals.user;
-        const householdId = locals.householdId;
+               const householdId = locals.householdId;
 
         if (!householdId) return fail(400, { error: 'Inget hushåll.' });
 
