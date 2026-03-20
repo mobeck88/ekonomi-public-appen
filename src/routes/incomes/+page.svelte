@@ -189,7 +189,7 @@
                 id="user_id"
                 name="user_id"
                 bind:value={selectedUserId}
-                on:change={() => event.target.form.submit()}
+                on:change={(e) => e.target.form.submit()}
             >
                 {#each members as m}
                     <option value={m.user_id}>
@@ -580,10 +580,10 @@
         vertical-align: top;
     }
 
-tr:hover {
-    background: #f3f4f6;
-    cursor: pointer;
-}
+    tr:hover {
+        background: #f3f4f6;
+        cursor: pointer;
+    }
 
     .member-selector {
         padding: 1rem;
@@ -591,12 +591,4 @@ tr:hover {
         align-items: center;
         gap: 0.75rem;
     }
-
-    .member-selector form {
-        display: flex;
-        gap: 0.75rem;
-        align-items: center;
-        flex-wrap: wrap;
-    }
 </style>
-
