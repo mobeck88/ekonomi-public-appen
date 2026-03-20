@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/auth-helpers-sveltekit';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
 export const handle = async ({ event, resolve }) => {
+    // Skapa Supabase-klient utan SSR-prefetch
     const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         cookies: {
             get: (key) => event.cookies.get(key),
@@ -10,20 +11,20 @@ export const handle = async ({ event, resolve }) => {
             remove: (key, options) => event.cookies.delete(key, options)
         },
         global: {
-            fetch: event.fetch   // ← STOPPAR Supabase SSR från att göra interna SELECT-anrop
+            fetch: event.fetch // ← Stoppar interna SELECT-anrop
         }
     });
 
     event.locals.supabase = supabase;
 
-    // Hämta användare
-    const { data: userData } = await supabase.auth.getUser();
-    const user = userData?.user ?? null;
+    // Hämta användare manuellt
+    const {
+        data: { user }
+    } = await supabase.auth.getUser();
 
-    // Offentliga routes som inte kräver login
+    // Offentliga routes
     const publicRoutes = ['/login', '/register'];
 
-    // Ingen användare → endast tillåt public routes
     if (!user) {
         if (!publicRoutes.includes(event.url.pathname)) {
             throw redirect(303, '/login');
@@ -36,30 +37,27 @@ export const handle = async ({ event, resolve }) => {
         });
     }
 
-    // Användare finns
     event.locals.user = user;
 
-    // Hämta hushållsmedlemskap
+    // Hämta hushållsmedlemskap (din SELECT, inte SSR-klientens)
     const { data: membership } = await supabase
         .from('household_members')
         .select('household_id')
-        .filter('user_id', 'eq', user.id)   // ← säkert för PostgREST
+        .filter('user_id', 'eq', user.id)
         .maybeSingle();
 
     const householdId = membership?.household_id ?? null;
     event.locals.householdId = householdId;
 
-    // Routes som ska vara tillåtna även utan hushåll
+    // Routes som är tillåtna utan hushåll
     const isRegisterRoute = event.url.pathname.startsWith('/register');
     const isJoinRoute = event.url.pathname.startsWith('/join');
     const isLogoutRoute = event.url.pathname === '/logout';
 
-    // Tillåt POST på /register/next
     const isRegisterNextAction =
         event.url.pathname === '/register/next' &&
         event.request.method === 'POST';
 
-    // Tillåt POST på /join
     const isJoinAction =
         event.url.pathname === '/join' &&
         event.request.method === 'POST';
@@ -76,7 +74,6 @@ export const handle = async ({ event, resolve }) => {
         throw redirect(303, '/register/next');
     }
 
-    // Allt OK → fortsätt
     return resolve(event, {
         filterSerializedResponseHeaders(name) {
             return name === 'set-cookie';
