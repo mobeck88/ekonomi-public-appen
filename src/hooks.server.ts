@@ -1,26 +1,25 @@
 import { redirect } from '@sveltejs/kit';
-import { createServerClient } from '@supabase/auth-helpers-sveltekit';
+import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
 export const handle = async ({ event, resolve }) => {
-    // Skapa Supabase-klient utan SSR-prefetch
-    const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        cookies: {
-            get: (key) => event.cookies.get(key),
-            set: (key, value, options) => event.cookies.set(key, value, options),
-            remove: (key, options) => event.cookies.delete(key, options)
-        },
-        global: {
-            fetch: event.fetch // ← Stoppar interna SELECT-anrop
-        }
+    // Skapa en ren Supabase-klient utan SSR-prefetch eller auth-helpers
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        global: { fetch: event.fetch }
     });
 
     event.locals.supabase = supabase;
 
-    // Hämta användare manuellt
-    const {
-        data: { user }
-    } = await supabase.auth.getUser();
+    // Läs session-token från cookies
+    const access_token = event.cookies.get('sb-access-token');
+
+    let user = null;
+
+    if (access_token) {
+        // Verifiera token manuellt
+        const { data } = await supabase.auth.getUser(access_token);
+        user = data?.user ?? null;
+    }
 
     // Offentliga routes
     const publicRoutes = ['/login', '/register'];
@@ -39,7 +38,7 @@ export const handle = async ({ event, resolve }) => {
 
     event.locals.user = user;
 
-    // Hämta hushållsmedlemskap (din SELECT, inte SSR-klientens)
+    // Hämta hushållsmedlemskap (din SELECT, inga dolda queries)
     const { data: membership } = await supabase
         .from('household_members')
         .select('household_id')
