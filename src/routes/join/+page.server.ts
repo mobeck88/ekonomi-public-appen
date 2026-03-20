@@ -6,13 +6,15 @@ export const actions: Actions = {
         const data = await request.formData();
         const code = data.get('code');
 
-        console.log("JOIN ACTION KÖRS, code:", code);
+        console.log("JOIN ACTION KÖRS, code (raw):", code);
 
         if (!code || typeof code !== 'string') {
             return fail(400, { error: "Ingen kod angiven" });
         }
 
-        // Hämta supabase-klienten
+        const trimmedCode = code.trim();
+        console.log("JOIN ACTION, code (trimmed):", trimmedCode);
+
         const supabase = locals.supabase;
         const user = locals.user;
 
@@ -20,12 +22,13 @@ export const actions: Actions = {
             return fail(401, { error: "Ingen användare inloggad" });
         }
 
-        // Kontrollera att hushållet finns
         const { data: household, error: householdError } = await supabase
             .from('households')
-            .select('id')
-            .filter('join_code', 'eq', code)
+            .select('id, join_code')
+            .eq('join_code', trimmedCode)
             .maybeSingle();
+
+        console.log("JOIN HOUSEHOLD RESULT:", { household, householdError });
 
         if (householdError) {
             console.error("Household error:", householdError);
@@ -36,7 +39,6 @@ export const actions: Actions = {
             return fail(400, { error: "Ogiltig hushållskod" });
         }
 
-        // Lägg till användaren i hushållet — nu med loggning
         const { data: insertData, error: insertError } = await supabase
             .from('household_members')
             .insert({
