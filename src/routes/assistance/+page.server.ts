@@ -1,5 +1,5 @@
 import { redirect } from '@sveltejs/kit';
-import type { PageServerLoad, Actions } from './$types';
+import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
     const user = locals.user;
@@ -198,56 +198,4 @@ export const load: PageServerLoad = async ({ locals }) => {
         incomeRows,
         rows: [...rows.entries()].map(([label, values]) => ({ label, values }))
     };
-};
-
-export const actions: Actions = {
-    updateCorrection: async ({ request, locals }) => {
-        const supabase = locals.supabase;
-        const householdId = locals.householdId;
-
-        if (!householdId) {
-            return { success: false };
-        }
-
-        const data = await request.json();
-        const { type, month, amount } = data as {
-            type: 'income' | 'expense';
-            month: string;
-            amount: number;
-        };
-
-        const [yearStr, monthStr] = month.split('-');
-        const year = Number(yearStr);
-        const m = Number(monthStr);
-
-        const { data: existing } = await supabase
-            .from('assistance_months')
-            .select('*')
-            .eq('household_id', householdId)
-            .eq('year', year)
-            .eq('month', m)
-            .maybeSingle();
-
-        const payload: any = {
-            household_id: householdId,
-            year,
-            month: m,
-            total_income: existing?.total_income ?? 0,
-            total_expenses: existing?.total_expenses ?? 0,
-            correction_income: existing?.correction_income ?? 0,
-            correction_expense: existing?.correction_expense ?? 0
-        };
-
-        if (type === 'income') {
-            payload.correction_income = amount;
-        } else {
-            payload.correction_expense = amount;
-        }
-
-        await supabase
-            .from('assistance_months')
-            .upsert(payload, { onConflict: 'household_id,year,month' });
-
-        return { success: true };
-    }
 };

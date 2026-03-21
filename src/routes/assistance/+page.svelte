@@ -81,7 +81,7 @@
         saveError = null;
 
         try {
-            const res = await fetch('?/updateCorrection', {
+            const res = await fetch('/assistance/updateCorrection', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ type, month, amount })
@@ -108,12 +108,8 @@
 
         if (type === 'income') {
             incomeCorrectionRow.values[index] = Number(value || 0);
-            sumIncome.values[index] =
-                sumIncome.values[index] - 0 + Number(value || 0) - 0; // vi räknar om via server vid reload
         } else {
             expenseCorrectionRow.values[index] = Number(value || 0);
-            sumExpenses.values[index] =
-                sumExpenses.values[index] - 0 + Number(value || 0) - 0;
         }
 
         if (saveTimeout) clearTimeout(saveTimeout);
