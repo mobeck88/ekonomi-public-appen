@@ -32,7 +32,11 @@
         ...(enable_assistance
             ? [
                   { label: "Ekonomiskt bistånd", header: true },
-                  { label: "Ekonomiskt bistånd", path: "/assistance" }
+                  { label: "Ekonomiskt bistånd", path: "/assistance" },
+
+                  // ⭐ NYA SIDAN
+                  { label: "Fasta utgifter riksnorm", header: true },
+                  { label: "Fasta utgifter riksnorm", path: "/fasta-utgifter-riksnorm" }
               ]
             : []),
         { label: "Inställningar", header: true },
