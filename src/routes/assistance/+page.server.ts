@@ -9,7 +9,15 @@ export const load: PageServerLoad = async ({ locals }) => {
     if (!user) return redirect(303, '/login');
     if (!householdId) return { months: [], rows: [], incomeRows: [] };
 
-    // 1. HÄMTA MÅNADER
+    // 1. HÄMTA HUSHÅLLSMEDLEMMAR
+    const { data: members } = await supabase
+        .from('household_members')
+        .select('user_id')
+        .eq('household_id', householdId);
+
+    const memberIds = members?.map(m => m.user_id) ?? [];
+
+    // 2. HÄMTA MÅNADER
     const { data: monthsData } = await supabase
         .from('income_months')
         .select('id, month_date')
@@ -33,29 +41,29 @@ export const load: PageServerLoad = async ({ locals }) => {
         months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
     }
 
-    // 2. HÄMTA INKOMSTER FÖR HELA HUSHÅLLET
+    // 3. HÄMTA INKOMSTER FÖR HELA HUSHÅLLET
     const { data: primary } = await supabase
         .from('income_primary_job')
-        .select('income_month_id, att_betala_ut')
-        .eq('household_id', householdId);
+        .select('income_month_id, att_betala_ut, user_id')
+        .in('user_id', memberIds);
 
     const { data: extra } = await supabase
         .from('income_extra_jobs')
-        .select('income_month_id, att_betala_ut')
-        .eq('household_id', householdId);
+        .select('income_month_id, att_betala_ut, user_id')
+        .in('user_id', memberIds);
 
     const { data: fk } = await supabase
         .from('income_fk')
-        .select('income_month_id, fk_typ, att_betala_ut')
-        .eq('household_id', householdId);
+        .select('income_month_id, fk_typ, att_betala_ut, user_id')
+        .in('user_id', memberIds);
 
-    // 3. HÄMTA UTGIFTER FÖR HELA HUSHÅLLET
+    // 4. HÄMTA UTGIFTER FÖR HELA HUSHÅLLET
     const { data: expenses } = await supabase
         .from('expenses')
-        .select('income_month_id, category, amount')
-        .eq('household_id', householdId);
+        .select('income_month_id, category, amount, user_id')
+        .in('user_id', memberIds);
 
-    // 4. MAPPAR
+    // 5. MAPPAR
     const monthIdMap = new Map<string, string>();
     sorted.forEach((m) => {
         const key = `${m.date.getFullYear()}-${String(m.date.getMonth() + 1).padStart(2, '0')}`;
@@ -74,7 +82,7 @@ export const load: PageServerLoad = async ({ locals }) => {
         if (idx !== -1) rows.get(label)![idx] += amount;
     }
 
-    // 5. FYLL IN INKOMSTER
+    // 6. FYLL IN INKOMSTER
     primary?.forEach((p) => {
         const month = [...monthIdMap.entries()].find(([, id]) => id === p.income_month_id)?.[0];
         if (month) add('Arbete', month, Number(p.att_betala_ut));
@@ -102,26 +110,18 @@ export const load: PageServerLoad = async ({ locals }) => {
         }
     });
 
-    // 6. FYLL IN UTGIFTER
+    // 7. FYLL IN UTGIFTER
     expenses?.forEach((ex) => {
         const month = [...monthIdMap.entries()].find(([, id]) => id === ex.income_month_id)?.[0];
         if (!month) return;
         add(ex.category, month, Number(ex.amount));
     });
 
-    // 7. SUMMERINGAR
+    // 8. SUMMERINGAR
     const incomeRows = [
-        'Arbete',
-        'A-kassa',
-        'Försörjningsstöd',
-        'Barnbidrag',
-        'Bostadsbidrag',
-        'Underhållsbidrag',
-        'Dagersättning (FP)',
-        'Dagersättning (VAB)',
-        'Sjukersättning',
-        'Övriga insättningar',
-        'Överskridande överskott'
+        'Arbete','A-kassa','Försörjningsstöd','Barnbidrag','Bostadsbidrag',
+        'Underhållsbidrag','Dagersättning (FP)','Dagersättning (VAB)',
+        'Sjukersättning','Övriga insättningar','Överskridande överskott'
     ];
 
     function sumRow(labels: string[]) {
@@ -137,14 +137,14 @@ export const load: PageServerLoad = async ({ locals }) => {
     const sumIncome = sumRow(incomeRows);
 
     const sumExpenses = sumRow([
-        'Hyra', 'El', 'Hemförsäkring', 'Mat vuxen', 'Mat barn',
-        'Övriga kostnad barn', 'Internet', 'Facket', 'A-kassa (avgift)',
-        'Barnomsorg', 'Sjukhuskostnader', 'Mediciner'
+        'Hyra','El','Hemförsäkring','Mat vuxen','Mat barn',
+        'Övriga kostnad barn','Internet','Facket','A-kassa (avgift)',
+        'Barnomsorg','Sjukhuskostnader','Mediciner'
     ]);
 
     const balance = sumIncome.map((v, i) => v - sumExpenses[i]);
 
-    // 8. SYSTEMRADER
+    // 9. SYSTEMRADER
     rows.set('Summa inkomst', sumIncome);
     rows.set('Summa utgifter', sumExpenses);
     rows.set('Balans', balance);
@@ -160,7 +160,6 @@ export const load: PageServerLoad = async ({ locals }) => {
     rows.set('Biståndsmånad', assistMonths as unknown as number[]);
     rows.set('Kalendermånad', months as unknown as number[]);
 
-    // 9. RETURNERA
     return {
         months,
         incomeRows,

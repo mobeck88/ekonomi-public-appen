@@ -20,11 +20,8 @@
     }
 
     const otherIncomeRows = [
-        'Dagersättning (FP)',
-        'Dagersättning (VAB)',
-        'Sjukersättning',
-        'Övriga insättningar',
-        'Överskridande överskott'
+        'Dagersättning (FP)','Dagersättning (VAB)','Sjukersättning',
+        'Övriga insättningar','Överskridande överskott'
     ];
 
     const homeRows = [
@@ -116,7 +113,7 @@
                 <tr class="bg-green-50">
                     <td class="border">{label}</td>
                     {#each getRow(label).values as v}
-                        <td class="border text-right">{v}</td>
+                        <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
             {/each}
@@ -129,7 +126,7 @@
                 <tr class="bg-green-50">
                     <td class="border">{label}</td>
                     {#each getRow(label).values as v}
-                        <td class="border text-right">{v}</td>
+                        <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
             {/each}
@@ -137,7 +134,7 @@
             <tr class="income-header font-semibold">
                 <td class="border">Summa inkomst</td>
                 {#each sumIncome.values as v}
-                    <td class="border text-right">{v}</td>
+                    <td class="border text-right">{v} kr</td>
                 {/each}
             </tr>
 
@@ -153,7 +150,7 @@
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
                     {#each getRow(label).values as v}
-                        <td class="border text-right">{v}</td>
+                        <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
             {/each}
@@ -166,7 +163,7 @@
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
                     {#each getRow(label).values as v}
-                        <td class="border text-right">{v}</td>
+                        <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
             {/each}
@@ -179,7 +176,7 @@
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
                     {#each getRow(label).values as v}
-                        <td class="border text-right">{v}</td>
+                        <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
             {/each}
@@ -192,7 +189,7 @@
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
                     {#each getRow(label).values as v}
-                        <td class="border text-right">{v}</td>
+                        <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
             {/each}
@@ -200,14 +197,14 @@
             <tr class="expense-header font-semibold">
                 <td class="border">Summa utgifter</td>
                 {#each sumExpenses.values as v}
-                    <td class="border text-right">{v}</td>
+                    <td class="border text-right">{v} kr</td>
                 {/each}
             </tr>
 
             <tr class="balance-row">
                 <td class="border">Balans</td>
                 {#each balance.values as v}
-                    <td class="border text-right">{v}</td>
+                    <td class="border text-right">{v} kr</td>
                 {/each}
             </tr>
         </tbody>
