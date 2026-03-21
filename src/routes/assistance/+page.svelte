@@ -1,64 +1,75 @@
+<script lang="ts">
+    export let data;
+
+    const months = data.months ?? [];
+    const rows = data.rows ?? [];
+    const incomeRows = data.incomeRows ?? [];
+
+    const otherIncomeRows = [
+        'Dagersättning (FP)',
+        'Dagersättning (VAB)',
+        'Sjukersättning',
+        'Övriga insättningar',
+        'Överskridande överskott'
+    ];
+
+    const homeRows = [
+        'Hyra', 'El', 'Hemförsäkring', 'Mat vuxen', 'Mat barn',
+        'Övriga kostnad barn', 'Internet'
+    ];
+
+    const workRows = ['Facket', 'A-kassa (avgift)'];
+    const societyRows = ['Barnomsorg'];
+    const healthRows = ['Sjukhuskostnader', 'Mediciner'];
+
+    const rowMap = new Map();
+    rows.forEach((r) => rowMap.set(r.label, r));
+
+    function getRow(label: string) {
+        const r = rowMap.get(label);
+        if (!r) return { label, values: months.map(() => 0) };
+        if (!r.values) return { label, values: months.map(() => 0) };
+        return r;
+    }
+
+    function isRowVisible(label: string) {
+        const row = getRow(label);
+        return row.values.some(v => v !== 0 && v !== null && v !== '');
+    }
+
+    const sumIncome = getRow('Summa inkomst');
+    const sumExpenses = getRow('Summa utgifter');
+    const balance = getRow('Balans');
+    const assist = getRow('Biståndsmånad');
+    const calendar = getRow('Kalendermånad');
+</script>
+
 <style>
-    /* Sticky header */
     thead th {
         position: sticky;
         top: 0;
         z-index: 10;
-        background: #f3f4f6; /* gray-100 */
+        background: #f3f4f6;
     }
-
-    /* Hover rows */
-    tbody tr:hover td {
-        background-color: #f9fafb; /* gray-50 */
-    }
-
-    /* Excel-like cell spacing */
-    td, th {
-        padding: 10px 12px;
-        font-size: 0.9rem;
-    }
-
-    /* Section headers */
-    .section-header {
-        background: #e5e7eb; /* gray-200 */
-        font-weight: 700;
-        font-size: 1rem;
-    }
-
-    .income-header {
-        background: #bbf7d0; /* green-200 */
-    }
-
-    .income-subheader {
-        background: #d1fae5; /* green-100 */
-    }
-
-    .expense-header {
-        background: #fecaca; /* red-200 */
-    }
-
-    .expense-subheader {
-        background: #fee2e2; /* red-100 */
-    }
-
-    .balance-row {
-        background: #e5e7eb; /* gray-200 */
-        font-weight: 600;
-    }
-
+    tbody tr:hover td { background-color: #f9fafb; }
+    td, th { padding: 10px 12px; font-size: 0.9rem; }
     table {
         border-radius: 8px;
         overflow: hidden;
         box-shadow: 0 2px 6px rgba(0,0,0,0.08);
     }
+    .section-header { background: #e5e7eb; font-weight: 700; font-size: 1rem; }
+    .income-header { background: #bbf7d0; }
+    .income-subheader { background: #d1fae5; }
+    .expense-header { background: #fecaca; }
+    .expense-subheader { background: #fee2e2; }
+    .balance-row { background: #e5e7eb; font-weight: 600; }
 </style>
 
 <h1 class="text-2xl font-bold mb-6">Bistånd</h1>
 
 <div class="overflow-x-auto">
     <table class="min-w-full text-sm border-collapse">
-
-        <!-- HEADER -->
         <thead>
             <tr>
                 <th class="border text-left">Kategori</th>
@@ -69,8 +80,6 @@
         </thead>
 
         <tbody>
-
-            <!-- BISTÅNDSMÅNAD -->
             <tr class="section-header">
                 <td class="border">Biståndsmånad</td>
                 {#each assist.values as v}
@@ -78,7 +87,6 @@
                 {/each}
             </tr>
 
-            <!-- KALENDERMÅNAD -->
             <tr class="section-header">
                 <td class="border">Kalendermånad</td>
                 {#each calendar.values as v}
@@ -86,12 +94,11 @@
                 {/each}
             </tr>
 
-            <!-- INKOMSTER -->
             <tr class="income-header section-header">
                 <td class="border" colspan={1 + months.length}>Inkomster</td>
             </tr>
 
-            {#each incomeRows as label}
+            {#each incomeRows.filter(isRowVisible) as label}
                 <tr class="bg-green-50">
                     <td class="border">{label}</td>
                     {#each getRow(label).values as v}
@@ -100,12 +107,11 @@
                 </tr>
             {/each}
 
-            <!-- ÖVRIGA INKOMSTER -->
             <tr class="income-subheader section-header">
                 <td class="border" colspan={1 + months.length}>Övriga inkomster</td>
             </tr>
 
-            {#each otherIncomeRows as label}
+            {#each otherIncomeRows.filter(isRowVisible) as label}
                 <tr class="bg-green-50">
                     <td class="border">{label}</td>
                     {#each getRow(label).values as v}
@@ -114,7 +120,6 @@
                 </tr>
             {/each}
 
-            <!-- SUMMA INKOMST -->
             <tr class="income-header font-semibold">
                 <td class="border">Summa inkomst</td>
                 {#each sumIncome.values as v}
@@ -122,17 +127,15 @@
                 {/each}
             </tr>
 
-            <!-- UTGIFTER -->
             <tr class="expense-header section-header">
                 <td class="border" colspan={1 + months.length}>Utgifter</td>
             </tr>
 
-            <!-- HEM -->
             <tr class="expense-subheader section-header">
                 <td class="border" colspan={1 + months.length}>Hem</td>
             </tr>
 
-            {#each homeRows as label}
+            {#each homeRows.filter(isRowVisible) as label}
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
                     {#each getRow(label).values as v}
@@ -141,12 +144,11 @@
                 </tr>
             {/each}
 
-            <!-- ARBETE -->
             <tr class="expense-subheader section-header">
                 <td class="border" colspan={1 + months.length}>Arbete</td>
             </tr>
 
-            {#each workRows as label}
+            {#each workRows.filter(isRowVisible) as label}
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
                     {#each getRow(label).values as v}
@@ -155,12 +157,11 @@
                 </tr>
             {/each}
 
-            <!-- SAMHÄLL -->
             <tr class="expense-subheader section-header">
                 <td class="border" colspan={1 + months.length}>Samhäll</td>
             </tr>
 
-            {#each societyRows as label}
+            {#each societyRows.filter(isRowVisible) as label}
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
                     {#each getRow(label).values as v}
@@ -169,12 +170,11 @@
                 </tr>
             {/each}
 
-            <!-- SAMHÄLL (VÅRD) -->
             <tr class="expense-subheader section-header">
                 <td class="border" colspan={1 + months.length}>Samhäll (vård)</td>
             </tr>
 
-            {#each healthRows as label}
+            {#each healthRows.filter(isRowVisible) as label}
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
                     {#each getRow(label).values as v}
@@ -183,7 +183,6 @@
                 </tr>
             {/each}
 
-            <!-- SUMMA UTGIFTER -->
             <tr class="expense-header font-semibold">
                 <td class="border">Summa utgifter</td>
                 {#each sumExpenses.values as v}
@@ -191,14 +190,12 @@
                 {/each}
             </tr>
 
-            <!-- BALANS -->
             <tr class="balance-row">
                 <td class="border">Balans</td>
                 {#each balance.values as v}
                     <td class="border text-right">{v}</td>
                 {/each}
             </tr>
-
         </tbody>
     </table>
 </div>

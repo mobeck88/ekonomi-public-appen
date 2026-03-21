@@ -7,11 +7,9 @@ export const load: PageServerLoad = async ({ locals }) => {
     const supabase = locals.supabase;
 
     if (!user) return redirect(303, '/login');
-    if (!householdId) return { months: [], rows: [] };
+    if (!householdId) return { months: [], rows: [], incomeRows: [] };
 
-    // ============================
-    // 1. HÄMTA ALLA MÅNADER
-    // ============================
+    // 1. HÄMTA MÅNADER
     const { data: monthsData } = await supabase
         .from('income_months')
         .select('id, month_date')
@@ -20,16 +18,13 @@ export const load: PageServerLoad = async ({ locals }) => {
         .order('month_date', { ascending: true });
 
     if (!monthsData || monthsData.length === 0) {
-        return { months: [], rows: [] };
+        return { months: [], rows: [], incomeRows: [] };
     }
 
-    // Sortera och välj 3 bakåt + nu + nästa
     const sorted = monthsData.map((m) => ({
         id: m.id,
         date: new Date(m.month_date)
-    }));
-
-    sorted.sort((a, b) => a.date.getTime() - b.date.getTime());
+    })).sort((a, b) => a.date.getTime() - b.date.getTime());
 
     const last = sorted[sorted.length - 1].date;
     const months: string[] = [];
@@ -40,9 +35,7 @@ export const load: PageServerLoad = async ({ locals }) => {
         months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
     }
 
-    // ============================
     // 2. HÄMTA INKOMSTER
-    // ============================
     const { data: primary } = await supabase
         .from('income_primary_job')
         .select('income_month_id, att_betala_ut');
@@ -55,16 +48,15 @@ export const load: PageServerLoad = async ({ locals }) => {
         .from('income_fk')
         .select('income_month_id, fk_typ, att_betala_ut');
 
-    // ============================
+    // Dynamiska inkomstrader
+    const incomeRows = [...new Set(fk?.map((f) => f.fk_typ) ?? [])];
+
     // 3. HÄMTA UTGIFTER
-    // ============================
     const { data: expenses } = await supabase
         .from('expenses')
         .select('income_month_id, category, amount');
 
-    // ============================
-    // 4. BYGG MAPPAR
-    // ============================
+    // 4. MAPPAR
     const monthIdMap = new Map<string, string>();
     sorted.forEach((m) => {
         const key = `${m.date.getFullYear()}-${String(m.date.getMonth() + 1).padStart(2, '0')}`;
@@ -83,9 +75,7 @@ export const load: PageServerLoad = async ({ locals }) => {
         if (idx !== -1) rows.get(label)![idx] += amount;
     }
 
-    // ============================
     // 5. FYLL IN INKOMSTER
-    // ============================
     primary?.forEach((p) => {
         const month = [...monthIdMap.entries()].find(([, id]) => id === p.income_month_id)?.[0];
         if (month) add('Arbete', month, Number(p.att_betala_ut));
@@ -93,7 +83,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
     extra?.forEach((e) => {
         const month = [...monthIdMap.entries()].find(([, id]) => id === e.income_month_id)?.[0];
-        if (month) add('Arbete', month, Number(e.att_betala_ut)); // Extra jobb = arbete
+        if (month) add('Arbete', month, Number(e.att_betala_ut));
     });
 
     fk?.forEach((f) => {
@@ -101,31 +91,17 @@ export const load: PageServerLoad = async ({ locals }) => {
         if (!month) return;
 
         const val = Number(f.att_betala_ut);
-
-        switch (f.fk_typ) {
-            case 'A-kassa': add('A-kassa', month, val); break;
-            case 'Föräldrapenning': add('Dagersättning (FP)', month, val); break;
-            case 'VAB': add('Dagersättning (VAB)', month, val); break;
-            case 'Sjukpenning': add('Sjukersättning', month, val); break;
-            case 'Bostadsbidrag': add('Bostadsbidrag', month, val); break;
-            case 'Underhållsstöd': add('Underhållsbidrag', month, val); break;
-            default: add('Övriga insättningar', month, val); break;
-        }
+        add(f.fk_typ, month, val);
     });
 
-    // ============================
     // 6. FYLL IN UTGIFTER
-    // ============================
     expenses?.forEach((ex) => {
         const month = [...monthIdMap.entries()].find(([, id]) => id === ex.income_month_id)?.[0];
         if (!month) return;
-
         add(ex.category, month, Number(ex.amount));
     });
 
-    // ============================
     // 7. SUMMERINGAR
-    // ============================
     function sumRow(labels: string[]) {
         const arr = emptyValues();
         labels.forEach((label) => {
@@ -136,51 +112,26 @@ export const load: PageServerLoad = async ({ locals }) => {
         return arr;
     }
 
-    const sumIncome = sumRow([
-        'Arbete',
-        'A-kassa',
-        'Försörjningsstöd',
-        'Barnbidrag',
-        'Bostadsbidrag',
-        'Underhållsbidrag',
-        'Dagersättning (FP)',
-        'Dagersättning (VAB)',
-        'Sjukersättning',
-        'Övriga insättningar',
-        'Överskridande överskott'
-    ]);
-
+    const sumIncome = sumRow([...incomeRows]);
     const sumExpenses = sumRow([
-        'Hyra',
-        'El',
-        'Hemförsäkring',
-        'Mat vuxen',
-        'Mat barn',
-        'Övriga kostnad barn',
-        'Internet',
-        'Facket',
-        'A-kassa (avgift)',
-        'Barnomsorg',
-        'Sjukhuskostnader',
-        'Mediciner'
+        'Hyra', 'El', 'Hemförsäkring', 'Mat vuxen', 'Mat barn',
+        'Övriga kostnad barn', 'Internet', 'Facket', 'A-kassa (avgift)',
+        'Barnomsorg', 'Sjukhuskostnader', 'Mediciner'
     ]);
 
     const balance = sumIncome.map((v, i) => v - sumExpenses[i]);
 
-    // ============================
-    // 8. LÄGG IN SYSTEMRADER
-    // ============================
+    // 8. SYSTEMRADER
     rows.set('Summa inkomst', sumIncome);
     rows.set('Summa utgifter', sumExpenses);
     rows.set('Balans', balance);
     rows.set('Biståndsmånad', emptyValues());
     rows.set('Kalendermånad', months);
 
-    // ============================
-    // 9. RETURNERA TILL UI
-    // ============================
+    // 9. RETURNERA
     return {
         months,
+        incomeRows,
         rows: [...rows.entries()].map(([label, values]) => ({ label, values }))
     };
 };
