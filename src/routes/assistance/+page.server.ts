@@ -1,5 +1,5 @@
 import { redirect } from '@sveltejs/kit';
-import type { PageServerLoad } from './$types';
+import type { PageServerLoad, Actions } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
     const user = locals.user;
@@ -42,23 +42,20 @@ export const load: PageServerLoad = async ({ locals }) => {
         months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
     }
 
-    // 5. Hämta inkomster och utgifter
-    const [
-        primaryRes,
-        extraJobsRes,
-        fkRes,
-        expensesRes
-    ] = await Promise.all([
+    // 5. Hämta inkomster, utgifter och assistance_months
+    const [primaryRes, extraJobsRes, fkRes, expensesRes, assistanceRes] = await Promise.all([
         supabase.from('income_primary_job').select('*').eq('household_id', householdId),
         supabase.from('income_extra_jobs').select('*').eq('household_id', householdId),
         supabase.from('income_fk').select('*').eq('household_id', householdId),
-        supabase.from('expenses').select('*').eq('household_id', householdId)
+        supabase.from('expenses').select('*').eq('household_id', householdId),
+        supabase.from('assistance_months').select('*').eq('household_id', householdId)
     ]);
 
     const primary = primaryRes.data ?? [];
     const extraJobs = extraJobsRes.data ?? [];
     const fk = fkRes.data ?? [];
     const expenses = expensesRes.data ?? [];
+    const assistanceMonths = assistanceRes.data ?? [];
 
     // 6. Mappa income_month_id → YYYY-MM
     const toYM = (value: any) => {
@@ -146,7 +143,27 @@ export const load: PageServerLoad = async ({ locals }) => {
         add(ex.category, ym, ex.amount);
     }
 
-    // 10. Summeringar
+    // 10. Korrigeringar från assistance_months
+    const assistanceMap = new Map<string, (typeof assistanceMonths)[number]>();
+    for (const row of assistanceMonths) {
+        const ym = `${row.year}-${String(row.month).padStart(2, '0')}`;
+        assistanceMap.set(ym, row);
+    }
+
+    const incomeCorrection = emptyValues();
+    const expenseCorrection = emptyValues();
+
+    months.forEach((m, idx) => {
+        const row = assistanceMap.get(m);
+        if (!row) return;
+        incomeCorrection[idx] = Number(row.correction_income ?? 0);
+        expenseCorrection[idx] = Number(row.correction_expense ?? 0);
+    });
+
+    rows.set('Korrigering inkomst', incomeCorrection);
+    rows.set('Korrigering utgift', expenseCorrection);
+
+    // 11. Summeringar
     const sumRow = (labels: string[]) => {
         const arr = emptyValues();
         for (const label of labels) {
@@ -157,15 +174,15 @@ export const load: PageServerLoad = async ({ locals }) => {
         return arr;
     };
 
-    const sumIncome = sumRow(incomeRows);
-    const sumExpenses = sumRow(Array.from(allowedExpenses));
+    const sumIncome = sumRow([...incomeRows, 'Korrigering inkomst']);
+    const sumExpenses = sumRow([...Array.from(allowedExpenses), 'Korrigering utgift']);
     const balance = sumIncome.map((v, i) => v - sumExpenses[i]);
 
     rows.set('Summa inkomst', sumIncome);
     rows.set('Summa utgifter', sumExpenses);
     rows.set('Balans', balance);
 
-    // 11. Biståndsmånad = kalendermånad + 1
+    // 12. Biståndsmånad = kalendermånad + 1
     const assistMonths = months.map((m) => {
         const [y, mm] = m.split('-').map(Number);
         const d = new Date(y, mm - 1);
@@ -181,4 +198,56 @@ export const load: PageServerLoad = async ({ locals }) => {
         incomeRows,
         rows: [...rows.entries()].map(([label, values]) => ({ label, values }))
     };
+};
+
+export const actions: Actions = {
+    updateCorrection: async ({ request, locals }) => {
+        const supabase = locals.supabase;
+        const householdId = locals.householdId;
+
+        if (!householdId) {
+            return { success: false };
+        }
+
+        const data = await request.json();
+        const { type, month, amount } = data as {
+            type: 'income' | 'expense';
+            month: string;
+            amount: number;
+        };
+
+        const [yearStr, monthStr] = month.split('-');
+        const year = Number(yearStr);
+        const m = Number(monthStr);
+
+        const { data: existing } = await supabase
+            .from('assistance_months')
+            .select('*')
+            .eq('household_id', householdId)
+            .eq('year', year)
+            .eq('month', m)
+            .maybeSingle();
+
+        const payload: any = {
+            household_id: householdId,
+            year,
+            month: m,
+            total_income: existing?.total_income ?? 0,
+            total_expenses: existing?.total_expenses ?? 0,
+            correction_income: existing?.correction_income ?? 0,
+            correction_expense: existing?.correction_expense ?? 0
+        };
+
+        if (type === 'income') {
+            payload.correction_income = amount;
+        } else {
+            payload.correction_expense = amount;
+        }
+
+        await supabase
+            .from('assistance_months')
+            .upsert(payload, { onConflict: 'household_id,year,month' });
+
+        return { success: true };
+    }
 };
