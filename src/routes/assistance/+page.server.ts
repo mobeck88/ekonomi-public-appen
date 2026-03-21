@@ -1,7 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ url, locals }) => {
+export const load: PageServerLoad = async ({ locals }) => {
     const user = locals.user;
     const householdId = locals.householdId;
     const supabase = locals.supabase;
@@ -10,57 +10,69 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
     if (!householdId) {
         return {
-            selectedYear: null,
             months: [],
             incomeRows: [],
             rows: []
         };
     }
 
-    const selectedYear =
-        url.searchParams.get('year') ?? new Date().getFullYear().toString();
+    // 1. Hämta alla income_months för hushållet
+    const { data: incomeMonthsData } = await supabase
+        .from('income_months')
+        .select('id, month_date')
+        .eq('household_id', householdId);
 
-    const months = Array.from({ length: 12 }, (_, i) => {
-        const m = (i + 1).toString().padStart(2, '0');
-        return `${selectedYear}-${m}`;
-    });
+    if (!incomeMonthsData || incomeMonthsData.length === 0) {
+        return { months: [], incomeRows: [], rows: [] };
+    }
 
+    // 2. Sortera månader
+    const sorted = incomeMonthsData
+        .map((m) => ({ id: m.id, date: new Date(m.month_date) }))
+        .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    // 3. Ta senaste månaden
+    const last = sorted[sorted.length - 1].date;
+
+    // 4. Bygg 5-månaderslistan: M-3 → M+1
+    const months: string[] = [];
+    for (let i = -3; i <= 1; i++) {
+        const d = new Date(last);
+        d.setMonth(d.getMonth() + i);
+        months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    }
+
+    // 5. Hämta inkomster och utgifter
     const [
-        incomeMonthsRes,
         primaryRes,
         extraJobsRes,
         fkRes,
         expensesRes
     ] = await Promise.all([
-        supabase
-            .from('income_months')
-            .select('id, month_date')
-            .eq('household_id', householdId)
-            .gte('month_date', `${selectedYear}-01-01`)
-            .lte('month_date', `${selectedYear}-12-31`),
         supabase.from('income_primary_job').select('*').eq('household_id', householdId),
         supabase.from('income_extra_jobs').select('*').eq('household_id', householdId),
         supabase.from('income_fk').select('*').eq('household_id', householdId),
         supabase.from('expenses').select('*').eq('household_id', householdId)
     ]);
 
-    const incomeMonths = incomeMonthsRes.data ?? [];
     const primary = primaryRes.data ?? [];
     const extraJobs = extraJobsRes.data ?? [];
     const fk = fkRes.data ?? [];
     const expenses = expensesRes.data ?? [];
 
+    // 6. Mappa income_month_id → YYYY-MM
     const toYM = (value: any) => {
         if (!value) return null;
         return String(value).slice(0, 7);
     };
 
     const monthIdToYm = new Map<any, string>();
-    for (const im of incomeMonths) {
+    for (const im of incomeMonthsData) {
         const ym = toYM(im.month_date);
         if (ym) monthIdToYm.set(im.id, ym);
     }
 
+    // 7. Rows-map
     const emptyValues = () => months.map(() => 0);
     const rows = new Map<string, number[]>();
 
@@ -74,6 +86,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         rows.get(label)![idx] += val;
     };
 
+    // 8. Inkomster
     const incomeLabelSet = new Set<string>();
     incomeLabelSet.add('Arbete');
 
@@ -91,6 +104,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     // FK – dynamiska rader
     for (const row of fk) {
         const ym = monthIdToYm.get(row.income_month_id);
+
         let label: string;
 
         if (row.fk_typ === 'Övrigt') {
@@ -110,7 +124,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
     const incomeRows = Array.from(incomeLabelSet);
 
-    // Utgifter – endast biståndsrelevanta
+    // 9. Utgifter – endast biståndsrelevanta
     const allowedExpenses = new Set<string>([
         'Hyra',
         'El',
@@ -132,6 +146,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         add(ex.category, ym, ex.amount);
     }
 
+    // 10. Summeringar
     const sumRow = (labels: string[]) => {
         const arr = emptyValues();
         for (const label of labels) {
@@ -150,6 +165,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     rows.set('Summa utgifter', sumExpenses);
     rows.set('Balans', balance);
 
+    // 11. Biståndsmånad = kalendermånad + 1
     const assistMonths = months.map((m) => {
         const [y, mm] = m.split('-').map(Number);
         const d = new Date(y, mm - 1);
@@ -161,7 +177,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     rows.set('Kalendermånad', months as unknown as number[]);
 
     return {
-        selectedYear,
         months,
         incomeRows,
         rows: [...rows.entries()].map(([label, values]) => ({ label, values }))
