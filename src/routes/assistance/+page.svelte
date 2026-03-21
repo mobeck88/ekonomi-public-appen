@@ -42,6 +42,7 @@
     const workRows = ['Facket', 'A-kassa (avgift)'];
     const societyRows = ['Barnomsorg'];
     const healthRows = ['Sjukhuskostnader', 'Mediciner'];
+    const riksnormRows = ['Riksnorm vuxen', 'Riksnorm barn', 'Riksnorm hushåll'];
 
     const rowMap = new Map<string, { label: string; values: number[] }>();
     rows.forEach((r) => rowMap.set(r.label, r));
@@ -98,7 +99,10 @@
             'A-kassa (avgift)',
             'Barnomsorg',
             'Sjukhuskostnader',
-            'Mediciner'
+            'Mediciner',
+            'Riksnorm vuxen',
+            'Riksnorm barn',
+            'Riksnorm hushåll'
         ];
 
         sumExpenses.values = months.map((_, i) => {
@@ -337,6 +341,19 @@
             </tr>
 
             {#each healthRows.filter(isRowVisible) as label}
+                <tr class="bg-red-50">
+                    <td class="border">{label}</td>
+                    {#each getRow(label).values as v}
+                        <td class="border text-right">{v} kr</td>
+                    {/each}
+                </tr>
+            {/each}
+
+            <tr class="expense-subheader section-header">
+                <td class="border" colspan={1 + months.length}>Riksnorm</td>
+            </tr>
+
+            {#each riksnormRows.filter(isRowVisible) as label}
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
                     {#each getRow(label).values as v}
