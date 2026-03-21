@@ -14,8 +14,13 @@
     ];
 
     const homeRows = [
-        'Hyra', 'El', 'Hemförsäkring', 'Mat vuxen', 'Mat barn',
-        'Övriga kostnad barn', 'Internet'
+        'Hyra',
+        'El',
+        'Hemförsäkring',
+        'Mat vuxen',
+        'Mat barn',
+        'Övriga kostnad barn',
+        'Internet'
     ];
 
     const workRows = ['Facket', 'A-kassa (avgift)'];
@@ -34,7 +39,7 @@
 
     function isRowVisible(label: string) {
         const row = getRow(label);
-        return row.values.some(v => v !== 0 && v !== null && v !== '');
+        return row.values.some((v) => v !== 0 && v !== null && v !== '');
     }
 
     const sumIncome = getRow('Summa inkomst');
