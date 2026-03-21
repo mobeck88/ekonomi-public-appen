@@ -71,6 +71,54 @@
     let saveError: string | null = null;
     let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
+    function recalc() {
+        // Inkomster
+        sumIncome.values = months.map((_, i) => {
+            let total = 0;
+
+            for (const label of incomeRows) {
+                total += getRow(label).values[i] ?? 0;
+            }
+
+            total += incomeCorrectionRow.values[i] ?? 0;
+
+            return total;
+        });
+
+        // Utgifter
+        const expenseLabels = [
+            'Hyra',
+            'El',
+            'Hemförsäkring',
+            'Mat vuxen',
+            'Mat barn',
+            'Övriga kostnad barn',
+            'Internet',
+            'Facket',
+            'A-kassa (avgift)',
+            'Barnomsorg',
+            'Sjukhuskostnader',
+            'Mediciner'
+        ];
+
+        sumExpenses.values = months.map((_, i) => {
+            let total = 0;
+
+            for (const label of expenseLabels) {
+                total += getRow(label).values[i] ?? 0;
+            }
+
+            total += expenseCorrectionRow.values[i] ?? 0;
+
+            return total;
+        });
+
+        // Balans
+        balance.values = months.map((_, i) => {
+            return (sumIncome.values[i] ?? 0) - (sumExpenses.values[i] ?? 0);
+        });
+    }
+
     async function saveCorrection(
         type: 'income' | 'expense',
         month: string,
@@ -112,6 +160,10 @@
             expenseCorrectionRow.values[index] = Number(value || 0);
         }
 
+        // Räkna om summeringar och balans direkt
+        recalc();
+
+        // Autospara
         if (saveTimeout) clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => {
             saveCorrection(type, month, value);
