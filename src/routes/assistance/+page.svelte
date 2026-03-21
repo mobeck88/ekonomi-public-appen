@@ -5,6 +5,20 @@
     const rows = data.rows ?? [];
     const incomeRows = data.incomeRows ?? [];
 
+    const monthNames = [
+        'Januari','Februari','Mars','April','Maj','Juni',
+        'Juli','Augusti','September','Oktober','November','December'
+    ];
+
+    function formatMonth(m) {
+        const [y, mm] = m.split('-').map(Number);
+        return monthNames[mm - 1];
+    }
+
+    function getYear(m) {
+        return m.split('-')[0];
+    }
+
     const otherIncomeRows = [
         'Dagersättning (FP)',
         'Dagersättning (VAB)',
@@ -14,18 +28,13 @@
     ];
 
     const homeRows = [
-        'Hyra',
-        'El',
-        'Hemförsäkring',
-        'Mat vuxen',
-        'Mat barn',
-        'Övriga kostnad barn',
-        'Internet'
+        'Hyra','El','Hemförsäkring','Mat vuxen','Mat barn',
+        'Övriga kostnad barn','Internet'
     ];
 
-    const workRows = ['Facket', 'A-kassa (avgift)'];
+    const workRows = ['Facket','A-kassa (avgift)'];
     const societyRows = ['Barnomsorg'];
-    const healthRows = ['Sjukhuskostnader', 'Mediciner'];
+    const healthRows = ['Sjukhuskostnader','Mediciner'];
 
     const rowMap = new Map();
     rows.forEach((r) => rowMap.set(r.label, r));
@@ -79,7 +88,7 @@
             <tr>
                 <th class="border text-left">Kategori</th>
                 {#each months as m}
-                    <th class="border text-right">{m}</th>
+                    <th class="border text-right">{getYear(m)}</th>
                 {/each}
             </tr>
         </thead>
@@ -88,14 +97,14 @@
             <tr class="section-header">
                 <td class="border">Biståndsmånad</td>
                 {#each assist.values as v}
-                    <td class="border text-right">{v}</td>
+                    <td class="border text-right">{formatMonth(v)}</td>
                 {/each}
             </tr>
 
             <tr class="section-header">
                 <td class="border">Kalendermånad</td>
                 {#each calendar.values as v}
-                    <td class="border text-right">{v}</td>
+                    <td class="border text-right">{formatMonth(v)}</td>
                 {/each}
             </tr>
 
