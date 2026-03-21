@@ -19,11 +19,6 @@
         return m.split('-')[0];
     }
 
-    const otherIncomeRows = [
-        'Dagersättning (FP)','Dagersättning (VAB)','Sjukersättning',
-        'Övriga insättningar','Överskridande överskott'
-    ];
-
     const homeRows = [
         'Hyra','El','Hemförsäkring','Mat vuxen','Mat barn',
         'Övriga kostnad barn','Internet'
@@ -71,7 +66,6 @@
     }
     .section-header { background: #e5e7eb; font-weight: 700; font-size: 1rem; }
     .income-header { background: #bbf7d0; }
-    .income-subheader { background: #d1fae5; }
     .expense-header { background: #fecaca; }
     .expense-subheader { background: #fee2e2; }
     .balance-row { background: #e5e7eb; font-weight: 600; }
@@ -110,19 +104,6 @@
             </tr>
 
             {#each incomeRows.filter(isRowVisible) as label}
-                <tr class="bg-green-50">
-                    <td class="border">{label}</td>
-                    {#each getRow(label).values as v}
-                        <td class="border text-right">{v} kr</td>
-                    {/each}
-                </tr>
-            {/each}
-
-            <tr class="income-subheader section-header">
-                <td class="border" colspan={1 + months.length}>Övriga inkomster</td>
-            </tr>
-
-            {#each otherIncomeRows.filter(isRowVisible) as label}
                 <tr class="bg-green-50">
                     <td class="border">{label}</td>
                     {#each getRow(label).values as v}
