@@ -57,7 +57,8 @@ export const load: PageServerLoad = async ({ locals }) => {
         primaryRes,
         extraJobsRes,
         fkRes,
-        expensesRes,
+        riksnormExpensesRes,
+        electricityExpensesRes,
         assistanceRes,
         householdRes,
         childrenRes,
@@ -67,6 +68,7 @@ export const load: PageServerLoad = async ({ locals }) => {
         supabase.from('income_primary_job').select('*').eq('household_id', householdId),
         supabase.from('income_extra_jobs').select('*').eq('household_id', householdId),
         supabase.from('income_fk').select('*').eq('household_id', householdId),
+        supabase.from('expenses_riksnorm').select('*').eq('household_id', householdId),
         supabase.from('expenses').select('*').eq('household_id', householdId),
         supabase.from('assistance_months').select('*').eq('household_id', householdId),
         supabase.from('households').select('*').eq('id', householdId),
@@ -78,7 +80,8 @@ export const load: PageServerLoad = async ({ locals }) => {
     const primary = primaryRes.data ?? [];
     const extraJobs = extraJobsRes.data ?? [];
     const fk = fkRes.data ?? [];
-    const expenses = expensesRes.data ?? [];
+    const riksnormExpenses = riksnormExpensesRes.data ?? [];
+    const electricityExpenses = electricityExpensesRes.data ?? [];
     const assistanceMonths = assistanceRes.data ?? [];
     const household = householdRes.data?.[0] ?? null;
     const children = childrenRes.data ?? [];
@@ -165,10 +168,19 @@ export const load: PageServerLoad = async ({ locals }) => {
         'Mediciner'
     ]);
 
-    for (const ex of expenses) {
+    // Alla kategorier utom El från expenses_riksnorm
+    for (const ex of riksnormExpenses) {
         if (!allowedExpenses.has(ex.category)) continue;
+        if (ex.category === 'El') continue;
         const ym = monthIdToYm.get(ex.income_month_id);
         add(ex.category, ym, ex.amount);
+    }
+
+    // El specifikt från expenses
+    for (const ex of electricityExpenses) {
+        if (ex.category !== 'El') continue;
+        const ym = monthIdToYm.get(ex.income_month_id);
+        add('El', ym, ex.amount);
     }
 
     // 10. Korrigeringar från assistance_months

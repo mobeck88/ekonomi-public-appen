@@ -29,16 +29,18 @@
 
     const links = [
         ...baseLinks,
+
         ...(enable_assistance
             ? [
-                  { label: "Ekonomiskt bistånd", header: true },
-                  { label: "Ekonomiskt bistånd", path: "/assistance" },
+                  // ⭐ BYTT NAMN
+                  { label: "Beräkning", header: true },
+                  { label: "Beräkning", path: "/assistance" },
 
-                  // ⭐ NYA SIDAN
-                  { label: "Fasta utgifter riksnorm", header: true },
-                  { label: "Fasta utgifter riksnorm", path: "/fasta-utgifter-riksnorm" }
+                  // ⭐ NYTT MENYVAL — INGEN HEADER
+                  { label: "Fasta utgifter", path: "/fasta-utgifter-riksnorm" }
               ]
             : []),
+
         { label: "Inställningar", header: true },
         { label: "Inställningar", path: "/settings" }
     ];
