@@ -42,6 +42,8 @@
     const workRows = ['Facket', 'A-kassa (avgift)'];
     const societyRows = ['Barnomsorg'];
     const healthRows = ['Sjukhuskostnader', 'Mediciner'];
+
+    // ⭐ RIKSNORM – ALLA TRE RADERNA
     const riksnormRows = ['Riksnorm vuxen', 'Riksnorm barn', 'Riksnorm hushåll'];
 
     const rowMap = new Map<string, { label: string; values: number[] }>();
@@ -164,10 +166,8 @@
             expenseCorrectionRow.values[index] = Number(value || 0);
         }
 
-        // Räkna om summeringar och balans direkt
         recalc();
 
-        // Autospara
         if (saveTimeout) clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => {
             saveCorrection(type, month, value);
@@ -271,7 +271,6 @@
                 </tr>
             {/each}
 
-            <!-- Korrigering inkomst -->
             <tr class="bg-green-50">
                 <td class="border font-semibold">Korrigering</td>
                 {#each months as m, i}
@@ -349,11 +348,12 @@
                 </tr>
             {/each}
 
+            <!-- ⭐ RIKSNORM – ALLA TRE RADERNA -->
             <tr class="expense-subheader section-header">
                 <td class="border" colspan={1 + months.length}>Riksnorm</td>
             </tr>
 
-            {#each riksnormRows.filter(isRowVisible) as label}
+            {#each riksnormRows as label}
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
                     {#each getRow(label).values as v}
@@ -362,7 +362,6 @@
                 </tr>
             {/each}
 
-            <!-- Korrigering utgift -->
             <tr class="bg-red-50">
                 <td class="border font-semibold">Korrigering</td>
                 {#each months as m, i}
