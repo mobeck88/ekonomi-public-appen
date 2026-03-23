@@ -2,153 +2,94 @@
     export let data;
 
     const months: string[] = data.months ?? [];
-    const rows = (data.rows ?? []) as { label: string; values: unknown[] }[];
+    const rows = data.rows ?? [];
     const incomeRows: string[] = data.incomeRows ?? [];
 
     const monthNames = [
-        'Januari',
-        'Februari',
-        'Mars',
-        'April',
-        'Maj',
-        'Juni',
-        'Juli',
-        'Augusti',
-        'September',
-        'Oktober',
-        'November',
-        'December'
+        'Januari','Februari','Mars','April','Maj','Juni',
+        'Juli','Augusti','September','Oktober','November','December'
     ];
 
     function formatMonth(m: string) {
         const [y, mm] = m.split('-').map(Number);
-        if (!mm || mm < 1 || mm > 12) return m;
         return monthNames[mm - 1];
     }
 
     function getYear(m: string) {
-        return m.split('-')[0] ?? '';
+        return m.split('-')[0];
     }
 
     const homeRows = [
-        'Hyra',
-        'El',
-        'Hemförsäkring',
-        'Mat vuxen',
-        'Mat barn',
-        'Övriga kostnad barn',
-        'Internet'
+        'Hyra','El','Hemförsäkring','Mat vuxen','Mat barn',
+        'Övriga kostnad barn','Internet'
     ];
 
-    const workRows = ['Facket', 'A-kassa (avgift)'];
+    const workRows = ['Facket','A-kassa (avgift)'];
     const societyRows = ['Barnomsorg'];
-    const healthRows = ['Sjukhuskostnader', 'Mediciner'];
+    const healthRows = ['Sjukhuskostnader','Mediciner'];
 
-    const riksnormRows = ['Riksnorm vuxen', 'Riksnorm barn', 'Riksnorm hushåll'];
+    const riksnormRows = ['Riksnorm vuxen','Riksnorm barn','Riksnorm hushåll'];
 
-    type Row = { label: string; values: unknown[] };
+    const rowMap = new Map<string, { label: string; values: number[] }>();
+    rows.forEach((r) => rowMap.set(r.label, r));
 
-    const rowByLabel: Record<string, Row> = {};
-    for (const r of rows) {
-        const values = Array.isArray(r.values) ? r.values.slice() : months.map(() => 0);
-        rowByLabel[r.label] = { label: r.label, values };
-    }
-
-    function ensureNumericRow(label: string): Row {
-        if (!rowByLabel[label]) {
-            rowByLabel[label] = { label, values: months.map(() => 0) };
-        } else {
-            const vals = rowByLabel[label].values;
-            const normalized = months.map((_, i) => Number(vals[i] ?? 0));
-            rowByLabel[label] = { label, values: normalized };
-        }
-        return rowByLabel[label];
-    }
-
-    function getRow(label: string): Row {
-        return rowByLabel[label] ?? { label, values: months.map(() => 0) };
+    function getRow(label: string) {
+        const r = rowMap.get(label);
+        if (!r) return { label, values: months.map(() => 0) };
+        if (!r.values) return { label, values: months.map(() => 0) };
+        return r;
     }
 
     function isRowVisible(label: string) {
         const row = getRow(label);
-        return row.values.some((v) => {
-            const n = Number(v);
-            return Number.isFinite(n) && n !== 0;
-        });
+        return row.values.some((v) => v !== 0 && v !== null && v !== '');
     }
 
-    const sumIncome = ensureNumericRow('Summa inkomst');
-    const sumExpenses = ensureNumericRow('Summa utgifter');
-    const balance = ensureNumericRow('Balans');
-
+    const sumIncome = getRow('Summa inkomst');
+    const sumExpenses = getRow('Summa utgifter');
+    const balance = getRow('Balans');
     const assist = getRow('Biståndsmånad');
     const calendar = getRow('Kalendermånad');
 
-    const incomeCorrectionRow = ensureNumericRow('Korrigering inkomst');
-    const expenseCorrectionRow = ensureNumericRow('Korrigering utgift');
+    const incomeCorrectionRow = getRow('Korrigering inkomst');
+    const expenseCorrectionRow = getRow('Korrigering utgift');
 
     let saving = false;
     let saveError: string | null = null;
     let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
     function recalc() {
-        // Inkomster
         sumIncome.values = months.map((_, i) => {
             let total = 0;
-
             for (const label of incomeRows) {
-                const row = ensureNumericRow(label);
-                total += Number(row.values[i] ?? 0);
+                total += getRow(label).values[i] ?? 0;
             }
-
-            total += Number(incomeCorrectionRow.values[i] ?? 0);
-
+            total += incomeCorrectionRow.values[i] ?? 0;
             return total;
         });
 
-        // Utgifter
         const expenseLabels = [
-            'Hyra',
-            'El',
-            'Hemförsäkring',
-            'Mat vuxen',
-            'Mat barn',
-            'Övriga kostnad barn',
-            'Internet',
-            'Facket',
-            'A-kassa (avgift)',
-            'Barnomsorg',
-            'Sjukhuskostnader',
-            'Mediciner',
-            'Riksnorm vuxen',
-            'Riksnorm barn',
-            'Riksnorm hushåll'
+            'Hyra','El','Hemförsäkring','Mat vuxen','Mat barn',
+            'Övriga kostnad barn','Internet','Facket','A-kassa (avgift)',
+            'Barnomsorg','Sjukhuskostnader','Mediciner',
+            'Riksnorm vuxen','Riksnorm barn','Riksnorm hushåll'
         ];
 
         sumExpenses.values = months.map((_, i) => {
             let total = 0;
-
             for (const label of expenseLabels) {
-                const row = ensureNumericRow(label);
-                total += Number(row.values[i] ?? 0);
+                total += getRow(label).values[i] ?? 0;
             }
-
-            total += Number(expenseCorrectionRow.values[i] ?? 0);
-
+            total += expenseCorrectionRow.values[i] ?? 0;
             return total;
         });
 
-        // Balans
-        balance.values = months.map((_, i) => {
-            return Number(sumIncome.values[i] ?? 0) - Number(sumExpenses.values[i] ?? 0);
-        });
+        balance.values = months.map((_, i) =>
+            (sumIncome.values[i] ?? 0) - (sumExpenses.values[i] ?? 0)
+        );
     }
 
-    async function saveCorrection(
-        type: 'income' | 'expense',
-        month: string,
-        value: string
-    ) {
+    async function saveCorrection(type: 'income' | 'expense', month: string, value: string) {
         const amount = Number(value || 0);
         saving = true;
         saveError = null;
@@ -160,87 +101,41 @@
                 body: JSON.stringify({ type, month, amount })
             });
 
-            if (!res.ok) {
-                saveError = 'Kunde inte spara korrigering.';
-            }
-        } catch (e) {
+            if (!res.ok) saveError = 'Kunde inte spara korrigering.';
+        } catch {
             saveError = 'Kunde inte spara korrigering.';
         } finally {
             saving = false;
         }
     }
 
-    function onCorrectionInput(
-        type: 'income' | 'expense',
-        month: string,
-        index: number,
-        event: Event
-    ) {
+    function onCorrectionInput(type: 'income' | 'expense', month: string, index: number, event: Event) {
         const target = event.target as HTMLInputElement;
-        const value = target.value;
+        const num = Number(target.value || 0);
 
-        const num = Number(value || 0);
-
-        if (type === 'income') {
-            incomeCorrectionRow.values[index] = num;
-        } else {
-            expenseCorrectionRow.values[index] = num;
-        }
+        if (type === 'income') incomeCorrectionRow.values[index] = num;
+        else expenseCorrectionRow.values[index] = num;
 
         recalc();
 
         if (saveTimeout) clearTimeout(saveTimeout);
-        saveTimeout = setTimeout(() => {
-            saveCorrection(type, month, value);
-        }, 400);
+        saveTimeout = setTimeout(() => saveCorrection(type, month, target.value), 400);
     }
 </script>
 
 <style>
-    thead th {
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        background: #f3f4f6;
-    }
-    tbody tr:hover td {
-        background-color: #f9fafb;
-    }
-    td,
-    th {
-        padding: 10px 12px;
-        font-size: 0.9rem;
-    }
-    table {
-        border-radius: 8px;
-        overflow: hidden;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-    }
-    .section-header {
-        background: #e5e7eb;
-        font-weight: 700;
-        font-size: 1rem;
-    }
-    .income-header {
-        background: #bbf7d0;
-    }
-    .expense-header {
-        background: #fecaca;
-    }
-    .expense-subheader {
-        background: #fee2e2;
-    }
-    .balance-row {
-        background: #e5e7eb;
-        font-weight: 600;
-    }
+    thead th { position: sticky; top: 0; z-index: 10; background: #f3f4f6; }
+    tbody tr:hover td { background-color: #f9fafb; }
+    td, th { padding: 10px 12px; font-size: 0.9rem; }
+    table { border-radius: 8px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+    .section-header { background: #e5e7eb; font-weight: 700; font-size: 1rem; }
+    .income-header { background: #bbf7d0; }
+    .expense-header { background: #fecaca; }
+    .expense-subheader { background: #fee2e2; }
+    .balance-row { background: #e5e7eb; font-weight: 600; }
     input[type='number'] {
-        width: 100%;
-        text-align: right;
-        border: 1px solid #d1d5db;
-        border-radius: 4px;
-        padding: 2px 4px;
-        font-size: 0.85rem;
+        width: 100%; text-align: right; border: 1px solid #d1d5db;
+        border-radius: 4px; padding: 2px 4px; font-size: 0.85rem;
     }
 </style>
 
@@ -286,8 +181,8 @@
             {#each incomeRows.filter(isRowVisible) as label}
                 <tr class="bg-green-50">
                     <td class="border">{label}</td>
-                    {#each ensureNumericRow(label).values as v}
-                        <td class="border text-right">{Number(v)} kr</td>
+                    {#each getRow(label).values as v}
+                        <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
             {/each}
@@ -299,7 +194,7 @@
                         <input
                             type="number"
                             step="1"
-                            value={Number(incomeCorrectionRow.values[i] ?? 0)}
+                            value={incomeCorrectionRow.values[i] ?? 0}
                             on:input={(e) => onCorrectionInput('income', m, i, e)}
                         />
                     </td>
@@ -309,7 +204,7 @@
             <tr class="income-header font-semibold">
                 <td class="border">Summa inkomst</td>
                 {#each sumIncome.values as v}
-                    <td class="border text-right">{Number(v)} kr</td>
+                    <td class="border text-right">{v} kr</td>
                 {/each}
             </tr>
 
@@ -324,8 +219,8 @@
             {#each homeRows.filter(isRowVisible) as label}
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
-                    {#each ensureNumericRow(label).values as v}
-                        <td class="border text-right">{Number(v)} kr</td>
+                    {#each getRow(label).values as v}
+                        <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
             {/each}
@@ -337,8 +232,8 @@
             {#each workRows.filter(isRowVisible) as label}
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
-                    {#each ensureNumericRow(label).values as v}
-                        <td class="border text-right">{Number(v)} kr</td>
+                    {#each getRow(label).values as v}
+                        <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
             {/each}
@@ -350,8 +245,8 @@
             {#each societyRows.filter(isRowVisible) as label}
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
-                    {#each ensureNumericRow(label).values as v}
-                        <td class="border text-right">{Number(v)} kr</td>
+                    {#each getRow(label).values as v}
+                        <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
             {/each}
@@ -363,8 +258,8 @@
             {#each healthRows.filter(isRowVisible) as label}
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
-                    {#each ensureNumericRow(label).values as v}
-                        <td class="border text-right">{Number(v)} kr</td>
+                    {#each getRow(label).values as v}
+                        <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
             {/each}
@@ -376,8 +271,8 @@
             {#each riksnormRows as label}
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
-                    {#each ensureNumericRow(label).values as v}
-                        <td class="border text-right">{Number(v)} kr</td>
+                    {#each getRow(label).values as v}
+                        <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
             {/each}
@@ -389,7 +284,7 @@
                         <input
                             type="number"
                             step="1"
-                            value={Number(expenseCorrectionRow.values[i] ?? 0)}
+                            value={expenseCorrectionRow.values[i] ?? 0}
                             on:input={(e) => onCorrectionInput('expense', m, i, e)}
                         />
                     </td>
@@ -399,14 +294,14 @@
             <tr class="expense-header font-semibold">
                 <td class="border">Summa utgifter</td>
                 {#each sumExpenses.values as v}
-                    <td class="border text-right">{Number(v)} kr</td>
+                    <td class="border text-right">{v} kr</td>
                 {/each}
             </tr>
 
             <tr class="balance-row">
                 <td class="border">Balans</td>
                 {#each balance.values as v}
-                    <td class="border text-right">{Number(v)} kr</td>
+                    <td class="border text-right">{v} kr</td>
                 {/each}
             </tr>
         </tbody>
