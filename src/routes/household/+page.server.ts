@@ -103,6 +103,7 @@ export const actions: Actions = {
         return { join_code: newCode };
     },
 
+    // ⭐ LEAVE HOUSEHOLD — invariant-säker
     leaveHousehold: async ({ locals }) => {
         const supabase = locals.supabase;
         const user = locals.user;
@@ -124,16 +125,30 @@ export const actions: Actions = {
             return fail(400, { error: 'Ägare kan inte lämna sitt eget hushåll.' });
         }
 
-        // ⭐ Nu när household_members har en riktig primary key (id)
-        // kan vi äntligen göra en stabil DELETE utan PostgREST-buggar.
+        // 1. Ta bort household_members-raden
         await supabase
             .from('household_members')
             .delete()
             .eq('id', membership.id);
 
+        // 2. Kolla om användaren är med i fler hushåll
+        const { data: remainingMemberships } = await supabase
+            .from('household_members')
+            .select('id')
+            .eq('user_id', user.id);
+
+        // 3. Om inga hushåll kvar → ta bort profilen
+        if (!remainingMemberships || remainingMemberships.length === 0) {
+            await supabase
+                .from('profiles')
+                .delete()
+                .eq('id', user.id);
+        }
+
         throw redirect(303, '/household?left=1');
     },
 
+    // ⭐ DELETE HOUSEHOLD — invariant-säker
     deleteHousehold: async ({ locals }) => {
         const supabase = locals.supabase;
         const user = locals.user;
@@ -152,9 +167,35 @@ export const actions: Actions = {
             return fail(403, { error: 'Endast ägaren kan ta bort hushållet.' });
         }
 
+        // 1. Hämta alla medlemmar innan vi raderar
+        const { data: members } = await supabase
+            .from('household_members')
+            .select('user_id')
+            .eq('household_id', householdId);
+
+        // 2. Ta bort barn
         await supabase.from('household_children').delete().eq('household_id', householdId);
+
+        // 3. Ta bort medlemmar
         await supabase.from('household_members').delete().eq('household_id', householdId);
+
+        // 4. Ta bort hushållet
         await supabase.from('households').delete().eq('id', householdId);
+
+        // 5. Ta bort profiler för användare som nu inte längre är med i något hushåll
+        for (const m of members ?? []) {
+            const { data: remaining } = await supabase
+                .from('household_members')
+                .select('id')
+                .eq('user_id', m.user_id);
+
+            if (!remaining || remaining.length === 0) {
+                await supabase
+                    .from('profiles')
+                    .delete()
+                    .eq('id', m.user_id);
+            }
+        }
 
         throw redirect(303, '/household?deleted=1');
     },

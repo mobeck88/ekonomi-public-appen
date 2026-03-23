@@ -29,7 +29,20 @@ export const actions: Actions = {
 
         const householdName = `${fullName}s hushåll`;
 
-        // 1. Skapa hushållet (name är obligatoriskt)
+        // ⭐ 1. Skapa profil om den saknas (men aldrig ensam)
+        const { error: profileError } = await supabase
+            .from('profiles')
+            .upsert({
+                id: user.id,
+                full_name: fullName
+            });
+
+        if (profileError) {
+            console.error('Profile create error:', profileError);
+            return fail(500, { error: 'Kunde inte skapa profil.' });
+        }
+
+        // ⭐ 2. Skapa hushållet
         const { data: household, error: householdError } = await supabase
             .from('households')
             .insert({
@@ -46,7 +59,7 @@ export const actions: Actions = {
             return fail(500, { error: 'Kunde inte skapa hushåll.' });
         }
 
-        // 2. Lägg till användaren som owner
+        // ⭐ 3. Lägg till användaren som owner (nu finns profil → FK OK)
         const { error: memberError } = await supabase
             .from('household_members')
             .insert({
@@ -61,7 +74,7 @@ export const actions: Actions = {
             return fail(500, { error: 'Kunde inte lägga till ägare.' });
         }
 
-        // 3. Redirect till hushållssidan
+        // ⭐ 4. Redirect till hushållssidan
         throw redirect(303, '/household');
     }
 };
