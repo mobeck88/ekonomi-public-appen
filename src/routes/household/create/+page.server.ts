@@ -20,14 +20,13 @@ export const actions: Actions = {
             return fail(401, { error: 'Ingen användare inloggad.' });
         }
 
-        // 1. Skapa hushållet
+        // 1. Skapa hushållet (LÅT join_code DEFAULT GENERERAS AUTOMATISKT)
         const { data: household, error: householdError } = await supabase
             .from('households')
             .insert({
                 adults: 0,
                 children: 0,
-                enable_assistance: false,
-                join_code: null
+                enable_assistance: false
             })
             .select()
             .single();
