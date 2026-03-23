@@ -31,80 +31,100 @@
     function confirmDelete() {
         return confirm("Är du säker på att du vill ta bort hushållet? Detta går inte att ångra.");
     }
+
+    // ⭐ NYTT: Barn & Ungdom är begränsade
+    const isRestricted = data.role === "child" || data.role === "youth";
 </script>
 
 <h1>Hushåll</h1>
 
 {#if data.householdId}
-    <p><strong>Ditt hushålls‑ID:</strong></p>
-    <pre>{data.householdId}</pre>
-    <p>Din roll: {data.role}</p>
 
-    <h2>Hushållskod</h2>
-    {#if data.join_code}
-        <p>Ge denna kod till din partner:</p>
-        <pre>{data.join_code}</pre>
-    {:else}
-        <p>Ingen hushållskod genererad ännu.</p>
-    {/if}
+    <!-- ⭐ RESTRICTED USERS: endast lämna -->
+    {#if isRestricted}
+        <p><strong>Din roll:</strong> {data.role === "child" ? "Barn" : "Ungdom"}</p>
 
-    <form method="POST" action="?/generateInvite" style="margin-top: 10px">
-        <button>Generera ny hushållskod</button>
-    </form>
-
-    {#if form?.join_code}
-        <p>Ny kod skapad:</p>
-        <pre>{form.join_code}</pre>
-    {/if}
-
-    <h2>Hushållsinställningar</h2>
-
-    <form method="POST" action="?/saveHousehold" class="form">
-
-        <label for="adults">Antal vuxna</label>
-        <input id="adults" name="adults" type="number" min="0" bind:value={adults} />
-
-        <label for="children">Antal barn</label>
-        <input id="children" name="children" type="number" min="0" bind:value={children} />
-
-        {#if children > 0}
-            <h3>Barnens födelsedatum</h3>
-
-            {#each Array(children) as _, i}
-                <div>
-                    <label for="child_{i}_birthdate">Barn {i + 1}</label>
-                    <input
-                        id="child_{i}_birthdate"
-                        name="child_{i}_birthdate"
-                        type="date"
-                        bind:value={childBirthdates[i].birthdate}
-                    />
-                </div>
-            {/each}
-        {/if}
-
-        <button type="submit">Spara hushåll</button>
-
-        {#if message}
-            <p class="feedback">{message}</p>
-        {/if}
-    </form>
-
-    {#if data.role === 'member'}
         <h2>Byt hushåll</h2>
         <form method="POST" action="?/leaveHousehold" on:submit|preventDefault={() => confirmLeave() && event.target.submit()}>
             <button>Byt hushåll</button>
         </form>
-    {/if}
 
-    {#if data.role === 'owner'}
-        <h2>Ta bort hushåll</h2>
-        <form method="POST" action="?/deleteHousehold" on:submit|preventDefault={() => confirmDelete() && event.target.submit()}>
-            <button style="background:red">Ta bort hushåll</button>
+    {:else}
+
+        <!-- ⭐ FULL ACCESS USERS (owner, member, guardian) -->
+        <p><strong>Ditt hushålls‑ID:</strong></p>
+        <pre>{data.householdId}</pre>
+        <p>Din roll: {data.role}</p>
+
+        <h2>Hushållskod</h2>
+        {#if data.join_code}
+            <p>Ge denna kod till din partner:</p>
+            <pre>{data.join_code}</pre>
+        {:else}
+            <p>Ingen hushållskod genererad ännu.</p>
+        {/if}
+
+        <form method="POST" action="?/generateInvite" style="margin-top: 10px">
+            <button>Generera ny hushållskod</button>
         </form>
+
+        {#if form?.join_code}
+            <p>Ny kod skapad:</p>
+            <pre>{form.join_code}</pre>
+        {/if}
+
+        <h2>Hushållsinställningar</h2>
+
+        <form method="POST" action="?/saveHousehold" class="form">
+
+            <label for="adults">Antal vuxna</label>
+            <input id="adults" name="adults" type="number" min="0" bind:value={adults} />
+
+            <label for="children">Antal barn</label>
+            <input id="children" name="children" type="number" min="0" bind:value={children} />
+
+            {#if children > 0}
+                <h3>Barnens födelsedatum</h3>
+
+                {#each Array(children) as _, i}
+                    <div>
+                        <label for="child_{i}_birthdate">Barn {i + 1}</label>
+                        <input
+                            id="child_{i}_birthdate"
+                            name="child_{i}_birthdate"
+                            type="date"
+                            bind:value={childBirthdates[i].birthdate}
+                        />
+                    </div>
+                {/each}
+            {/if}
+
+            <button type="submit">Spara hushåll</button>
+
+            {#if message}
+                <p class="feedback">{message}</p>
+            {/if}
+        </form>
+
+        {#if data.role === 'member'}
+            <h2>Byt hushåll</h2>
+            <form method="POST" action="?/leaveHousehold" on:submit|preventDefault={() => confirmLeave() && event.target.submit()}>
+                <button>Byt hushåll</button>
+            </form>
+        {/if}
+
+        {#if data.role === 'owner'}
+            <h2>Ta bort hushåll</h2>
+            <form method="POST" action="?/deleteHousehold" on:submit|preventDefault={() => confirmDelete() && event.target.submit()}>
+                <button style="background:red">Ta bort hushåll</button>
+            </form>
+        {/if}
+
     {/if}
 
 {:else}
+
+    <!-- ⭐ ALLA (inkl barn/ungdom) får se detta -->
     <p>Du tillhör inget hushåll ännu.</p>
 
     <h2>Gå med i ett hushåll</h2>
@@ -122,9 +142,11 @@
 
         <button type="submit" style="margin-top:10px">Gå med</button>
     </form>
+
 {/if}
 
 <style>
+    /* Din CSS är helt orörd */
     h1 {
         margin-bottom: 1.2rem;
         color: #1f2937;
