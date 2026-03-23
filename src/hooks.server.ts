@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
 export const handle = async ({ event, resolve }) => {
+    // Skapa Supabase-klient med korrekt cookie-hantering för SSR
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         global: { fetch: event.fetch },
         cookies: {
@@ -14,11 +15,13 @@ export const handle = async ({ event, resolve }) => {
 
     event.locals.supabase = supabase;
 
+    // Läs tokens från cookies
     const access_token = event.cookies.get('sb-access-token');
     const refresh_token = event.cookies.get('sb-refresh-token');
 
     let user = null;
 
+    // Sätt sessionen korrekt i SSR
     if (access_token && refresh_token) {
         await supabase.auth.setSession({
             access_token,
@@ -29,9 +32,9 @@ export const handle = async ({ event, resolve }) => {
         user = data?.user ?? null;
     }
 
+    // Offentliga routes
     const publicRoutes = ['/login', '/register'];
 
-    // Ingen användare → endast login/register
     if (!user) {
         if (!publicRoutes.includes(event.url.pathname)) {
             throw redirect(303, '/login');
@@ -46,40 +49,37 @@ export const handle = async ({ event, resolve }) => {
 
     event.locals.user = user;
 
-    // Hämta hushållstillhörighet
-    const { data: memberships } = await supabase
+    // Hämta hushållsmedlemskap
+    const { data: membership } = await supabase
         .from('household_members')
         .select('household_id')
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-    const householdId =
-        memberships && memberships.length > 0
-            ? memberships[0].household_id
-            : null;
-
+    const householdId = membership?.household_id ?? null;
     event.locals.householdId = householdId;
 
-    // Tillåtna routes utan hushåll
+    // Routes som är tillåtna utan hushåll
     const isRegisterRoute = event.url.pathname.startsWith('/register');
     const isJoinRoute = event.url.pathname.startsWith('/join');
     const isLogoutRoute = event.url.pathname === '/logout';
+
     const isRegisterNextAction =
         event.url.pathname === '/register/next' &&
         event.request.method === 'POST';
+
     const isJoinAction =
         event.url.pathname === '/join' &&
         event.request.method === 'POST';
-    const isCreateHouseholdRoute =
-        event.url.pathname.startsWith('/household/create');
 
+    // Blockera allt annat om användaren saknar hushåll
     if (
         !householdId &&
         !isRegisterRoute &&
         !isJoinRoute &&
         !isJoinAction &&
         !isLogoutRoute &&
-        !isRegisterNextAction &&
-        !isCreateHouseholdRoute
+        !isRegisterNextAction
     ) {
         throw redirect(303, '/register/next');
     }
