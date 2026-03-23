@@ -263,3 +263,4 @@ export const load: PageServerLoad = async ({ locals }) => {
         rows: Object.entries(rowsObj).map(([label, values]) => ({ label, values }))
     };
 };
+ 
