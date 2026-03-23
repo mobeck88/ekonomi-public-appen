@@ -4,11 +4,17 @@
 
   const user = data.user;
   const householdId = data.householdId;
+  // ⭐ ENDA TILLÄGGET
+  const enable_assistance = data.enable_assistance;
 </script>
 
 <div class="app-container">
   {#if user}
-    <Nav user={user} householdId={householdId} />
+    <Nav 
+      user={user} 
+      householdId={householdId} 
+      enable_assistance={enable_assistance} 
+    />
   {/if}
 
   <main class="page-content">
