@@ -37,7 +37,7 @@
                   { label: "Beräkning", path: "/assistance" },
 
                   // ⭐ NYTT MENYVAL — INGEN HEADER
-                  { label: "Fasta utgifter", path: "/expenses-riksnorm" }
+                  { label: "Fasta utgifter", path: "/expenses_riksnorm" }
               ]
             : []),
 
