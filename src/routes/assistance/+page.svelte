@@ -4,9 +4,34 @@
     const months: string[] = data.months ?? [];
     const rows = data.rows ?? [];
 
-    // Hämta raderna för biståndsmånad och kalendermånad
     const assist = rows.find((r) => r.label === 'Biståndsmånad');
     const calendar = rows.find((r) => r.label === 'Kalendermånad');
+
+    // Sektioner
+    const incomeRows = rows.filter((r) =>
+        r.label !== 'Biståndsmånad' &&
+        r.label !== 'Kalendermånad' &&
+        !r.label.startsWith('Riksnorm') &&
+        !r.label.startsWith('Summa') &&
+        !r.label.startsWith('Balans') &&
+        ![
+            'Hyra', 'El', 'Hemförsäkring', 'Mat vuxen', 'Mat barn',
+            'Övriga kostnad barn', 'Internet', 'Facket', 'A-kassa (avgift)',
+            'Barnomsorg', 'Sjukhuskostnader', 'Mediciner'
+        ].includes(r.label)
+    );
+
+    const expenseRows = rows.filter((r) =>
+        [
+            'Hyra', 'El', 'Hemförsäkring', 'Mat vuxen', 'Mat barn',
+            'Övriga kostnad barn', 'Internet', 'Facket', 'A-kassa (avgift)',
+            'Barnomsorg', 'Sjukhuskostnader', 'Mediciner'
+        ].includes(r.label)
+    );
+
+    const riksnormRows = rows.filter((r) =>
+        r.label.startsWith('Riksnorm')
+    );
 </script>
 
 <h1 class="text-2xl font-bold mb-6">Ekonomiskt bistånd</h1>
@@ -40,15 +65,52 @@
             </tr>
         {/if}
 
-        {#each rows as row}
-            {#if row.label !== 'Biståndsmånad' && row.label !== 'Kalendermånad'}
-                <tr>
-                    <td class="border p-2">{row.label}</td>
-                    {#each row.values as v}
-                        <td class="border p-2">{v}</td>
-                    {/each}
-                </tr>
-            {/if}
+        <!-- Inkomster -->
+        <tr>
+            <td colspan={months.length + 1} class="border p-2 font-bold bg-gray-100">
+                Inkomster
+            </td>
+        </tr>
+
+        {#each incomeRows as row}
+            <tr>
+                <td class="border p-2">{row.label}</td>
+                {#each row.values as v}
+                    <td class="border p-2">{v}</td>
+                {/each}
+            </tr>
+        {/each}
+
+        <!-- Utgifter -->
+        <tr>
+            <td colspan={months.length + 1} class="border p-2 font-bold bg-gray-100">
+                Utgifter
+            </td>
+        </tr>
+
+        {#each expenseRows as row}
+            <tr>
+                <td class="border p-2">{row.label}</td>
+                {#each row.values as v}
+                    <td class="border p-2">{v}</td>
+                {/each}
+            </tr>
+        {/each}
+
+        <!-- Riksnorm -->
+        <tr>
+            <td colspan={months.length + 1} class="border p-2 font-bold bg-gray-100">
+                Riksnorm
+            </td>
+        </tr>
+
+        {#each riksnormRows as row}
+            <tr>
+                <td class="border p-2">{row.label}</td>
+                {#each row.values as v}
+                    <td class="border p-2">{v}</td>
+                {/each}
+            </tr>
         {/each}
     </tbody>
 </table>
