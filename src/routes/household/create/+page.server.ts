@@ -26,6 +26,7 @@ export const actions: Actions = {
             .insert({
                 adults: 0,
                 children: 0,
+                enable_assistance: false,
                 join_code: null
             })
             .select()
@@ -42,7 +43,8 @@ export const actions: Actions = {
             .insert({
                 user_id: user.id,
                 household_id: household.id,
-                role: 'owner'
+                role: 'owner',
+                guardian_for: false
             });
 
         if (memberError) {
@@ -50,7 +52,7 @@ export const actions: Actions = {
             return fail(500, { error: 'Kunde inte lägga till ägare.' });
         }
 
-        // 3. Skicka användaren till hushållssidan
+        // 3. Redirect till hushållssidan
         throw redirect(303, '/household');
     }
 };

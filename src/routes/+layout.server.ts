@@ -11,11 +11,12 @@ export const load = async ({ locals }) => {
     }
 
     // 1. Hämta hushåll via user_households
+    //    FIX: .single() → .maybeSingle()
     const { data: householdLink } = await supabase
         .from("user_households")
         .select("household_id")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
     const householdId = householdLink?.household_id ?? null;
 
