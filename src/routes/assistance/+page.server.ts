@@ -26,18 +26,27 @@ export const load: PageServerLoad = async ({ locals }) => {
         };
     }
 
-    const { data: incomeMonthsData } = await supabase
+    const { data: incomeMonthsDataRaw } = await supabase
         .from('income_months')
         .select('id, month_date')
         .eq('household_id', householdId);
 
-    if (!incomeMonthsData || incomeMonthsData.length === 0) {
+    if (!incomeMonthsDataRaw || incomeMonthsDataRaw.length === 0) {
         return { months: [], incomeRows: [], rows: [] };
     }
 
+    // Normalisera datum → string
+    const incomeMonthsData = incomeMonthsDataRaw.map((m) => ({
+        id: m.id,
+        month_date:
+            typeof m.month_date === 'string'
+                ? m.month_date.slice(0, 10)
+                : new Date(m.month_date).toISOString().slice(0, 10)
+    }));
+
     const sorted = incomeMonthsData
-        .map((m) => ({ id: m.id, date: new Date(m.month_date) }))
-        .sort((a, b) => a.date.getTime() - b.date.getTime());
+        .map((m) => ({ id: m.id, date: m.month_date }))
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     const last = sorted[sorted.length - 1].date;
 
@@ -85,50 +94,45 @@ export const load: PageServerLoad = async ({ locals }) => {
         return String(value).slice(0, 7);
     };
 
-    const monthIdToYm = new Map<any, string>();
+    const monthIdToYm: Record<string, string> = {};
     for (const im of incomeMonthsData) {
         const ym = toYM(im.month_date);
-        if (ym) monthIdToYm.set(im.id, ym);
+        if (ym) monthIdToYm[im.id] = ym;
     }
 
     const emptyValues = () => months.map(() => 0);
-    const rows = new Map<string, number[]>();
+
+    const rowsObj: Record<string, number[] | string[]> = {};
 
     const add = (label: string, ym: string | null, amount: any) => {
         if (!ym) return;
         const idx = months.indexOf(ym);
         if (idx === -1) return;
-        if (!rows.has(label)) rows.set(label, emptyValues());
+        if (!rowsObj[label]) rowsObj[label] = emptyValues();
         const val = Number(amount ?? 0);
         if (!Number.isFinite(val)) return;
-        rows.get(label)![idx] += val;
+        (rowsObj[label] as number[])[idx] += val;
     };
 
     const incomeLabelSet = new Set<string>();
     incomeLabelSet.add('Arbete');
 
     for (const row of primary) {
-        const ym = monthIdToYm.get(row.income_month_id);
-        add('Arbete', ym, row.att_betala_ut);
+        add('Arbete', monthIdToYm[row.income_month_id], row.att_betala_ut);
     }
 
     for (const row of extraJobs) {
-        const ym = monthIdToYm.get(row.income_month_id);
-        add('Arbete', ym, row.att_betala_ut);
+        add('Arbete', monthIdToYm[row.income_month_id], row.att_betala_ut);
     }
 
     for (const row of fk) {
-        const ym = monthIdToYm.get(row.income_month_id);
+        const ym = monthIdToYm[row.income_month_id];
 
         let label: string;
 
         if (row.fk_typ === 'Övrigt') {
             const desc = (row.beskrivning ?? '').trim();
-            if (desc) {
-                label = desc.length > 15 ? desc.slice(0, 15) : desc;
-            } else {
-                label = 'Övrig FK';
-            }
+            label = desc ? (desc.length > 15 ? desc.slice(0, 15) : desc) : 'Övrig FK';
         } else {
             label = row.fk_typ ?? 'Okänd FK';
         }
@@ -147,28 +151,27 @@ export const load: PageServerLoad = async ({ locals }) => {
 
     for (const ex of expenses) {
         if (!allowedExpenses.has(ex.category)) continue;
-        const ym = monthIdToYm.get(ex.income_month_id);
-        add(ex.category, ym, ex.amount);
+        add(ex.category, monthIdToYm[ex.income_month_id], ex.amount);
     }
 
-    const assistanceMap = new Map<string, (typeof assistanceMonths)[number]>();
+    const assistanceMap: Record<string, any> = {};
     for (const row of assistanceMonths) {
         const ym = `${row.year}-${String(row.month).padStart(2, '0')}`;
-        assistanceMap.set(ym, row);
+        assistanceMap[ym] = row;
     }
 
     const incomeCorrection = emptyValues();
     const expenseCorrection = emptyValues();
 
     months.forEach((m, idx) => {
-        const row = assistanceMap.get(m);
+        const row = assistanceMap[m];
         if (!row) return;
         incomeCorrection[idx] = Number(row.correction_income ?? 0);
         expenseCorrection[idx] = Number(row.correction_expense ?? 0);
     });
 
-    rows.set('Korrigering inkomst', incomeCorrection);
-    rows.set('Korrigering utgift', expenseCorrection);
+    rowsObj['Korrigering inkomst'] = incomeCorrection;
+    rowsObj['Korrigering utgift'] = expenseCorrection;
 
     const riksnormVuxen = emptyValues();
     const riksnormBarn = emptyValues();
@@ -186,9 +189,7 @@ export const load: PageServerLoad = async ({ locals }) => {
         const year = d.getFullYear();
         const month = d.getMonth() + 1;
 
-        const adultNorm = rnPersonal.find(
-            (r) => r.year === year && r.category === 'adult'
-        );
+        const adultNorm = rnPersonal.find((r) => r.year === year && r.category === 'adult');
         const adultAmount = Number(adultNorm?.amount ?? 0);
         riksnormVuxen[idx] = adults * adultAmount;
 
@@ -216,16 +217,16 @@ export const load: PageServerLoad = async ({ locals }) => {
         riksnormHushall[idx] = Number(hhNorm?.amount ?? 0);
     });
 
-    rows.set('Riksnorm vuxen', riksnormVuxen);
-    rows.set('Riksnorm barn', riksnormBarn);
-    rows.set('Riksnorm hushåll', riksnormHushall);
+    rowsObj['Riksnorm vuxen'] = riksnormVuxen;
+    rowsObj['Riksnorm barn'] = riksnormBarn;
+    rowsObj['Riksnorm hushåll'] = riksnormHushall;
 
     const sumRow = (labels: string[]) => {
         const arr = emptyValues();
         for (const label of labels) {
-            const r = rows.get(label);
+            const r = rowsObj[label];
             if (!r) continue;
-            r.forEach((v, i) => (arr[i] += v));
+            (r as number[]).forEach((v, i) => (arr[i] += v));
         }
         return arr;
     };
@@ -243,9 +244,9 @@ export const load: PageServerLoad = async ({ locals }) => {
     const sumExpenses = sumRow(expenseSumLabels);
     const balance = sumIncome.map((v, i) => v - sumExpenses[i]);
 
-    rows.set('Summa inkomst', sumIncome);
-    rows.set('Summa utgifter', sumExpenses);
-    rows.set('Balans', balance);
+    rowsObj['Summa inkomst'] = sumIncome;
+    rowsObj['Summa utgifter'] = sumExpenses;
+    rowsObj['Balans'] = balance;
 
     const assistMonths = months.map((m) => {
         const [y, mm] = m.split('-').map(Number);
@@ -254,12 +255,12 @@ export const load: PageServerLoad = async ({ locals }) => {
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     });
 
-    rows.set('Biståndsmånad', assistMonths);
-    rows.set('Kalendermånad', months);
+    rowsObj['Biståndsmånad'] = assistMonths;
+    rowsObj['Kalendermånad'] = months;
 
     return {
         months,
         incomeRows,
-        rows: [...rows.entries()].map(([label, values]) => ({ label, values }))
+        rows: Object.entries(rowsObj).map(([label, values]) => ({ label, values }))
     };
 };

@@ -1,9 +1,9 @@
 <script lang="ts">
     export let data;
 
-    const months: string[] = data.months ?? [];
-    const rows = data.rows ?? [];
-    const incomeRows: string[] = data.incomeRows ?? [];
+    const months: string[] = data?.months ?? [];
+    const rows: { label: string; values: any[] }[] = data?.rows ?? [];
+    const incomeRows: string[] = data?.incomeRows ?? [];
 
     const monthNames = [
         'Januari','Februari','Mars','April','Maj','Juni',
@@ -12,11 +12,12 @@
 
     function formatMonth(m: string) {
         const [y, mm] = m.split('-').map(Number);
+        if (!mm || mm < 1 || mm > 12) return '';
         return monthNames[mm - 1];
     }
 
     function getYear(m: string) {
-        return m.split('-')[0];
+        return m.split('-')[0] ?? '';
     }
 
     const homeRows = [
@@ -30,14 +31,20 @@
 
     const riksnormRows = ['Riksnorm vuxen','Riksnorm barn','Riksnorm hushåll'];
 
-    // Map med ANY[] så att string[] inte kraschar serialisering
-    const rowMap = new Map<string, { label: string; values: any[] }>();
-    rows.forEach((r) => rowMap.set(r.label, r));
+    // Använd enkel objekt‑map istället för Map för att undvika allt strul
+    const rowMap: Record<string, { label: string; values: any[] }> = {};
+    for (const r of rows) {
+        rowMap[r.label] = {
+            label: r.label,
+            values: Array.isArray(r.values) ? r.values : months.map(() => 0)
+        };
+    }
 
     function getRow(label: string) {
-        const r = rowMap.get(label);
-        if (!r) return { label, values: months.map(() => 0) };
-        if (!r.values) return { label, values: months.map(() => 0) };
+        const r = rowMap[label];
+        if (!r || !Array.isArray(r.values)) {
+            return { label, values: months.map(() => 0) };
+        }
         return r;
     }
 
@@ -161,7 +168,6 @@
                 {/each}
             </tr>
         </thead>
-
         <tbody>
             <tr class="section-header">
                 <td class="border">Biståndsmånad</td>
