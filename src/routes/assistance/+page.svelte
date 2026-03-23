@@ -43,6 +43,7 @@
     const societyRows = ['Barnomsorg'];
     const healthRows = ['Sjukhuskostnader', 'Mediciner'];
 
+    // ⭐ RIKSNORM – ALLA TRE RADERNA
     const riksnormRows = ['Riksnorm vuxen', 'Riksnorm barn', 'Riksnorm hushåll'];
 
     const rowMap = new Map<string, { label: string; values: number[] }>();
@@ -241,6 +242,7 @@
                 {/each}
             </tr>
         </thead>
+
         <tbody>
             <tr class="section-header">
                 <td class="border">Biståndsmånad</td>
@@ -346,6 +348,7 @@
                 </tr>
             {/each}
 
+            <!-- ⭐ RIKSNORM – ALLA TRE RADERNA -->
             <tr class="expense-subheader section-header">
                 <td class="border" colspan={1 + months.length}>Riksnorm</td>
             </tr>
