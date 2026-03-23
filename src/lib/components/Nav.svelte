@@ -33,7 +33,7 @@
         ...(enable_assistance
             ? [
                   // ⭐ BYTT NAMN
-                  { label: "Beräkning", header: true },
+                  { label: "Ekonomiskt bistånd", header: true },
                   { label: "Beräkning", path: "/assistance" },
 
                   // ⭐ NYTT MENYVAL — INGEN HEADER

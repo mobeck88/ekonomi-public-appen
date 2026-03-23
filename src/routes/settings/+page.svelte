@@ -4,6 +4,7 @@
 
     let isMember = form?.isMember ?? data.isMemberOfChurch;
     let hasGuardian = form?.hasGuardian ?? data.hasGuardian;
+    let enableAssistance = form?.enableAssistance ?? data.enableAssistance;
     let message = form?.message ?? "";
 
     let showChurch = false;
@@ -11,6 +12,7 @@
     let showLogout = false;
     let showHousehold = false;
     let showGuardian = false;
+    let showAssistance = false;
 </script>
 
 <h1>Inställningar</h1>
@@ -29,6 +31,25 @@
                 <button type="button">Gå till hushållsinställningar</button>
             </a>
         </div>
+    {/if}
+</div>
+
+<!-- Ekonomiskt bistånd -->
+<div class="section">
+    <button class="section-header" on:click={() => (showAssistance = !showAssistance)}>
+        <span>Ekonomiskt bistånd</span>
+        <span>{showAssistance ? "▲" : "▼"}</span>
+    </button>
+
+    {#if showAssistance}
+        <form method="POST" action="?/updateAssistance" class="form">
+            <label class="checkbox-row">
+                <input type="checkbox" name="enableAssistance" bind:checked={enableAssistance}>
+                Visa ekonomiskt bistånd i menyn
+            </label>
+
+            <button type="submit">Spara</button>
+        </form>
     {/if}
 </div>
 
