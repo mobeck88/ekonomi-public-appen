@@ -7,7 +7,6 @@
     const assist = rows.find((r) => r.label === 'Biståndsmånad');
     const calendar = rows.find((r) => r.label === 'Kalendermånad');
 
-    // Sektioner
     const incomeRows = rows.filter((r) =>
         r.label !== 'Biståndsmånad' &&
         r.label !== 'Kalendermånad' &&
@@ -32,6 +31,13 @@
     const riksnormRows = rows.filter((r) =>
         r.label.startsWith('Riksnorm')
     );
+
+    function formatMonth(value: unknown): string {
+        const s = String(value ?? '');
+        const [year, month] = s.split('-');
+        if (!year || !month) return s;
+        return `${month}-${year}`;
+    }
 </script>
 
 <h1 class="text-2xl font-bold mb-6">Ekonomiskt bistånd</h1>
@@ -51,7 +57,7 @@
             <tr>
                 <td class="border p-2 font-semibold">Biståndsmånad</td>
                 {#each assist.values as v}
-                    <td class="border p-2">{v}</td>
+                    <td class="border p-2">{formatMonth(v)}</td>
                 {/each}
             </tr>
         {/if}
@@ -60,12 +66,11 @@
             <tr>
                 <td class="border p-2 font-semibold">Kalendermånad</td>
                 {#each calendar.values as v}
-                    <td class="border p-2">{v}</td>
+                    <td class="border p-2">{formatMonth(v)}</td>
                 {/each}
             </tr>
         {/if}
 
-        <!-- Inkomster -->
         <tr>
             <td colspan={months.length + 1} class="border p-2 font-bold bg-gray-100">
                 Inkomster
@@ -81,7 +86,6 @@
             </tr>
         {/each}
 
-        <!-- Utgifter -->
         <tr>
             <td colspan={months.length + 1} class="border p-2 font-bold bg-gray-100">
                 Utgifter
@@ -97,7 +101,6 @@
             </tr>
         {/each}
 
-        <!-- Riksnorm -->
         <tr>
             <td colspan={months.length + 1} class="border p-2 font-bold bg-gray-100">
                 Riksnorm
