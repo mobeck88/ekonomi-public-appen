@@ -1,28 +1,31 @@
 <script lang="ts">
     export let data;
 
-    // --- Säker inläsning ---
-    const months: string[] = Array.isArray(data?.months) ? data.months : [];
-    const incomeRows: string[] = Array.isArray(data?.incomeRows) ? data.incomeRows : [];
-    const rows: { label: string; values: any[] }[] = Array.isArray(data?.rows) ? data.rows : [];
-
-    // --- Gör om rows till ett säkert objekt ---
-    const rowMap: Record<string, any[]> = {};
-    for (const r of rows) {
-        rowMap[r.label] = Array.isArray(r.values) ? [...r.values] : months.map(() => 0);
+    // --- Helper to guarantee arrays ---
+    function safeArray<T>(v: any): T[] {
+        return Array.isArray(v) ? v : [];
     }
 
-    // --- Hämtare ---
+    // --- Safe incoming data ---
+    const months: string[] = safeArray<string>(data?.months);
+    const incomeRows: string[] = safeArray<string>(data?.incomeRows);
+    const rows: { label: string; values: any[] }[] = safeArray(data?.rows);
+
+    // --- Build safe row map ---
+    const rowMap: Record<string, any[]> = {};
+    for (const r of rows) {
+        rowMap[r.label] = safeArray(r.values);
+    }
+
     function getRow(label: string) {
-        return rowMap[label] ?? months.map(() => 0);
+        return safeArray(rowMap[label] ?? months.map(() => 0));
     }
 
     function isRowVisible(label: string) {
-        const vals = getRow(label);
-        return vals.some((v) => v !== 0 && v !== null && v !== "");
+        return getRow(label).some((v) => v !== 0 && v !== null && v !== "");
     }
 
-    // --- Månadshjälpare ---
+    // --- Month helpers ---
     const monthNames = [
         'Januari','Februari','Mars','April','Maj','Juni',
         'Juli','Augusti','September','Oktober','November','December'
@@ -40,25 +43,25 @@
         return m?.split("-")?.[0] ?? "";
     }
 
-    // --- Kategorier ---
+    // --- Categories ---
     const homeRows = ['Hyra','El','Hemförsäkring','Mat vuxen','Mat barn','Övriga kostnad barn','Internet'];
     const workRows = ['Facket','A-kassa (avgift)'];
     const societyRows = ['Barnomsorg'];
     const healthRows = ['Sjukhuskostnader','Mediciner'];
     const riksnormRows = ['Riksnorm vuxen','Riksnorm barn','Riksnorm hushåll'];
 
-    // --- Korrigeringar ---
+    // --- Corrections ---
     let incomeCorrection = [...getRow("Korrigering inkomst")];
     let expenseCorrection = [...getRow("Korrigering utgift")];
 
-    // --- Summeringar ---
+    // --- Summaries ---
     let sumIncome = [...getRow("Summa inkomst")];
     let sumExpenses = [...getRow("Summa utgifter")];
     let balance = [...getRow("Balans")];
 
-    // --- Biståndsmånad & kalendermånad ---
-    const assist = [...getRow("Biståndsmånad")];
-    const calendar = [...getRow("Kalendermånad")];
+    // --- Assist & calendar ---
+    const assist = safeArray<string>(getRow("Biståndsmånad"));
+    const calendar = safeArray<string>(getRow("Kalendermånad"));
 
     // --- Recalc ---
     function recalc() {
@@ -91,7 +94,7 @@
         balance = months.map((_, i) => sumIncome[i] - sumExpenses[i]);
     }
 
-    // --- Spara korrigering ---
+    // --- Save correction ---
     let saving = false;
     let saveError: string | null = null;
     let saveTimeout: any = null;
@@ -168,14 +171,14 @@
         <tbody>
             <tr class="section-header">
                 <td class="border">Biståndsmånad</td>
-                {#each assist as v}
+                {#each safeArray(assist) as v}
                     <td class="border text-right">{formatMonth(v)}</td>
                 {/each}
             </tr>
 
             <tr class="section-header">
                 <td class="border">Kalendermånad</td>
-                {#each calendar as v}
+                {#each safeArray(calendar) as v}
                     <td class="border text-right">{formatMonth(v)}</td>
                 {/each}
             </tr>
@@ -187,7 +190,7 @@
             {#each incomeRows.filter(isRowVisible) as label}
                 <tr class="bg-green-50">
                     <td class="border">{label}</td>
-                    {#each getRow(label) as v}
+                    {#each safeArray(getRow(label)) as v}
                         <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
@@ -204,7 +207,7 @@
 
             <tr class="income-header font-semibold">
                 <td class="border">Summa inkomst</td>
-                {#each sumIncome as v}
+                {#each safeArray(sumIncome) as v}
                     <td class="border text-right">{v} kr</td>
                 {/each}
             </tr>
@@ -220,7 +223,7 @@
             {#each homeRows.filter(isRowVisible) as label}
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
-                    {#each getRow(label) as v}
+                    {#each safeArray(getRow(label)) as v}
                         <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
@@ -233,7 +236,7 @@
             {#each workRows.filter(isRowVisible) as label}
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
-                    {#each getRow(label) as v}
+                    {#each safeArray(getRow(label)) as v}
                         <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
@@ -246,7 +249,7 @@
             {#each societyRows.filter(isRowVisible) as label}
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
-                    {#each getRow(label) as v}
+                    {#each safeArray(getRow(label)) as v}
                         <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
@@ -259,7 +262,7 @@
             {#each healthRows.filter(isRowVisible) as label}
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
-                    {#each getRow(label) as v}
+                    {#each safeArray(getRow(label)) as v}
                         <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
@@ -272,7 +275,7 @@
             {#each riksnormRows as label}
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
-                    {#each getRow(label) as v}
+                    {#each safeArray(getRow(label)) as v}
                         <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
@@ -289,14 +292,14 @@
 
             <tr class="expense-header font-semibold">
                 <td class="border">Summa utgifter</td>
-                {#each sumExpenses as v}
+                {#each safeArray(sumExpenses) as v}
                     <td class="border text-right">{v} kr</td>
                 {/each}
             </tr>
 
             <tr class="balance-row">
                 <td class="border">Balans</td>
-                {#each balance as v}
+                {#each safeArray(balance) as v}
                     <td class="border text-right">{v} kr</td>
                 {/each}
             </tr>
