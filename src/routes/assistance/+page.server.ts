@@ -1,276 +1,414 @@
-import { redirect } from '@sveltejs/kit';
-import type { PageServerLoad } from './$types';
+<script lang="ts">
+    export let data;
 
-function ageAtMonth(birthdate: string, year: number, month: number) {
-    const b = new Date(birthdate);
-    const d = new Date(year, month - 1, 1);
-    let age = d.getFullYear() - b.getFullYear();
-    if (d.getMonth() < b.getMonth() || (d.getMonth() === b.getMonth() && d.getDate() < b.getDate())) {
-        age--;
-    }
-    return age;
-}
+    const months: string[] = data.months ?? [];
+    const rows = (data.rows ?? []) as { label: string; values: unknown[] }[];
+    const incomeRows: string[] = data.incomeRows ?? [];
 
-export const load: PageServerLoad = async ({ locals }) => {
-    const user = locals.user;
-    const householdId = locals.householdId;
-    const supabase = locals.supabase;
+    const monthNames = [
+        'Januari',
+        'Februari',
+        'Mars',
+        'April',
+        'Maj',
+        'Juni',
+        'Juli',
+        'Augusti',
+        'September',
+        'Oktober',
+        'November',
+        'December'
+    ];
 
-    // ⬇⬇⬇ ENDA KRITISKA ÄNDRINGEN ⬇⬇⬇
-    if (!user) throw redirect(303, '/login');
-    // ⬆⬆⬆ ENDA KRITISKA ÄNDRINGEN ⬆⬆⬆
-
-    if (!householdId) {
-        return {
-            months: [],
-            incomeRows: [],
-            rows: []
-        };
+    function formatMonth(m: string) {
+        const [y, mm] = m.split('-').map(Number);
+        if (!mm || mm < 1 || mm > 12) return m;
+        return monthNames[mm - 1];
     }
 
-    const { data: incomeMonthsData } = await supabase
-        .from('income_months')
-        .select('id, month_date')
-        .eq('household_id', householdId);
-
-    if (!incomeMonthsData || incomeMonthsData.length === 0) {
-        return { months: [], incomeRows: [], rows: [] };
+    function getYear(m: string) {
+        return m.split('-')[0] ?? '';
     }
 
-    const sorted = incomeMonthsData
-        .map((m) => ({ id: m.id, date: new Date(m.month_date) }))
-        .sort((a, b) => a.date.getTime() - b.date.getTime());
-
-    const last = sorted[sorted.length - 1].date;
-
-    const months: string[] = [];
-    for (let i = -3; i <= 1; i++) {
-        const d = new Date(last);
-        d.setMonth(d.getMonth() + i);
-        months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-    }
-
-    const [
-        primaryRes,
-        extraJobsRes,
-        fkRes,
-        expensesRes,
-        assistanceRes,
-        householdRes,
-        childrenRes,
-        rnPersonalRes,
-        rnHouseholdRes
-    ] = await Promise.all([
-        supabase.from('income_primary_job').select('*').eq('household_id', householdId),
-        supabase.from('income_extra_jobs').select('*').eq('household_id', householdId),
-        supabase.from('income_fk').select('*').eq('household_id', householdId),
-        supabase.from('expenses').select('*').eq('household_id', householdId),
-        supabase.from('assistance_months').select('*').eq('household_id', householdId),
-        supabase.from('households').select('*').eq('id', householdId),
-        supabase.from('households_children').select('*').eq('household_id', householdId),
-        supabase.from('riksnorm_personal').select('*'),
-        supabase.from('riksnorm_household').select('*')
-    ]);
-
-    const primary = primaryRes.data ?? [];
-    const extraJobs = extraJobsRes.data ?? [];
-    const fk = fkRes.data ?? [];
-    const expenses = expensesRes.data ?? [];
-    const assistanceMonths = assistanceRes.data ?? [];
-    const household = householdRes.data?.[0] ?? null;
-    const children = childrenRes.data ?? [];
-    const rnPersonal = rnPersonalRes.data ?? [];
-    const rnHousehold = rnHouseholdRes.data ?? [];
-
-    const toYM = (value: any) => {
-        if (!value) return null;
-        return String(value).slice(0, 7);
-    };
-
-    const monthIdToYm = new Map<any, string>();
-    for (const im of incomeMonthsData) {
-        const ym = toYM(im.month_date);
-        if (ym) monthIdToYm.set(im.id, ym);
-    }
-
-    const emptyValues = () => months.map(() => 0);
-    const rows = new Map<string, number[]>();
-
-    const add = (label: string, ym: string | null, amount: any) => {
-        if (!ym) return;
-        const idx = months.indexOf(ym);
-        if (idx === -1) return;
-        if (!rows.has(label)) rows.set(label, emptyValues());
-        const val = Number(amount ?? 0);
-        if (!Number.isFinite(val)) return;
-        rows.get(label)![idx] += val;
-    };
-
-    const incomeLabelSet = new Set<string>();
-    incomeLabelSet.add('Arbete');
-
-    for (const row of primary) {
-        const ym = monthIdToYm.get(row.income_month_id);
-        add('Arbete', ym, row.att_betala_ut);
-    }
-
-    for (const row of extraJobs) {
-        const ym = monthIdToYm.get(row.income_month_id);
-        add('Arbete', ym, row.att_betala_ut);
-    }
-
-    for (const row of fk) {
-        const ym = monthIdToYm.get(row.income_month_id);
-
-        let label: string;
-
-        if (row.fk_typ === 'Övrigt') {
-            const desc = (row.beskrivning ?? '').trim();
-            if (desc) {
-                label = desc.length > 15 ? desc.slice(0, 15) : desc;
-            } else {
-                label = 'Övrig FK';
-            }
-        } else {
-            label = row.fk_typ ?? 'Okänd FK';
-        }
-
-        incomeLabelSet.add(label);
-        add(label, ym, row.att_betala_ut);
-    }
-
-    const incomeRows = Array.from(incomeLabelSet);
-
-    const allowedExpenses = new Set<string>([
+    const homeRows = [
         'Hyra',
         'El',
         'Hemförsäkring',
         'Mat vuxen',
         'Mat barn',
         'Övriga kostnad barn',
-        'Internet',
-        'Facket',
-        'A-kassa (avgift)',
-        'Barnomsorg',
-        'Sjukhuskostnader',
-        'Mediciner'
-    ]);
-
-    for (const ex of expenses) {
-        if (!allowedExpenses.has(ex.category)) continue;
-        const ym = monthIdToYm.get(ex.income_month_id);
-        add(ex.category, ym, ex.amount);
-    }
-
-    const assistanceMap = new Map<string, (typeof assistanceMonths)[number]>();
-    for (const row of assistanceMonths) {
-        const ym = `${row.year}-${String(row.month).padStart(2, '0')}`;
-        assistanceMap.set(ym, row);
-    }
-
-    const incomeCorrection = emptyValues();
-    const expenseCorrection = emptyValues();
-
-    months.forEach((m, idx) => {
-        const row = assistanceMap.get(m);
-        if (!row) return;
-        incomeCorrection[idx] = Number(row.correction_income ?? 0);
-        expenseCorrection[idx] = Number(row.correction_expense ?? 0);
-    });
-
-    rows.set('Korrigering inkomst', incomeCorrection);
-    rows.set('Korrigering utgift', expenseCorrection);
-
-    const riksnormVuxen = emptyValues();
-    const riksnormBarn = emptyValues();
-    const riksnormHushall = emptyValues();
-
-    const adults = household?.adults ?? 0;
-    const childrenCount = household?.children ?? 0;
-    const totalPersons = adults + childrenCount;
-
-    months.forEach((m, idx) => {
-        const [yearStr, monthStr] = m.split('-').map(Number);
-        const d = new Date(yearStr, monthStr - 1);
-        d.setMonth(d.getMonth() + 1);
-
-        const year = d.getFullYear();
-        const month = d.getMonth() + 1;
-
-        const adultNorm = rnPersonal.find(
-            (r) => r.year === year && r.category === 'adult'
-        );
-        const adultAmount = Number(adultNorm?.amount ?? 0);
-        riksnormVuxen[idx] = adults * adultAmount;
-
-        let childTotal = 0;
-        for (const child of children) {
-            const age = ageAtMonth(child.birthdate, year, month);
-            const childNorm = rnPersonal.find(
-                (r) =>
-                    r.year === year &&
-                    r.category === 'child' &&
-                    r.age_min !== null &&
-                    r.age_max !== null &&
-                    age >= r.age_min &&
-                    age <= r.age_max
-            );
-            if (childNorm) {
-                childTotal += Number(childNorm.amount ?? 0);
-            }
-        }
-        riksnormBarn[idx] = childTotal;
-
-        const hhNorm = rnHousehold.find(
-            (r) => r.year === year && r.household_size === totalPersons
-        );
-        riksnormHushall[idx] = Number(hhNorm?.amount ?? 0);
-    });
-
-    rows.set('Riksnorm vuxen', riksnormVuxen);
-    rows.set('Riksnorm barn', riksnormBarn);
-    rows.set('Riksnorm hushåll', riksnormHushall);
-
-    const sumRow = (labels: string[]) => {
-        const arr = emptyValues();
-        for (const label of labels) {
-            const r = rows.get(label);
-            if (!r) continue;
-            r.forEach((v, i) => (arr[i] += v));
-        }
-        return arr;
-    };
-
-    const sumIncome = sumRow([...incomeRows, 'Korrigering inkomst']);
-
-    const expenseSumLabels = [
-        ...Array.from(allowedExpenses),
-        'Riksnorm vuxen',
-        'Riksnorm barn',
-        'Riksnorm hushåll',
-        'Korrigering utgift'
+        'Internet'
     ];
 
-    const sumExpenses = sumRow(expenseSumLabels);
-    const balance = sumIncome.map((v, i) => v - sumExpenses[i]);
+    const workRows = ['Facket', 'A-kassa (avgift)'];
+    const societyRows = ['Barnomsorg'];
+    const healthRows = ['Sjukhuskostnader', 'Mediciner'];
 
-    rows.set('Summa inkomst', sumIncome);
-    rows.set('Summa utgifter', sumExpenses);
-    rows.set('Balans', balance);
+    const riksnormRows = ['Riksnorm vuxen', 'Riksnorm barn', 'Riksnorm hushåll'];
 
-    const assistMonths = months.map((m) => {
-        const [y, mm] = m.split('-').map(Number);
-        const d = new Date(y, mm - 1);
-        d.setMonth(d.getMonth() + 1);
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    });
+    type Row = { label: string; values: unknown[] };
 
-    rows.set('Biståndsmånad', assistMonths as unknown as number[]);
-    rows.set('Kalendermånad', months as unknown as number[]);
+    const rowByLabel: Record<string, Row> = {};
+    for (const r of rows) {
+        const values = Array.isArray(r.values) ? r.values.slice() : months.map(() => 0);
+        rowByLabel[r.label] = { label: r.label, values };
+    }
 
-    return {
-        months,
-        incomeRows,
-        rows: [...rows.entries()].map(([label, values]) => ({ label, values }))
-    };
-};
+    function ensureNumericRow(label: string): Row {
+        if (!rowByLabel[label]) {
+            rowByLabel[label] = { label, values: months.map(() => 0) };
+        } else {
+            const vals = rowByLabel[label].values;
+            const normalized = months.map((_, i) => Number(vals[i] ?? 0));
+            rowByLabel[label] = { label, values: normalized };
+        }
+        return rowByLabel[label];
+    }
+
+    function getRow(label: string): Row {
+        return rowByLabel[label] ?? { label, values: months.map(() => 0) };
+    }
+
+    function isRowVisible(label: string) {
+        const row = getRow(label);
+        return row.values.some((v) => {
+            const n = Number(v);
+            return Number.isFinite(n) && n !== 0;
+        });
+    }
+
+    const sumIncome = ensureNumericRow('Summa inkomst');
+    const sumExpenses = ensureNumericRow('Summa utgifter');
+    const balance = ensureNumericRow('Balans');
+
+    const assist = getRow('Biståndsmånad');
+    const calendar = getRow('Kalendermånad');
+
+    const incomeCorrectionRow = ensureNumericRow('Korrigering inkomst');
+    const expenseCorrectionRow = ensureNumericRow('Korrigering utgift');
+
+    let saving = false;
+    let saveError: string | null = null;
+    let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    function recalc() {
+        // Inkomster
+        sumIncome.values = months.map((_, i) => {
+            let total = 0;
+
+            for (const label of incomeRows) {
+                const row = ensureNumericRow(label);
+                total += Number(row.values[i] ?? 0);
+            }
+
+            total += Number(incomeCorrectionRow.values[i] ?? 0);
+
+            return total;
+        });
+
+        // Utgifter
+        const expenseLabels = [
+            'Hyra',
+            'El',
+            'Hemförsäkring',
+            'Mat vuxen',
+            'Mat barn',
+            'Övriga kostnad barn',
+            'Internet',
+            'Facket',
+            'A-kassa (avgift)',
+            'Barnomsorg',
+            'Sjukhuskostnader',
+            'Mediciner',
+            'Riksnorm vuxen',
+            'Riksnorm barn',
+            'Riksnorm hushåll'
+        ];
+
+        sumExpenses.values = months.map((_, i) => {
+            let total = 0;
+
+            for (const label of expenseLabels) {
+                const row = ensureNumericRow(label);
+                total += Number(row.values[i] ?? 0);
+            }
+
+            total += Number(expenseCorrectionRow.values[i] ?? 0);
+
+            return total;
+        });
+
+        // Balans
+        balance.values = months.map((_, i) => {
+            return Number(sumIncome.values[i] ?? 0) - Number(sumExpenses.values[i] ?? 0);
+        });
+    }
+
+    async function saveCorrection(
+        type: 'income' | 'expense',
+        month: string,
+        value: string
+    ) {
+        const amount = Number(value || 0);
+        saving = true;
+        saveError = null;
+
+        try {
+            const res = await fetch('/assistance/updateCorrection', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type, month, amount })
+            });
+
+            if (!res.ok) {
+                saveError = 'Kunde inte spara korrigering.';
+            }
+        } catch (e) {
+            saveError = 'Kunde inte spara korrigering.';
+        } finally {
+            saving = false;
+        }
+    }
+
+    function onCorrectionInput(
+        type: 'income' | 'expense',
+        month: string,
+        index: number,
+        event: Event
+    ) {
+        const target = event.target as HTMLInputElement;
+        const value = target.value;
+
+        const num = Number(value || 0);
+
+        if (type === 'income') {
+            incomeCorrectionRow.values[index] = num;
+        } else {
+            expenseCorrectionRow.values[index] = num;
+        }
+
+        recalc();
+
+        if (saveTimeout) clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(() => {
+            saveCorrection(type, month, value);
+        }, 400);
+    }
+</script>
+
+<style>
+    thead th {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: #f3f4f6;
+    }
+    tbody tr:hover td {
+        background-color: #f9fafb;
+    }
+    td,
+    th {
+        padding: 10px 12px;
+        font-size: 0.9rem;
+    }
+    table {
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    }
+    .section-header {
+        background: #e5e7eb;
+        font-weight: 700;
+        font-size: 1rem;
+    }
+    .income-header {
+        background: #bbf7d0;
+    }
+    .expense-header {
+        background: #fecaca;
+    }
+    .expense-subheader {
+        background: #fee2e2;
+    }
+    .balance-row {
+        background: #e5e7eb;
+        font-weight: 600;
+    }
+    input[type='number'] {
+        width: 100%;
+        text-align: right;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        padding: 2px 4px;
+        font-size: 0.85rem;
+    }
+</style>
+
+<h1 class="text-2xl font-bold mb-6">Bistånd</h1>
+
+{#if saving}
+    <p class="text-xs text-gray-500 mb-2">Sparar korrigering...</p>
+{/if}
+{#if saveError}
+    <p class="text-xs text-red-600 mb-2">{saveError}</p>
+{/if}
+
+<div class="overflow-x-auto">
+    <table class="min-w-full text-sm border-collapse">
+        <thead>
+            <tr>
+                <th class="border text-left">Kategori</th>
+                {#each months as m}
+                    <th class="border text-right">{getYear(m)}</th>
+                {/each}
+            </tr>
+        </thead>
+
+        <tbody>
+            <tr class="section-header">
+                <td class="border">Biståndsmånad</td>
+                {#each assist.values as v}
+                    <td class="border text-right">{formatMonth(String(v))}</td>
+                {/each}
+            </tr>
+
+            <tr class="section-header">
+                <td class="border">Kalendermånad</td>
+                {#each calendar.values as v}
+                    <td class="border text-right">{formatMonth(String(v))}</td>
+                {/each}
+            </tr>
+
+            <tr class="income-header section-header">
+                <td class="border" colspan={1 + months.length}>Inkomster</td>
+            </tr>
+
+            {#each incomeRows.filter(isRowVisible) as label}
+                <tr class="bg-green-50">
+                    <td class="border">{label}</td>
+                    {#each ensureNumericRow(label).values as v}
+                        <td class="border text-right">{Number(v)} kr</td>
+                    {/each}
+                </tr>
+            {/each}
+
+            <tr class="bg-green-50">
+                <td class="border font-semibold">Korrigering</td>
+                {#each months as m, i}
+                    <td class="border text-right">
+                        <input
+                            type="number"
+                            step="1"
+                            value={Number(incomeCorrectionRow.values[i] ?? 0)}
+                            on:input={(e) => onCorrectionInput('income', m, i, e)}
+                        />
+                    </td>
+                {/each}
+            </tr>
+
+            <tr class="income-header font-semibold">
+                <td class="border">Summa inkomst</td>
+                {#each sumIncome.values as v}
+                    <td class="border text-right">{Number(v)} kr</td>
+                {/each}
+            </tr>
+
+            <tr class="expense-header section-header">
+                <td class="border" colspan={1 + months.length}>Utgifter</td>
+            </tr>
+
+            <tr class="expense-subheader section-header">
+                <td class="border" colspan={1 + months.length}>Hem</td>
+            </tr>
+
+            {#each homeRows.filter(isRowVisible) as label}
+                <tr class="bg-red-50">
+                    <td class="border">{label}</td>
+                    {#each ensureNumericRow(label).values as v}
+                        <td class="border text-right">{Number(v)} kr</td>
+                    {/each}
+                </tr>
+            {/each}
+
+            <tr class="expense-subheader section-header">
+                <td class="border" colspan={1 + months.length}>Arbete</td>
+            </tr>
+
+            {#each workRows.filter(isRowVisible) as label}
+                <tr class="bg-red-50">
+                    <td class="border">{label}</td>
+                    {#each ensureNumericRow(label).values as v}
+                        <td class="border text-right">{Number(v)} kr</td>
+                    {/each}
+                </tr>
+            {/each}
+
+            <tr class="expense-subheader section-header">
+                <td class="border" colspan={1 + months.length}>Samhäll</td>
+            </tr>
+
+            {#each societyRows.filter(isRowVisible) as label}
+                <tr class="bg-red-50">
+                    <td class="border">{label}</td>
+                    {#each ensureNumericRow(label).values as v}
+                        <td class="border text-right">{Number(v)} kr</td>
+                    {/each}
+                </tr>
+            {/each}
+
+            <tr class="expense-subheader section-header">
+                <td class="border" colspan={1 + months.length}>Samhäll (vård)</td>
+            </tr>
+
+            {#each healthRows.filter(isRowVisible) as label}
+                <tr class="bg-red-50">
+                    <td class="border">{label}</td>
+                    {#each ensureNumericRow(label).values as v}
+                        <td class="border text-right">{Number(v)} kr</td>
+                    {/each}
+                </tr>
+            {/each}
+
+            <tr class="expense-subheader section-header">
+                <td class="border" colspan={1 + months.length}>Riksnorm</td>
+            </tr>
+
+            {#each riksnormRows as label}
+                <tr class="bg-red-50">
+                    <td class="border">{label}</td>
+                    {#each ensureNumericRow(label).values as v}
+                        <td class="border text-right">{Number(v)} kr</td>
+                    {/each}
+                </tr>
+            {/each}
+
+            <tr class="bg-red-50">
+                <td class="border font-semibold">Korrigering</td>
+                {#each months as m, i}
+                    <td class="border text-right">
+                        <input
+                            type="number"
+                            step="1"
+                            value={Number(expenseCorrectionRow.values[i] ?? 0)}
+                            on:input={(e) => onCorrectionInput('expense', m, i, e)}
+                        />
+                    </td>
+                {/each}
+            </tr>
+
+            <tr class="expense-header font-semibold">
+                <td class="border">Summa utgifter</td>
+                {#each sumExpenses.values as v}
+                    <td class="border text-right">{Number(v)} kr</td>
+                {/each}
+            </tr>
+
+            <tr class="balance-row">
+                <td class="border">Balans</td>
+                {#each balance.values as v}
+                    <td class="border text-right">{Number(v)} kr</td>
+                {/each}
+            </tr>
+        </tbody>
+    </table>
+</div>
