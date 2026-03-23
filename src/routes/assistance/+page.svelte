@@ -1,130 +1,126 @@
 <script lang="ts">
     export let data;
 
-    const months: string[] = data?.months ?? [];
-    const rows: { label: string; values: any[] }[] = data?.rows ?? [];
-    const incomeRows: string[] = data?.incomeRows ?? [];
+    // --- Säker inläsning ---
+    const months: string[] = Array.isArray(data?.months) ? data.months : [];
+    const incomeRows: string[] = Array.isArray(data?.incomeRows) ? data.incomeRows : [];
+    const rows: { label: string; values: any[] }[] = Array.isArray(data?.rows) ? data.rows : [];
 
+    // --- Gör om rows till ett säkert objekt ---
+    const rowMap: Record<string, any[]> = {};
+    for (const r of rows) {
+        rowMap[r.label] = Array.isArray(r.values) ? [...r.values] : months.map(() => 0);
+    }
+
+    // --- Hämtare ---
+    function getRow(label: string) {
+        return rowMap[label] ?? months.map(() => 0);
+    }
+
+    function isRowVisible(label: string) {
+        const vals = getRow(label);
+        return vals.some((v) => v !== 0 && v !== null && v !== "");
+    }
+
+    // --- Månadshjälpare ---
     const monthNames = [
         'Januari','Februari','Mars','April','Maj','Juni',
         'Juli','Augusti','September','Oktober','November','December'
     ];
 
     function formatMonth(m: string) {
-        const [y, mm] = m.split('-').map(Number);
-        if (!mm || mm < 1 || mm > 12) return '';
-        return monthNames[mm - 1];
+        if (!m || typeof m !== "string") return "";
+        const parts = m.split("-");
+        if (parts.length < 2) return "";
+        const mm = Number(parts[1]);
+        return monthNames[mm - 1] ?? "";
     }
 
     function getYear(m: string) {
-        return m.split('-')[0] ?? '';
+        return m?.split("-")?.[0] ?? "";
     }
 
-    const homeRows = [
-        'Hyra','El','Hemförsäkring','Mat vuxen','Mat barn',
-        'Övriga kostnad barn','Internet'
-    ];
-
+    // --- Kategorier ---
+    const homeRows = ['Hyra','El','Hemförsäkring','Mat vuxen','Mat barn','Övriga kostnad barn','Internet'];
     const workRows = ['Facket','A-kassa (avgift)'];
     const societyRows = ['Barnomsorg'];
     const healthRows = ['Sjukhuskostnader','Mediciner'];
-
     const riksnormRows = ['Riksnorm vuxen','Riksnorm barn','Riksnorm hushåll'];
 
-    // Använd enkel objekt‑map istället för Map för att undvika allt strul
-    const rowMap: Record<string, { label: string; values: any[] }> = {};
-    for (const r of rows) {
-        rowMap[r.label] = {
-            label: r.label,
-            values: Array.isArray(r.values) ? r.values : months.map(() => 0)
-        };
-    }
+    // --- Korrigeringar ---
+    let incomeCorrection = [...getRow("Korrigering inkomst")];
+    let expenseCorrection = [...getRow("Korrigering utgift")];
 
-    function getRow(label: string) {
-        const r = rowMap[label];
-        if (!r || !Array.isArray(r.values)) {
-            return { label, values: months.map(() => 0) };
-        }
-        return r;
-    }
+    // --- Summeringar ---
+    let sumIncome = [...getRow("Summa inkomst")];
+    let sumExpenses = [...getRow("Summa utgifter")];
+    let balance = [...getRow("Balans")];
 
-    function isRowVisible(label: string) {
-        const row = getRow(label);
-        return row.values.some((v) => v !== 0 && v !== null && v !== '');
-    }
+    // --- Biståndsmånad & kalendermånad ---
+    const assist = [...getRow("Biståndsmånad")];
+    const calendar = [...getRow("Kalendermånad")];
 
-    const sumIncome = getRow('Summa inkomst');
-    const sumExpenses = getRow('Summa utgifter');
-    const balance = getRow('Balans');
-
-    // Dessa är string[] – viktigt!
-    const assist = getRow('Biståndsmånad');
-    const calendar = getRow('Kalendermånad');
-
-    const incomeCorrectionRow = getRow('Korrigering inkomst');
-    const expenseCorrectionRow = getRow('Korrigering utgift');
-
-    let saving = false;
-    let saveError: string | null = null;
-    let saveTimeout: ReturnType<typeof setTimeout> | null = null;
-
+    // --- Recalc ---
     function recalc() {
-        sumIncome.values = months.map((_, i) => {
+        sumIncome = months.map((_, i) => {
             let total = 0;
             for (const label of incomeRows) {
-                total += Number(getRow(label).values[i] ?? 0);
+                total += Number(getRow(label)[i] ?? 0);
             }
-            total += Number(incomeCorrectionRow.values[i] ?? 0);
+            total += Number(incomeCorrection[i] ?? 0);
             return total;
         });
 
         const expenseLabels = [
-            'Hyra','El','Hemförsäkring','Mat vuxen','Mat barn',
-            'Övriga kostnad barn','Internet','Facket','A-kassa (avgift)',
-            'Barnomsorg','Sjukhuskostnader','Mediciner',
-            'Riksnorm vuxen','Riksnorm barn','Riksnorm hushåll'
+            ...homeRows,
+            ...workRows,
+            ...societyRows,
+            ...healthRows,
+            ...riksnormRows
         ];
 
-        sumExpenses.values = months.map((_, i) => {
+        sumExpenses = months.map((_, i) => {
             let total = 0;
             for (const label of expenseLabels) {
-                total += Number(getRow(label).values[i] ?? 0);
+                total += Number(getRow(label)[i] ?? 0);
             }
-            total += Number(expenseCorrectionRow.values[i] ?? 0);
+            total += Number(expenseCorrection[i] ?? 0);
             return total;
         });
 
-        balance.values = months.map((_, i) =>
-            Number(sumIncome.values[i] ?? 0) - Number(sumExpenses.values[i] ?? 0)
-        );
+        balance = months.map((_, i) => sumIncome[i] - sumExpenses[i]);
     }
 
-    async function saveCorrection(type: 'income' | 'expense', month: string, value: string) {
-        const amount = Number(value || 0);
+    // --- Spara korrigering ---
+    let saving = false;
+    let saveError: string | null = null;
+    let saveTimeout: any = null;
+
+    async function saveCorrection(type: "income" | "expense", month: string, value: string) {
         saving = true;
         saveError = null;
 
         try {
-            const res = await fetch('/assistance/updateCorrection', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type, month, amount })
+            const res = await fetch("/assistance/updateCorrection", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ type, month, amount: Number(value || 0) })
             });
 
-            if (!res.ok) saveError = 'Kunde inte spara korrigering.';
+            if (!res.ok) saveError = "Kunde inte spara korrigering.";
         } catch {
-            saveError = 'Kunde inte spara korrigering.';
-        } finally {
-            saving = false;
+            saveError = "Kunde inte spara korrigering.";
         }
+
+        saving = false;
     }
 
-    function onCorrectionInput(type: 'income' | 'expense', month: string, index: number, event: Event) {
+    function onCorrectionInput(type: "income" | "expense", month: string, index: number, event: Event) {
         const target = event.target as HTMLInputElement;
         const num = Number(target.value || 0);
 
-        if (type === 'income') incomeCorrectionRow.values[index] = num;
-        else expenseCorrectionRow.values[index] = num;
+        if (type === "income") incomeCorrection[index] = num;
+        else expenseCorrection[index] = num;
 
         recalc();
 
@@ -168,18 +164,19 @@
                 {/each}
             </tr>
         </thead>
+
         <tbody>
             <tr class="section-header">
                 <td class="border">Biståndsmånad</td>
-                {#each assist.values as v}
-                    <td class="border text-right">{formatMonth(String(v))}</td>
+                {#each assist as v}
+                    <td class="border text-right">{formatMonth(v)}</td>
                 {/each}
             </tr>
 
             <tr class="section-header">
                 <td class="border">Kalendermånad</td>
-                {#each calendar.values as v}
-                    <td class="border text-right">{formatMonth(String(v))}</td>
+                {#each calendar as v}
+                    <td class="border text-right">{formatMonth(v)}</td>
                 {/each}
             </tr>
 
@@ -190,7 +187,7 @@
             {#each incomeRows.filter(isRowVisible) as label}
                 <tr class="bg-green-50">
                     <td class="border">{label}</td>
-                    {#each getRow(label).values as v}
+                    {#each getRow(label) as v}
                         <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
@@ -200,19 +197,14 @@
                 <td class="border font-semibold">Korrigering</td>
                 {#each months as m, i}
                     <td class="border text-right">
-                        <input
-                            type="number"
-                            step="1"
-                            value={incomeCorrectionRow.values[i] ?? 0}
-                            on:input={(e) => onCorrectionInput('income', m, i, e)}
-                        />
+                        <input type="number" step="1" value={incomeCorrection[i]} on:input={(e) => onCorrectionInput("income", m, i, e)} />
                     </td>
                 {/each}
             </tr>
 
             <tr class="income-header font-semibold">
                 <td class="border">Summa inkomst</td>
-                {#each sumIncome.values as v}
+                {#each sumIncome as v}
                     <td class="border text-right">{v} kr</td>
                 {/each}
             </tr>
@@ -228,7 +220,7 @@
             {#each homeRows.filter(isRowVisible) as label}
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
-                    {#each getRow(label).values as v}
+                    {#each getRow(label) as v}
                         <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
@@ -241,7 +233,7 @@
             {#each workRows.filter(isRowVisible) as label}
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
-                    {#each getRow(label).values as v}
+                    {#each getRow(label) as v}
                         <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
@@ -254,7 +246,7 @@
             {#each societyRows.filter(isRowVisible) as label}
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
-                    {#each getRow(label).values as v}
+                    {#each getRow(label) as v}
                         <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
@@ -267,7 +259,7 @@
             {#each healthRows.filter(isRowVisible) as label}
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
-                    {#each getRow(label).values as v}
+                    {#each getRow(label) as v}
                         <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
@@ -280,7 +272,7 @@
             {#each riksnormRows as label}
                 <tr class="bg-red-50">
                     <td class="border">{label}</td>
-                    {#each getRow(label).values as v}
+                    {#each getRow(label) as v}
                         <td class="border text-right">{v} kr</td>
                     {/each}
                 </tr>
@@ -290,26 +282,21 @@
                 <td class="border font-semibold">Korrigering</td>
                 {#each months as m, i}
                     <td class="border text-right">
-                        <input
-                            type="number"
-                            step="1"
-                            value={expenseCorrectionRow.values[i] ?? 0}
-                            on:input={(e) => onCorrectionInput('expense', m, i, e)}
-                        />
+                        <input type="number" step="1" value={expenseCorrection[i]} on:input={(e) => onCorrectionInput("expense", m, i, e)} />
                     </td>
                 {/each}
             </tr>
 
             <tr class="expense-header font-semibold">
                 <td class="border">Summa utgifter</td>
-                {#each sumExpenses.values as v}
+                {#each sumExpenses as v}
                     <td class="border text-right">{v} kr</td>
                 {/each}
             </tr>
 
             <tr class="balance-row">
                 <td class="border">Balans</td>
-                {#each balance.values as v}
+                {#each balance as v}
                     <td class="border text-right">{v} kr</td>
                 {/each}
             </tr>

@@ -35,7 +35,6 @@ export const load: PageServerLoad = async ({ locals }) => {
         return { months: [], incomeRows: [], rows: [] };
     }
 
-    // Normalisera datum → string
     const incomeMonthsData = incomeMonthsDataRaw.map((m) => ({
         id: m.id,
         month_date:
