@@ -13,6 +13,7 @@
         !r.label.startsWith('Riksnorm') &&
         !r.label.startsWith('Summa') &&
         !r.label.startsWith('Balans') &&
+        !r.label.startsWith('Korrigering') &&
         ![
             'Hyra', 'El', 'Hemförsäkring', 'Mat vuxen', 'Mat barn',
             'Övriga kostnad barn', 'Internet', 'Facket', 'A-kassa (avgift)',
@@ -31,6 +32,9 @@
     const riksnormRows = rows.filter((r) =>
         r.label.startsWith('Riksnorm')
     );
+
+    const correctionIncome = rows.find((r) => r.label === 'Korrigering inkomst');
+    const correctionExpense = rows.find((r) => r.label === 'Korrigering utgift');
 
     const sumIncome = rows.find((r) => r.label === 'Summa inkomst');
     const sumExpenses = rows.find((r) => r.label === 'Summa utgifter');
@@ -91,6 +95,16 @@
             </tr>
         {/each}
 
+        <!-- Korrigering inkomst -->
+        {#if correctionIncome}
+            <tr class="bg-yellow-50">
+                <td class="border p-2 font-semibold">Korrigering inkomst</td>
+                {#each correctionIncome.values as v}
+                    <td class="border p-2">{v}</td>
+                {/each}
+            </tr>
+        {/if}
+
         <!-- Utgifter -->
         <tr>
             <td colspan={months.length + 1} class="border p-2 font-bold bg-gray-100">
@@ -106,6 +120,16 @@
                 {/each}
             </tr>
         {/each}
+
+        <!-- Korrigering utgift -->
+        {#if correctionExpense}
+            <tr class="bg-yellow-50">
+                <td class="border p-2 font-semibold">Korrigering utgift</td>
+                {#each correctionExpense.values as v}
+                    <td class="border p-2">{v}</td>
+                {/each}
+            </tr>
+        {/if}
 
         <!-- Riksnorm -->
         <tr>
