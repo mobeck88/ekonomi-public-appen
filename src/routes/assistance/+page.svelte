@@ -30,7 +30,8 @@
 
     const riksnormRows = ['Riksnorm vuxen','Riksnorm barn','Riksnorm hushåll'];
 
-    const rowMap = new Map<string, { label: string; values: number[] }>();
+    // Map med ANY[] så att string[] inte kraschar serialisering
+    const rowMap = new Map<string, { label: string; values: any[] }>();
     rows.forEach((r) => rowMap.set(r.label, r));
 
     function getRow(label: string) {
@@ -48,6 +49,8 @@
     const sumIncome = getRow('Summa inkomst');
     const sumExpenses = getRow('Summa utgifter');
     const balance = getRow('Balans');
+
+    // Dessa är string[] – viktigt!
     const assist = getRow('Biståndsmånad');
     const calendar = getRow('Kalendermånad');
 
@@ -62,9 +65,9 @@
         sumIncome.values = months.map((_, i) => {
             let total = 0;
             for (const label of incomeRows) {
-                total += getRow(label).values[i] ?? 0;
+                total += Number(getRow(label).values[i] ?? 0);
             }
-            total += incomeCorrectionRow.values[i] ?? 0;
+            total += Number(incomeCorrectionRow.values[i] ?? 0);
             return total;
         });
 
@@ -78,14 +81,14 @@
         sumExpenses.values = months.map((_, i) => {
             let total = 0;
             for (const label of expenseLabels) {
-                total += getRow(label).values[i] ?? 0;
+                total += Number(getRow(label).values[i] ?? 0);
             }
-            total += expenseCorrectionRow.values[i] ?? 0;
+            total += Number(expenseCorrectionRow.values[i] ?? 0);
             return total;
         });
 
         balance.values = months.map((_, i) =>
-            (sumIncome.values[i] ?? 0) - (sumExpenses.values[i] ?? 0)
+            Number(sumIncome.values[i] ?? 0) - Number(sumExpenses.values[i] ?? 0)
         );
     }
 

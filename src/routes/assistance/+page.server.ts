@@ -16,9 +16,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     const householdId = locals.householdId;
     const supabase = locals.supabase;
 
-    // ⬇⬇⬇ ENDA KRITISKA ÄNDRINGEN ⬇⬇⬇
     if (!user) throw redirect(303, '/login');
-    // ⬆⬆⬆ ENDA KRITISKA ÄNDRINGEN ⬆⬆⬆
 
     if (!householdId) {
         return {
@@ -142,18 +140,9 @@ export const load: PageServerLoad = async ({ locals }) => {
     const incomeRows = Array.from(incomeLabelSet);
 
     const allowedExpenses = new Set<string>([
-        'Hyra',
-        'El',
-        'Hemförsäkring',
-        'Mat vuxen',
-        'Mat barn',
-        'Övriga kostnad barn',
-        'Internet',
-        'Facket',
-        'A-kassa (avgift)',
-        'Barnomsorg',
-        'Sjukhuskostnader',
-        'Mediciner'
+        'Hyra','El','Hemförsäkring','Mat vuxen','Mat barn',
+        'Övriga kostnad barn','Internet','Facket','A-kassa (avgift)',
+        'Barnomsorg','Sjukhuskostnader','Mediciner'
     ]);
 
     for (const ex of expenses) {
@@ -265,8 +254,8 @@ export const load: PageServerLoad = async ({ locals }) => {
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     });
 
-    rows.set('Biståndsmånad', assistMonths as unknown as number[]);
-    rows.set('Kalendermånad', months as unknown as number[]);
+    rows.set('Biståndsmånad', assistMonths);
+    rows.set('Kalendermånad', months);
 
     return {
         months,
