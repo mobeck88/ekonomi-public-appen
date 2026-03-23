@@ -16,7 +16,9 @@ export const load: PageServerLoad = async ({ locals }) => {
     const householdId = locals.householdId;
     const supabase = locals.supabase;
 
-    if (!user) return redirect(303, '/login');
+    // ⬇⬇⬇ ENDA KRITISKA ÄNDRINGEN ⬇⬇⬇
+    if (!user) throw redirect(303, '/login');
+    // ⬆⬆⬆ ENDA KRITISKA ÄNDRINGEN ⬆⬆⬆
 
     if (!householdId) {
         return {
@@ -26,7 +28,6 @@ export const load: PageServerLoad = async ({ locals }) => {
         };
     }
 
-    // 1. Hämta alla income_months för hushållet
     const { data: incomeMonthsData } = await supabase
         .from('income_months')
         .select('id, month_date')
@@ -36,15 +37,12 @@ export const load: PageServerLoad = async ({ locals }) => {
         return { months: [], incomeRows: [], rows: [] };
     }
 
-    // 2. Sortera månader
     const sorted = incomeMonthsData
         .map((m) => ({ id: m.id, date: new Date(m.month_date) }))
         .sort((a, b) => a.date.getTime() - b.date.getTime());
 
-    // 3. Ta senaste månaden
     const last = sorted[sorted.length - 1].date;
 
-    // 4. Bygg 5-månaderslistan: M-3 → M+1
     const months: string[] = [];
     for (let i = -3; i <= 1; i++) {
         const d = new Date(last);
@@ -52,7 +50,6 @@ export const load: PageServerLoad = async ({ locals }) => {
         months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
     }
 
-    // 5. Hämta inkomster, utgifter, assistance_months, hushåll, barn, riksnorm
     const [
         primaryRes,
         extraJobsRes,
@@ -85,7 +82,6 @@ export const load: PageServerLoad = async ({ locals }) => {
     const rnPersonal = rnPersonalRes.data ?? [];
     const rnHousehold = rnHouseholdRes.data ?? [];
 
-    // 6. Mappa income_month_id → YYYY-MM
     const toYM = (value: any) => {
         if (!value) return null;
         return String(value).slice(0, 7);
@@ -97,7 +93,6 @@ export const load: PageServerLoad = async ({ locals }) => {
         if (ym) monthIdToYm.set(im.id, ym);
     }
 
-    // 7. Rows-map
     const emptyValues = () => months.map(() => 0);
     const rows = new Map<string, number[]>();
 
@@ -111,11 +106,9 @@ export const load: PageServerLoad = async ({ locals }) => {
         rows.get(label)![idx] += val;
     };
 
-    // 8. Inkomster
     const incomeLabelSet = new Set<string>();
     incomeLabelSet.add('Arbete');
 
-    // Arbete = primär + extra jobb
     for (const row of primary) {
         const ym = monthIdToYm.get(row.income_month_id);
         add('Arbete', ym, row.att_betala_ut);
@@ -126,7 +119,6 @@ export const load: PageServerLoad = async ({ locals }) => {
         add('Arbete', ym, row.att_betala_ut);
     }
 
-    // FK – dynamiska rader
     for (const row of fk) {
         const ym = monthIdToYm.get(row.income_month_id);
 
@@ -149,7 +141,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 
     const incomeRows = Array.from(incomeLabelSet);
 
-    // 9. Utgifter – endast biståndsrelevanta
     const allowedExpenses = new Set<string>([
         'Hyra',
         'El',
@@ -171,7 +162,6 @@ export const load: PageServerLoad = async ({ locals }) => {
         add(ex.category, ym, ex.amount);
     }
 
-    // 10. Korrigeringar från assistance_months
     const assistanceMap = new Map<string, (typeof assistanceMonths)[number]>();
     for (const row of assistanceMonths) {
         const ym = `${row.year}-${String(row.month).padStart(2, '0')}`;
@@ -191,7 +181,6 @@ export const load: PageServerLoad = async ({ locals }) => {
     rows.set('Korrigering inkomst', incomeCorrection);
     rows.set('Korrigering utgift', expenseCorrection);
 
-    // 11. Riksnorm – vuxen, barn, hushåll (BISTÅNDSMÅNAD = KALENDERMÅNAD + 1)
     const riksnormVuxen = emptyValues();
     const riksnormBarn = emptyValues();
     const riksnormHushall = emptyValues();
@@ -201,7 +190,6 @@ export const load: PageServerLoad = async ({ locals }) => {
     const totalPersons = adults + childrenCount;
 
     months.forEach((m, idx) => {
-        // Biståndsmånad = kalendermånad + 1
         const [yearStr, monthStr] = m.split('-').map(Number);
         const d = new Date(yearStr, monthStr - 1);
         d.setMonth(d.getMonth() + 1);
@@ -209,14 +197,12 @@ export const load: PageServerLoad = async ({ locals }) => {
         const year = d.getFullYear();
         const month = d.getMonth() + 1;
 
-        // vuxen
         const adultNorm = rnPersonal.find(
             (r) => r.year === year && r.category === 'adult'
         );
         const adultAmount = Number(adultNorm?.amount ?? 0);
         riksnormVuxen[idx] = adults * adultAmount;
 
-        // barn
         let childTotal = 0;
         for (const child of children) {
             const age = ageAtMonth(child.birthdate, year, month);
@@ -235,7 +221,6 @@ export const load: PageServerLoad = async ({ locals }) => {
         }
         riksnormBarn[idx] = childTotal;
 
-        // hushåll
         const hhNorm = rnHousehold.find(
             (r) => r.year === year && r.household_size === totalPersons
         );
@@ -246,7 +231,6 @@ export const load: PageServerLoad = async ({ locals }) => {
     rows.set('Riksnorm barn', riksnormBarn);
     rows.set('Riksnorm hushåll', riksnormHushall);
 
-    // 12. Summeringar
     const sumRow = (labels: string[]) => {
         const arr = emptyValues();
         for (const label of labels) {
@@ -274,7 +258,6 @@ export const load: PageServerLoad = async ({ locals }) => {
     rows.set('Summa utgifter', sumExpenses);
     rows.set('Balans', balance);
 
-    // 13. Biståndsmånad = kalendermånad + 1 (för visning)
     const assistMonths = months.map((m) => {
         const [y, mm] = m.split('-').map(Number);
         const d = new Date(y, mm - 1);
