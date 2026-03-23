@@ -20,10 +20,20 @@ export const actions: Actions = {
             return fail(401, { error: 'Ingen användare inloggad.' });
         }
 
-        // 1. Skapa hushållet (LÅT join_code DEFAULT GENERERAS AUTOMATISKT)
+        // Hämta namn på ett robust sätt
+        const fullName =
+            user.user_metadata?.full_name ||
+            user.user_metadata?.name ||
+            user.email?.split('@')[0] ||
+            'Användare';
+
+        const householdName = `${fullName}s hushåll`;
+
+        // 1. Skapa hushållet (name är obligatoriskt)
         const { data: household, error: householdError } = await supabase
             .from('households')
             .insert({
+                name: householdName,
                 adults: 0,
                 children: 0,
                 enable_assistance: false
