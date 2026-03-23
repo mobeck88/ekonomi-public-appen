@@ -10,14 +10,14 @@ export const load = async ({ locals }) => {
         };
     }
 
-    // FIX: .single() → .maybeSingle()
-    const { data: householdLink } = await supabase
-        .from("user_households")
+    // HÄR ÄR FIXEN: använd household_members, inte user_households
+    const { data: membership } = await supabase
+        .from("household_members")
         .select("household_id")
         .eq("user_id", user.id)
         .maybeSingle();
 
-    const householdId = householdLink?.household_id ?? null;
+    const householdId = membership?.household_id ?? null;
 
     let enable_assistance = false;
 
