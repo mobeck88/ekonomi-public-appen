@@ -18,7 +18,7 @@ export const actions: Actions = {
             return fail(400, { error: error.message });
         }
 
-        // Sätt cookies manuellt (createClient gör det inte åt oss)
+        // Sätt cookies manuellt
         cookies.set('sb-access-token', authData.session.access_token, {
             path: '/',
             httpOnly: true,
@@ -33,22 +33,9 @@ export const actions: Actions = {
             secure: true
         });
 
-        const user = authData.user;
-
-        const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('id', user.id)
-            .maybeSingle();
-
-        if (profileError) {
-            console.warn('Profile lookup blocked by RLS:', profileError.message);
-            throw redirect(303, '/register/next');
-        }
-
-        if (!profile) {
-            throw redirect(303, '/register/next');
-        }
+        // ⭐ INGEN profilkontroll här längre
+        // Login ska inte avgöra om användaren är "klar".
+        // Det gör householdId-logiken i hooks.
 
         throw redirect(303, '/');
     }
