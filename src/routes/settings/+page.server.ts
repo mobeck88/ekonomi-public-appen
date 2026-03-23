@@ -8,7 +8,8 @@ export const load: PageServerLoad = async ({ locals }) => {
             isMemberOfChurch: true,
             hasGuardian: false,
             enableAssistance: false,
-            householdId: null
+            householdId: null,
+            role: "member" // <-- tillagt fallback
         };
     }
 
@@ -22,10 +23,10 @@ export const load: PageServerLoad = async ({ locals }) => {
         .eq("year", year)
         .maybeSingle();
 
-    // Hämta guardian + household_id
+    // Hämta guardian + household_id + role  <-- UPPDATERAT
     const { data: memberData } = await locals.supabase
         .from("household_members")
-        .select("guardian_for, household_id")
+        .select("guardian_for, household_id, role") // <-- role tillagd
         .eq("user_id", user.id)
         .maybeSingle();
 
@@ -48,7 +49,8 @@ export const load: PageServerLoad = async ({ locals }) => {
         isMemberOfChurch: churchData?.is_member_of_church ?? true,
         hasGuardian: memberData?.guardian_for ?? false,
         enableAssistance,
-        householdId
+        householdId,
+        role: memberData?.role ?? "member" // <-- skickas upp till Svelte
     };
 };
 
@@ -84,10 +86,10 @@ export const actions: Actions = {
             });
         }
 
-        // 2. Hämta household_id
+        // 2. Hämta household_id + role  <-- UPPDATERAT
         const { data: memberData, error: memberError } = await locals.supabase
             .from("household_members")
-            .select("household_id")
+            .select("household_id, role") // <-- role tillagd
             .eq("user_id", user.id)
             .maybeSingle();
 
@@ -97,10 +99,18 @@ export const actions: Actions = {
 
         const householdId = memberData.household_id;
 
+        // Roller som INTE får välja "Jag har en god man"
+        const forbiddenRoles = ["guardian", "child", "youth"];
+
+        // Om rollen är förbjuden → ignorera checkboxen
+        const effectiveHasGuardian = forbiddenRoles.includes(memberData.role)
+            ? false
+            : hasGuardian;
+
         // 3. God man
         const { error: guardianError } = await locals.supabase
             .from("household_members")
-            .update({ guardian_for: hasGuardian })
+            .update({ guardian_for: effectiveHasGuardian })
             .eq("user_id", user.id)
             .eq("household_id", householdId);
 
@@ -125,7 +135,7 @@ export const actions: Actions = {
         return {
             message: "Inställningar sparade.",
             isMember,
-            hasGuardian,
+            hasGuardian: effectiveHasGuardian,
             enableAssistance
         };
     },
