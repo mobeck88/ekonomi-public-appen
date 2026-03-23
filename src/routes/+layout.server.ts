@@ -2,6 +2,9 @@ export const load = async ({ locals }) => {
     const user = locals.user;
     const supabase = locals.supabase;
 
+    // ALLTID returnera enable_assistance
+    // ALLTID returnera householdId
+    // ALLTID returnera user (även null)
     if (!user) {
         return {
             user: null,
@@ -10,28 +13,29 @@ export const load = async ({ locals }) => {
         };
     }
 
-    // 1. Hämta hushåll via user_households (robust)
-    const { data: householdLink, error: householdError } = await supabase
+    // 1. Hämta hushåll via user_households
+    const { data: householdLink } = await supabase
         .from("user_households")
         .select("household_id")
         .eq("user_id", user.id)
-        .maybeSingle(); // <-- viktigt: kraschar inte om tabellen är tom
+        .maybeSingle();
 
     const householdId = householdLink?.household_id ?? null;
 
-    // 2. Hämta enable_assistance från households (robust)
+    // 2. enable_assistance – default false
     let enable_assistance = false;
 
     if (householdId) {
-        const { data, error } = await supabase
+        const { data } = await supabase
             .from("households")
             .select("enable_assistance")
             .eq("id", householdId)
-            .maybeSingle(); // <-- samma här
+            .maybeSingle();
 
         enable_assistance = data?.enable_assistance ?? false;
     }
 
+    // 3. Returnera ALLTID alla fält
     return {
         user,
         householdId,
