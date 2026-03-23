@@ -32,6 +32,10 @@
         r.label.startsWith('Riksnorm')
     );
 
+    const sumIncome = rows.find((r) => r.label === 'Summa inkomst');
+    const sumExpenses = rows.find((r) => r.label === 'Summa utgifter');
+    const balance = rows.find((r) => r.label === 'Balans');
+
     function formatMonth(value: unknown): string {
         const s = String(value ?? '');
         const [year, month] = s.split('-');
@@ -71,6 +75,7 @@
             </tr>
         {/if}
 
+        <!-- Inkomster -->
         <tr>
             <td colspan={months.length + 1} class="border p-2 font-bold bg-gray-100">
                 Inkomster
@@ -86,6 +91,7 @@
             </tr>
         {/each}
 
+        <!-- Utgifter -->
         <tr>
             <td colspan={months.length + 1} class="border p-2 font-bold bg-gray-100">
                 Utgifter
@@ -101,6 +107,7 @@
             </tr>
         {/each}
 
+        <!-- Riksnorm -->
         <tr>
             <td colspan={months.length + 1} class="border p-2 font-bold bg-gray-100">
                 Riksnorm
@@ -115,5 +122,33 @@
                 {/each}
             </tr>
         {/each}
+
+        <!-- Summeringar -->
+        {#if sumIncome}
+            <tr class="bg-gray-200 font-semibold">
+                <td class="border p-2">Summa inkomst</td>
+                {#each sumIncome.values as v}
+                    <td class="border p-2">{v}</td>
+                {/each}
+            </tr>
+        {/if}
+
+        {#if sumExpenses}
+            <tr class="bg-gray-200 font-semibold">
+                <td class="border p-2">Summa utgifter</td>
+                {#each sumExpenses.values as v}
+                    <td class="border p-2">{v}</td>
+                {/each}
+            </tr>
+        {/if}
+
+        {#if balance}
+            <tr class="bg-gray-300 font-bold">
+                <td class="border p-2">Balans</td>
+                {#each balance.values as v}
+                    <td class="border p-2">{v}</td>
+                {/each}
+            </tr>
+        {/if}
     </tbody>
 </table>
