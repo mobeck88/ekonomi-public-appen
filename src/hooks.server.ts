@@ -31,6 +31,7 @@ export const handle = async ({ event, resolve }) => {
 
     const publicRoutes = ['/login', '/register'];
 
+    // ⛔ Ingen användare → endast login/register tillåtet
     if (!user) {
         if (!publicRoutes.includes(event.url.pathname)) {
             throw redirect(303, '/login');
@@ -45,16 +46,23 @@ export const handle = async ({ event, resolve }) => {
 
     event.locals.user = user;
 
-    const { data: membership } = await supabase
+    // ⭐ HÄR VAR DET STORA FELET
+    // maybeSingle() + RLS = 500-fel överallt.
+    // Nu hämtar vi ALLA memberships och tar första.
+    const { data: memberships, error: membershipError } = await supabase
         .from('household_members')
         .select('household_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
+        .eq('user_id', user.id);
 
-    const householdId = membership?.household_id ?? null;
+    let householdId = null;
+
+    if (!membershipError && memberships && memberships.length > 0) {
+        householdId = memberships[0].household_id;
+    }
+
     event.locals.householdId = householdId;
 
-    // Tillåtna routes utan hushåll
+    // ⭐ Tillåtna routes utan hushåll
     const isRegisterRoute = event.url.pathname.startsWith('/register');
     const isJoinRoute = event.url.pathname.startsWith('/join');
     const isLogoutRoute = event.url.pathname === '/logout';
@@ -64,11 +72,10 @@ export const handle = async ({ event, resolve }) => {
     const isJoinAction =
         event.url.pathname === '/join' &&
         event.request.method === 'POST';
-
-    // FIX: Tillåt create-route
     const isCreateHouseholdRoute =
         event.url.pathname.startsWith('/household/create');
 
+    // ⭐ Om användaren saknar hushåll → endast register/join/create tillåtet
     if (
         !householdId &&
         !isRegisterRoute &&
