@@ -3,7 +3,6 @@ import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
 export const handle = async ({ event, resolve }) => {
-    // Skapa Supabase-klient med korrekt cookie-hantering för SSR
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         global: { fetch: event.fetch },
         cookies: {
@@ -15,13 +14,11 @@ export const handle = async ({ event, resolve }) => {
 
     event.locals.supabase = supabase;
 
-    // Läs tokens från cookies
     const access_token = event.cookies.get('sb-access-token');
     const refresh_token = event.cookies.get('sb-refresh-token');
 
     let user = null;
 
-    // Sätt sessionen korrekt i SSR
     if (access_token && refresh_token) {
         await supabase.auth.setSession({
             access_token,
@@ -32,7 +29,6 @@ export const handle = async ({ event, resolve }) => {
         user = data?.user ?? null;
     }
 
-    // Offentliga routes
     const publicRoutes = ['/login', '/register'];
 
     if (!user) {
@@ -49,7 +45,6 @@ export const handle = async ({ event, resolve }) => {
 
     event.locals.user = user;
 
-    // Hämta hushållsmedlemskap
     const { data: membership } = await supabase
         .from('household_members')
         .select('household_id')
@@ -59,27 +54,29 @@ export const handle = async ({ event, resolve }) => {
     const householdId = membership?.household_id ?? null;
     event.locals.householdId = householdId;
 
-    // Routes som är tillåtna utan hushåll
+    // Tillåtna routes utan hushåll
     const isRegisterRoute = event.url.pathname.startsWith('/register');
     const isJoinRoute = event.url.pathname.startsWith('/join');
     const isLogoutRoute = event.url.pathname === '/logout';
-
     const isRegisterNextAction =
         event.url.pathname === '/register/next' &&
         event.request.method === 'POST';
-
     const isJoinAction =
         event.url.pathname === '/join' &&
         event.request.method === 'POST';
 
-    // Blockera allt annat om användaren saknar hushåll
+    // FIX: Tillåt create-route
+    const isCreateHouseholdRoute =
+        event.url.pathname.startsWith('/household/create');
+
     if (
         !householdId &&
         !isRegisterRoute &&
         !isJoinRoute &&
         !isJoinAction &&
         !isLogoutRoute &&
-        !isRegisterNextAction
+        !isRegisterNextAction &&
+        !isCreateHouseholdRoute
     ) {
         throw redirect(303, '/register/next');
     }
