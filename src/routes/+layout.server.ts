@@ -1,8 +1,6 @@
 export const load = async ({ locals }) => {
-    const user = locals.user;
-    const supabase = locals.supabase;
-
-    if (!user) {
+    // Ingen användare → ingen householdId
+    if (!locals.user) {
         return {
             user: null,
             householdId: null,
@@ -10,30 +8,19 @@ export const load = async ({ locals }) => {
         };
     }
 
-    // HÄR ÄR FIXEN: använd household_members, inte user_households
-    const { data: membership } = await supabase
-        .from("household_members")
-        .select("household_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-    const householdId = membership?.household_id ?? null;
-
-    let enable_assistance = false;
-
-    if (householdId) {
-        const { data } = await supabase
-            .from("households")
-            .select("enable_assistance")
-            .eq("id", householdId)
-            .maybeSingle();
-
-        enable_assistance = data?.enable_assistance ?? false;
+    // Användaren finns men saknar hushåll → returnera utan att ladda något
+    if (!locals.householdId) {
+        return {
+            user: locals.user,
+            householdId: null,
+            enable_assistance: false
+        };
     }
 
+    // Användaren har hushåll → returnera värdena
     return {
-        user,
-        householdId,
-        enable_assistance
+        user: locals.user,
+        householdId: locals.householdId,
+        enable_assistance: false
     };
 };
