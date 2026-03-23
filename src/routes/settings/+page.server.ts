@@ -53,15 +53,21 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
-    updateChurch: async ({ request, locals }) => {
+    // SAMMANSLAGEN ACTION FÖR TRE INSTÄLLNINGAR
+    updateSettings: async ({ request, locals }) => {
         const user = locals.user;
         if (!user) throw redirect(303, "/login");
 
         const form = await request.formData();
+
         const isMember = form.get("isMember") === "on";
+        const hasGuardian = form.get("hasGuardian") === "on";
+        const enableAssistance = form.get("enableAssistance") === "on";
+
         const year = new Date().getFullYear();
 
-        const { error } = await locals.supabase
+        // 1. Kyrkotillhörighet
+        const { error: churchError } = await locals.supabase
             .from("tax_user_settings")
             .upsert(
                 {
@@ -69,29 +75,16 @@ export const actions: Actions = {
                     year,
                     is_member_of_church: isMember
                 },
-                {
-                    onConflict: "user_id,year"
-                }
+                { onConflict: "user_id,year" }
             );
 
-        if (error) {
+        if (churchError) {
             return fail(500, {
-                message: "Kunde inte uppdatera kyrkotillhörighet: " + error.message,
-                isMember
+                message: "Kunde inte uppdatera kyrkotillhörighet: " + churchError.message
             });
         }
 
-        return { message: "Kyrkotillhörighet uppdaterad.", isMember };
-    },
-
-    updateGuardianStatus: async ({ request, locals }) => {
-        const user = locals.user;
-        if (!user) throw redirect(303, "/login");
-
-        const form = await request.formData();
-        const hasGuardian = form.get("hasGuardian") === "on";
-
-        // Hämta household_id
+        // 2. Hämta household_id
         const { data: memberData, error: memberError } = await locals.supabase
             .from("household_members")
             .select("household_id")
@@ -104,66 +97,40 @@ export const actions: Actions = {
 
         const householdId = memberData.household_id;
 
-        // Uppdatera guardian_for
-        const { error } = await locals.supabase
+        // 3. God man
+        const { error: guardianError } = await locals.supabase
             .from("household_members")
-            .update({
-                guardian_for: hasGuardian
-            })
+            .update({ guardian_for: hasGuardian })
             .eq("user_id", user.id)
             .eq("household_id", householdId);
 
-        if (error) {
+        if (guardianError) {
             return fail(500, {
-                message: "Kunde inte uppdatera inställningen.",
-                hasGuardian
+                message: "Kunde inte uppdatera god man-inställningen: " + guardianError.message
             });
         }
 
-        return {
-            message: "Inställningen sparad.",
-            hasGuardian
-        };
-    },
-
-    updateAssistance: async ({ request, locals }) => {
-        const user = locals.user;
-        if (!user) throw redirect(303, "/login");
-
-        const form = await request.formData();
-        const enableAssistance = form.get("enableAssistance") === "on";
-
-        // Hämta household_id
-        const { data: memberData, error: memberError } = await locals.supabase
-            .from("household_members")
-            .select("household_id")
-            .eq("user_id", user.id)
-            .maybeSingle();
-
-        if (memberError || !memberData) {
-            return fail(500, { message: "Kunde inte hitta hushåll." });
-        }
-
-        const householdId = memberData.household_id;
-
-        // Uppdatera bistånd
-        const { error } = await locals.supabase
+        // 4. Ekonomiskt bistånd
+        const { error: assistanceError } = await locals.supabase
             .from("households")
             .update({ enable_assistance: enableAssistance })
             .eq("id", householdId);
 
-        if (error) {
+        if (assistanceError) {
             return fail(500, {
-                message: "Kunde inte uppdatera biståndsinställningen: " + error.message
+                message: "Kunde inte uppdatera biståndsinställningen: " + assistanceError.message
             });
         }
 
         return {
-            message: "Biståndsinställning uppdaterad.",
+            message: "Inställningar sparade.",
+            isMember,
+            hasGuardian,
             enableAssistance
         };
     },
 
+    // LÖSENORD – lämnas orörd
     changePassword: async ({ request, locals }) => {
         const form = await request.formData();
         const newPassword = form.get("newPassword");
