@@ -10,24 +10,24 @@ export const load = async ({ locals }) => {
         };
     }
 
-    // 1. Hämta hushåll via user_households
-    const { data: householdLink } = await supabase
+    // 1. Hämta hushåll via user_households (robust)
+    const { data: householdLink, error: householdError } = await supabase
         .from("user_households")
         .select("household_id")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle(); // <-- viktigt: kraschar inte om tabellen är tom
 
     const householdId = householdLink?.household_id ?? null;
 
-    // 2. Hämta enable_assistance från households
+    // 2. Hämta enable_assistance från households (robust)
     let enable_assistance = false;
 
     if (householdId) {
-        const { data } = await supabase
+        const { data, error } = await supabase
             .from("households")
             .select("enable_assistance")
             .eq("id", householdId)
-            .maybeSingle();
+            .maybeSingle(); // <-- samma här
 
         enable_assistance = data?.enable_assistance ?? false;
     }
