@@ -1,7 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ url, locals }) => {
+export const load: PageServerLoad = async ({ locals }) => {
     const user = locals.user;
     const householdId = locals.householdId;
     const supabase = locals.supabase;
@@ -14,15 +14,19 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             months: [],
             members: [],
             electricityPerMonth: [],
-            fixedPerGroup: {},
             riksnormPerGroup: {},
-            riksnorm: [],
+            extraPerMonth: [],
             incomePerUser: {},
-            incomeTotal: []
+            incomeTotal: [],
+            riksnorm: {
+                Vuxen: [],
+                Barn: [],
+                Gemensam: []
+            }
         };
     }
 
-    // ⭐ Hämta hushållets medlemmar
+    // Hämta hushållets medlemmar + roll
     const { data: members } = await supabase
         .from('household_members')
         .select('user_id, role, profiles(full_name)')
@@ -36,112 +40,145 @@ export const load: PageServerLoad = async ({ url, locals }) => {
                 name: m.profiles.full_name
             })) ?? [];
 
-    // ⭐ 5 månader: 3 bakåt, innevarande, nästa
+    // 5 månader: 3 bakåt, innevarande, nästa
     const today = new Date();
-    const monthList: string[] = [];
+    const monthInfos: { ym: string; year: number }[] = [];
 
     for (let offset = -3; offset <= 1; offset++) {
         const d = new Date(today.getFullYear(), today.getMonth() + offset, 1);
-        const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        monthList.push(ym);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        monthInfos.push({ ym: `${year}-${month}`, year });
     }
 
-    const selectedYear = today.getFullYear().toString();
+    const months = monthInfos.map((m) => m.ym);
+    const selectedYear = String(today.getFullYear());
 
-    // ⭐ Hämta Fasta kostnader Bistånd
-    const { data: riksnormRows } = await supabase
-        .from('expenses_riksnorm')
-        .select('*')
-        .eq('household_id', householdId);
+    // Hämta alla tabeller
+    const minYear = Math.min(...monthInfos.map((m) => m.year));
+    const maxYear = Math.max(...monthInfos.map((m) => m.year));
 
-    const riksnormPerGroup = Object.fromEntries(
-        [...new Set(riksnormRows?.map((f) => f.title) ?? [])].map((name) => [
-            name,
-            monthList.map((m) =>
-                riksnormRows
-                    ?.filter((f) => f.title === name && f.start_month <= m && (!f.end_month || f.end_month >= m))
-                    .reduce((acc, f) => acc + Number(f.amount ?? 0), 0) ?? 0
-            )
-        ])
-    );
+    const [
+        electricityRes,
+        extraRes,
+        incomeMonthsRes,
+        primaryRes,
+        extraJobsRes,
+        fkRes,
+        riksnormExpensesRes
+    ] = await Promise.all([
+        supabase.from('electricity').select('*').eq('household_id', householdId),
+        supabase.from('extra_income').select('*').eq('household_id', householdId),
+        supabase
+            .from('income_months')
+            .select('id, month_date')
+            .eq('household_id', householdId)
+            .gte('month_date', `${minYear}-01-01`)
+            .lte('month_date', `${maxYear}-12-31`),
+        supabase.from('income_primary_job').select('*').eq('household_id', householdId),
+        supabase.from('income_extra_jobs').select('*').eq('household_id', householdId),
+        supabase.from('income_fk').select('*').eq('household_id', householdId),
+        supabase.from('expenses_riksnorm').select('*').eq('household_id', householdId)
+    ]);
 
-    // ⭐ EL
-    const { data: electricityRows } = await supabase
-        .from('electricity')
-        .select('*')
-        .eq('household_id', householdId);
+    const electricityRows = electricityRes.data ?? [];
+    const extra = extraRes.data ?? [];
+    const incomeMonths = incomeMonthsRes.data ?? [];
+    const primary = primaryRes.data ?? [];
+    const extraJobs = extraJobsRes.data ?? [];
+    const fk = fkRes.data ?? [];
+    const riksnormExpenses = riksnormExpensesRes.data ?? [];
 
-    const electricityPerMonth = monthList.map((m) =>
+    const toYM = (value: any) => {
+        if (!value) return null;
+        return String(value).slice(0, 7);
+    };
+
+    const isActive = (row: any, ym: string) => {
+        const start = toYM(row.start_month ?? row.start_date);
+        const end = toYM(row.end_month ?? row.end_date);
+        return start && start <= ym && (!end || end >= ym);
+    };
+
+    // EL
+    const electricityPerMonth = months.map((m) =>
         electricityRows
-            ?.filter((e) => String(e.month).slice(0, 7) === m)
+            .filter((e) => toYM(e.month) === m)
             .reduce(
                 (acc, e) =>
                     acc +
                     Number(e.eon_amount ?? 0) +
                     Number(e.tibber_amount ?? 0),
                 0
-            ) ?? 0
+            )
     );
 
-    // ⭐ INKOMSTER (5 månader)
-    const { data: incomeMonths } = await supabase
-        .from('income_months')
-        .select('id, month_date')
-        .eq('household_id', householdId);
+    // Fasta kostnader Bistånd (expenses_riksnorm)
+    const riksnormPerGroup = Object.fromEntries(
+        [...new Set(riksnormExpenses.map((f) => f.title as string))].map((name) => [
+            name,
+            months.map((m) =>
+                riksnormExpenses
+                    .filter((f) => f.title === name && isActive(f, m))
+                    .reduce((acc, f) => acc + Number(f.amount ?? 0), 0)
+            )
+        ])
+    );
 
-    const { data: primary } = await supabase
-        .from('income_primary_job')
-        .select('*')
-        .eq('household_id', householdId);
+    // Extra inkomster per månad
+    const extraPerMonth = months.map((m) =>
+        extra
+            .filter((x) => toYM(x.date) === m)
+            .reduce((acc, x) => acc + Number(x.amount ?? 0), 0)
+    );
 
-    const { data: extraJobs } = await supabase
-        .from('income_extra_jobs')
-        .select('*')
-        .eq('household_id', householdId);
-
-    const { data: fk } = await supabase
-        .from('income_fk')
-        .select('*')
-        .eq('household_id', householdId);
-
-    const toYM = (v: any) => (v ? String(v).slice(0, 7) : null);
-
-    const monthIdToYm = new Map<any, string>();
-    for (const im of incomeMonths ?? []) {
-        const ym = toYM(im.month_date);
-        if (ym && monthList.includes(ym)) monthIdToYm.set(im.id, ym);
-    }
-
+    // INKOMSTER – per person och total hushåll
     const incomePerUser: Record<string, number[]> = {};
     for (const member of memberList) {
-        incomePerUser[member.name] = monthList.map(() => 0);
+        incomePerUser[member.name] = months.map(() => 0);
+    }
+
+    const monthIdToYm = new Map<any, string>();
+    for (const im of incomeMonths) {
+        const ym = toYM(im.month_date);
+        if (ym) monthIdToYm.set(im.id, ym);
     }
 
     const addIncome = (userId: any, income_month_id: any, amount: any) => {
         const ym = monthIdToYm.get(income_month_id);
         if (!ym) return;
-
-        const idx = monthList.indexOf(ym);
+        const idx = months.indexOf(ym);
         if (idx === -1) return;
 
         const member = memberList.find((m) => m.id === userId);
         if (!member) return;
 
-        incomePerUser[member.name][idx] += Number(amount ?? 0);
+        const val = Number(amount ?? 0);
+        if (!Number.isFinite(val)) return;
+
+        incomePerUser[member.name][idx] += val;
     };
 
-    for (const row of primary ?? []) addIncome(row.user_id, row.income_month_id, row.att_betala_ut);
-    for (const row of extraJobs ?? []) addIncome(row.user_id, row.income_month_id, row.att_betala_ut);
-    for (const row of fk ?? []) addIncome(row.user_id, row.income_month_id, row.att_betala_ut);
+    for (const row of primary) {
+        addIncome(row.user_id, row.income_month_id, row.att_betala_ut);
+    }
 
-    const incomeTotal = monthList.map((_, i) =>
+    for (const row of extraJobs) {
+        addIncome(row.user_id, row.income_month_id, row.att_betala_ut);
+    }
+
+    for (const row of fk) {
+        addIncome(row.user_id, row.income_month_id, row.att_betala_ut);
+    }
+
+    const incomeTotal = months.map((_, i) =>
         memberList.reduce(
             (sum, member) => sum + (incomePerUser[member.name]?.[i] ?? 0),
             0
         )
     );
 
-    // ⭐ NY RIKSNORM-BERÄKNING
+    // RIKSNORM (Vuxen, Barn, Gemensam) per månad
     const { data: household } = await supabase
         .from('households')
         .select('adults, children')
@@ -153,53 +190,81 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         .select('birthdate')
         .eq('household_id', householdId);
 
-    const { data: personalNorm } = await supabase
-        .from('riksnorm_personal')
-        .select('*')
-        .eq('year', selectedYear);
+    const yearsSet = [...new Set(monthInfos.map((m) => m.year))];
 
-    const { data: householdNorm } = await supabase
-        .from('riksnorm_household')
-        .select('*')
-        .eq('year', selectedYear)
-        .eq('household_size', (household?.adults ?? 0) + (household?.children ?? 0))
-        .single();
+    const riksnormByYear = new Map<
+        number,
+        { vuxen: number; barn: number; gemensam: number }
+    >();
 
-    const adults = household?.adults ?? 0;
-    const childAges = (children ?? []).map((c) => {
-        const birth = new Date(c.birthdate);
-        const end = new Date(Number(selectedYear), 11, 31);
-        return end.getFullYear() - birth.getFullYear();
-    });
+    for (const year of yearsSet) {
+        const { data: personalNorm } = await supabase
+            .from('riksnorm_personal')
+            .select('*')
+            .eq('year', String(year));
 
-    const adultRow = personalNorm?.find((r) => r.category === 'adult');
-    const vuxenTotal = adultRow ? adultRow.amount * adults : 0;
+        const { data: householdNorm } = await supabase
+            .from('riksnorm_household')
+            .select('*')
+            .eq('year', String(year))
+            .eq(
+                'household_size',
+                (household?.adults ?? 0) + (household?.children ?? 0)
+            )
+            .single();
 
-    let barnTotal = 0;
-    for (const age of childAges) {
-        const row = personalNorm?.find(
-            (r) => r.category === 'child' && r.age_min <= age && r.age_max >= age
-        );
-        if (row) barnTotal += row.amount;
+        const adults = household?.adults ?? 0;
+
+        const childAges = (children ?? []).map((c) => {
+            const birth = new Date(c.birthdate);
+            const end = new Date(year, 11, 31);
+            return end.getFullYear() - birth.getFullYear();
+        });
+
+        const adultRow = personalNorm?.find((r) => r.category === 'adult');
+        const vuxenTotal = adultRow ? Number(adultRow.amount ?? 0) * adults : 0;
+
+        let barnTotal = 0;
+        for (const age of childAges) {
+            const row = personalNorm?.find(
+                (r) =>
+                    r.category === 'child' &&
+                    r.age_min <= age &&
+                    r.age_max >= age
+            );
+            if (row) barnTotal += Number(row.amount ?? 0);
+        }
+
+        const gemensamTotal = Number(householdNorm?.amount ?? 0);
+
+        riksnormByYear.set(year, {
+            vuxen: vuxenTotal,
+            barn: barnTotal,
+            gemensam: gemensamTotal
+        });
     }
 
-    const gemensamTotal = householdNorm?.amount ?? 0;
-
-    const riksnorm = [
-        { name: 'Vuxen', amount: vuxenTotal },
-        { name: 'Barn', amount: barnTotal },
-        { name: 'Gemensam', amount: gemensamTotal }
-    ];
+    const riksnorm = {
+        Vuxen: monthInfos.map(
+            (m) => riksnormByYear.get(m.year)?.vuxen ?? 0
+        ),
+        Barn: monthInfos.map(
+            (m) => riksnormByYear.get(m.year)?.barn ?? 0
+        ),
+        Gemensam: monthInfos.map(
+            (m) => riksnormByYear.get(m.year)?.gemensam ?? 0
+        )
+    };
 
     return {
         selectedYear,
-        months: monthList,
+        months,
         members: memberList,
         electricityPerMonth,
-        fixedPerGroup,
         riksnormPerGroup,
-        riksnorm,
+        extraPerMonth,
         incomePerUser,
-        incomeTotal
+        incomeTotal,
+        riksnorm
     };
 };

@@ -1,66 +1,102 @@
-<script lang="ts">
+<script>
     export let data;
 
-    // Skapa 5 månader: 3 bakåt, nuvarande, 1 framåt
-    const today = new Date();
-    const months = [];
+    const members = data.members;
 
-    for (let offset = -3; offset <= 1; offset++) {
-        const d = new Date(today.getFullYear(), today.getMonth() + offset, 1);
+    const userColorClasses = [
+        'andreas', 'hanna', 'purple', 'orange', 'yellow', 'teal', 'red'
+    ];
 
-        months.push({
-            label: d.toLocaleString('sv-SE', { month: 'short', year: 'numeric' }),
-            year: d.getFullYear(),
-            month: d.getMonth() + 1
-        });
+    function colorClassForUser(userId) {
+        let hash = 0;
+        for (let i = 0; i < userId.length; i++) {
+            hash = (hash * 31 + userId.charCodeAt(i)) % 100000;
+        }
+        return userColorClasses[hash % userColorClasses.length];
     }
 
-    let selectedYear = Number(data.selectedYear);
+    // Endast kvarvarande utgiftssektioner
+    const expenseSections = [
+        { title: 'El', key: 'electricityPerMonth', type: 'simple' },
+        { title: 'Fasta kostnader Bistånd', key: 'riksnormPerGroup', type: 'fixed' }
+    ];
+
+    const otherSections = [
+        { title: 'Extra inkomster', key: 'extraPerMonth' }
+    ];
 
     function formatKr(v) {
         const num = Number(v ?? 0);
         return `${num.toLocaleString('sv-SE')} kr`;
     }
+
+    function sumIn(i) {
+        return data.incomeTotal?.[i] ?? 0;
+    }
+
+    function sumOut(i) {
+        let total = 0;
+
+        // Fasta kostnader Bistånd
+        for (const name of Object.keys(data.riksnormPerGroup ?? {})) {
+            total += data.riksnormPerGroup[name][i];
+        }
+
+        // Riksnorm (Vuxen + Barn + Gemensam)
+        total += (data.riksnorm?.Vuxen?.[i] ?? 0);
+        total += (data.riksnorm?.Barn?.[i] ?? 0);
+        total += (data.riksnorm?.Gemensam?.[i] ?? 0);
+
+        // El
+        total += data.electricityPerMonth[i] ?? 0;
+
+        return total;
+    }
+
+    function sumDiff(i) {
+        return sumIn(i) - sumOut(i);
+    }
+
+    let startingBuffer = 0;
+
+    $: bufferValues = (() => {
+        let buffer = startingBuffer;
+        const result = [];
+        for (let i = 0; i < data.months.length; i++) {
+            buffer += sumDiff(i);
+            result.push(buffer);
+        }
+        return result;
+    })();
+
+    // Dynamiska månadsetiketter från data.months
+    function monthLabel(ym) {
+        const d = new Date(ym + '-01');
+        return d.toLocaleString('sv-SE', { month: 'short' });
+    }
 </script>
 
 <h1>Budget</h1>
-
-<!-- Månadsväljare -->
-<select
-    name="year"
-    on:change={(e) => {
-        const selected = months[e.target.selectedIndex];
-        const params = new URLSearchParams(window.location.search);
-        params.set('year', selected.year.toString());
-        window.location.search = params.toString();
-    }}
->
-    {#each months as m}
-        <option value={m.year} selected={m.year === selectedYear}>
-            {m.label}
-        </option>
-    {/each}
-</select>
 
 <div class="table-wrapper">
     <table>
         <thead>
             <tr>
                 <th>Kategori</th>
-                {#each months as m}
-                    <th>{m.label}</th>
+                {#each data.months as m}
+                    <th>{monthLabel(m)}</th>
                 {/each}
             </tr>
         </thead>
 
         <tbody>
-            <!-- INKOMSTER (oförändrat) -->
-            <tr><td colspan={1 + months.length} class="section income-section">INKOMSTER</td></tr>
+            <!-- INKOMSTER -->
+            <tr><td colspan={1 + data.months.length} class="section income-section">INKOMSTER</td></tr>
 
-            {#each data.members as member}
+            {#each members as member}
                 <tr class="income-person">
                     <td>Inkomst {member.name}</td>
-                    {#each months as _, i}
+                    {#each data.months as _, i}
                         <td>{formatKr(data.incomePerUser?.[member.name]?.[i] ?? 0)}</td>
                     {/each}
                 </tr>
@@ -68,55 +104,89 @@
 
             <tr class="sum income-total">
                 <td>Totalt hushåll</td>
-                {#each months as _, i}
+                {#each data.months as _, i}
                     <td>{formatKr(data.incomeTotal?.[i] ?? 0)}</td>
                 {/each}
             </tr>
 
             <!-- UTGIFTER -->
-            <tr><td colspan={1 + months.length} class="section">UTGIFTER</td></tr>
+            <tr><td colspan={1 + data.months.length} class="section">UTGIFTER</td></tr>
 
-            <!-- Fasta kostnader Bistånd (ska vara kvar) -->
-            <tr><td colspan={1 + months.length} class="subsection">Fasta kostnader Bistånd</td></tr>
+            {#each expenseSections as section}
+                <tr><td colspan={1 + data.months.length} class="subsection">{section.title}</td></tr>
 
-            {#each Object.keys(data.riksnormPerGroup ?? {}) as name}
-                <tr class="fixed">
-                    <td>{name}</td>
-                    {#each months as _, i}
-                        <td>{formatKr(data.riksnormPerGroup[name][i] ?? 0)}</td>
+                {#if section.type === 'simple'}
+                    <tr>
+                        <td>{section.title}</td>
+                        {#each data.months as _, i}
+                            <td>{formatKr(data[section.key][i])}</td>
+                        {/each}
+                    </tr>
+
+                {:else if section.type === 'fixed'}
+                    {#each Object.keys(data[section.key] ?? {}) as name}
+                        <tr class="fixed">
+                            <td>{name}</td>
+                            {#each data.months as _, i}
+                                <td>{formatKr(data[section.key][name][i] ?? 0)}</td>
+                            {/each}
+                        </tr>
                     {/each}
-                </tr>
+                {/if}
             {/each}
 
-            <!-- NY SEKTION: RIKSNORM -->
-            <tr><td colspan={1 + months.length} class="subsection">Riksnorm</td></tr>
+            <!-- RIKSNORM -->
+            <tr><td colspan={1 + data.months.length} class="subsection">Riksnorm</td></tr>
 
-            {#each data.riksnorm as row}
+            {#each ['Vuxen', 'Barn', 'Gemensam'] as rowName}
                 <tr>
-                    <td>{row.name}</td>
-                    {#each months as _, i}
-                        <td>{formatKr(row.amount)}</td>
+                    <td>{rowName}</td>
+                    {#each data.months as _, i}
+                        <td>{formatKr(data.riksnorm?.[rowName]?.[i] ?? 0)}</td>
                     {/each}
                 </tr>
             {/each}
 
-            <!-- SUMMERING (oförändrat) -->
-            <tr><td colspan={1 + months.length} class="section">SUMMERING</td></tr>
+            <!-- ÖVRIGT -->
+            <tr><td colspan={1 + data.months.length} class="section">ÖVRIGT</td></tr>
+
+            {#each otherSections as oc}
+                <tr>
+                    <td>{oc.title}</td>
+                    {#each data.months as _, i}
+                        <td>{formatKr(data[oc.key][i])}</td>
+                    {/each}
+                </tr>
+            {/each}
+
+            <!-- SUMMERING -->
+            <tr><td colspan={1 + data.months.length} class="section">SUMMERING</td></tr>
 
             <tr class="sum">
                 <td>In</td>
-                {#each months as _, i}
-                    <td>{formatKr(data.incomeTotal?.[i] ?? 0)}</td>
+                {#each data.months as _, i}
+                    <td>{formatKr(sumIn(i))}</td>
                 {/each}
             </tr>
 
             <tr class="sum">
                 <td>Ut</td>
-                {#each months as _, i}
-                    <td>{formatKr(
-                        (data.riksnormPerGroupTotal?.[i] ?? 0) +
-                        (data.riksnormTotal ?? 0)
-                    )}</td>
+                {#each data.months as _, i}
+                    <td>{formatKr(sumOut(i))}</td>
+                {/each}
+            </tr>
+
+            <tr class="sum diff">
+                <td>Diff</td>
+                {#each data.months as _, i}
+                    <td>{formatKr(sumDiff(i))}</td>
+                {/each}
+            </tr>
+
+            <tr class="sum buffer">
+                <td>Buffert</td>
+                {#each bufferValues as b}
+                    <td>{formatKr(b)}</td>
                 {/each}
             </tr>
         </tbody>
@@ -126,7 +196,9 @@
 <style>
     .section {
         background: #e8eef7;
+        color: #111827;
         font-weight: bold;
+        text-align: left;
         padding: 0.5rem;
     }
 
@@ -137,6 +209,7 @@
     .subsection {
         background: #f3f6fb;
         font-weight: bold;
+        text-align: left;
         padding: 0.4rem;
     }
 
@@ -162,8 +235,31 @@
         font-weight: bold;
     }
 
+    .andreas { background: #e0ecff; }
+    .hanna { background: #ffe0e6; }
+    .purple { background: #f0e6ff; }
+    .orange { background: #ffe8d1; }
+    .yellow { background: #fff9cc; }
+    .teal { background: #d9f7f5; }
+    .red { background: #ffd6d6; }
+
+    .joint td { background: #f4f4f4; }
+    .fixed td { background: #fff2cc; }
+
     tr.sum td {
         background: #e0e0e0 !important;
         font-weight: bold;
+    }
+
+    tr.sum.income-total td {
+        background: #c9f7c9 !important;
+    }
+
+    tr.diff td {
+        background: #d0ffd0 !important;
+    }
+
+    tr.buffer td {
+        background: #c9e7ff !important;
     }
 </style>
