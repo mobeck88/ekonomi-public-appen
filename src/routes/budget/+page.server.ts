@@ -15,6 +15,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             members: [],
             electricityPerMonth: [],
             fixedPerGroup: {},
+            riksnormPerGroup: {},
             loansPerMonth: [],
             subs: [],
             savings: [],
@@ -66,7 +67,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         incomeMonthsRes,
         primaryRes,
         extraJobsRes,
-        fkRes
+        fkRes,
+        riksnormRes
     ] = await Promise.all([
         supabase.from('electricity').select('*').eq('household_id', householdId),
         supabase.from('fixed_costs').select('*').eq('household_id', householdId),
@@ -86,7 +88,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             .lte('month_date', `${selectedYear}-12-31`),
         supabase.from('income_primary_job').select('*').eq('household_id', householdId),
         supabase.from('income_extra_jobs').select('*').eq('household_id', householdId),
-        supabase.from('income_fk').select('*').eq('household_id', householdId)
+        supabase.from('income_fk').select('*').eq('household_id', householdId),
+        supabase.from('expenses_riksnorm').select('*').eq('household_id', householdId)
     ]);
 
     const electricityRows = electricityRes.data ?? [];
@@ -99,6 +102,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     const extra = extraRes.data ?? [];
     const loans = loansRes.data ?? [];
     const expenses = expensesRes.data ?? [];
+    const riksnorm = riksnormRes.data ?? [];
 
     const incomeMonths = incomeMonthsRes.data ?? [];
     const primary = primaryRes.data ?? [];
@@ -182,6 +186,18 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         const key = f.cost_name as string;
         if (!ownerMap[key]) ownerMap[key] = f.owner ?? f.user_id ?? 'shared';
     }
+
+    // ⭐ Fasta kostnader Bistånd (expenses_riksnorm)
+    const riksnormPerGroup = Object.fromEntries(
+        [...new Set(riksnorm.map((f) => f.cost_name as string))].map((name) => [
+            name,
+            months.map((m) =>
+                riksnorm
+                    .filter((f) => f.cost_name === name && isActive(f, m))
+                    .reduce((acc, f) => acc + Number(f.amount ?? 0), 0)
+            )
+        ])
+    );
 
     // Abonnemang
     const subs = months.map((m) => perUserOrShared(subscriptions, m));
@@ -314,6 +330,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         electricityPerMonth,
         fixedPerGroup,
         fixedGroups,
+        riksnormPerGroup,
         ownerMap,
         subs,
         savings,
