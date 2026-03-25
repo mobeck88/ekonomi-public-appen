@@ -36,16 +36,20 @@
     function sumOut(i) {
         let total = 0;
 
+        // Fasta kostnader Bistånd
         for (const name of Object.keys(data.riksnormPerGroup ?? {})) {
             total += data.riksnormPerGroup[name][i];
         }
 
+        // Riksnorm (Vuxen + Barn + Gemensam)
         total += (data.riksnorm?.Vuxen?.[i] ?? 0);
         total += (data.riksnorm?.Barn?.[i] ?? 0);
         total += (data.riksnorm?.Gemensam?.[i] ?? 0);
 
+        // El
         total += data.electricityPerMonth[i] ?? 0;
 
+        // Korrigering utgift
         total += (data.correctionExpense?.[i] ?? 0);
 
         return total;
@@ -115,14 +119,7 @@
                 </tr>
             {/each}
 
-            <tr class="sum income-total">
-                <td>Totalt hushåll</td>
-                {#each data.months as _, i}
-                    <td>{formatKr(data.incomeTotal?.[i] ?? 0)}</td>
-                {/each}
-            </tr>
-
-            <!-- ⭐ KORRIGERING INKOMST -->
+            <!-- Korrigering inkomst före Totalt hushåll -->
             <tr>
                 <td>Korrigering inkomst</td>
                 {#each data.months as _, i}
@@ -136,6 +133,14 @@
                 {/each}
             </tr>
 
+            <tr class="sum income-total">
+                <td>Totalt inkomster</td>
+                {#each data.months as _, i}
+                    <td>{formatKr(sumIn(i))}</td>
+                {/each}
+            </tr>
+
+            <!-- UTGIFTER -->
             <tr><td colspan={1 + data.months.length} class="section">UTGIFTER</td></tr>
 
             {#each expenseSections as section}
@@ -161,7 +166,19 @@
                 {/if}
             {/each}
 
-            <!-- ⭐ KORRIGERING UTGIFT -->
+            <!-- RIKSNORM -->
+            <tr><td colspan={1 + data.months.length} class="subsection">Riksnorm</td></tr>
+
+            {#each ['Vuxen', 'Barn', 'Gemensam'] as rowName}
+                <tr>
+                    <td>{rowName}</td>
+                    {#each data.months as _, i}
+                        <td>{formatKr(data.riksnorm?.[rowName]?.[i] ?? 0)}</td>
+                    {/each}
+                </tr>
+            {/each}
+
+            <!-- Korrigering utgift + Totala utgifter innan ÖVRIGT -->
             <tr>
                 <td>Korrigering utgift</td>
                 {#each data.months as _, i}
@@ -175,17 +192,12 @@
                 {/each}
             </tr>
 
-            <!-- RIKSNORM -->
-            <tr><td colspan={1 + data.months.length} class="subsection">Riksnorm</td></tr>
-
-            {#each ['Vuxen', 'Barn', 'Gemensam'] as rowName}
-                <tr>
-                    <td>{rowName}</td>
-                    {#each data.months as _, i}
-                        <td>{formatKr(data.riksnorm?.[rowName]?.[i] ?? 0)}</td>
-                    {/each}
-                </tr>
-            {/each}
+            <tr class="sum">
+                <td>Totala utgifter</td>
+                {#each data.months as _, i}
+                    <td>{formatKr(sumOut(i))}</td>
+                {/each}
+            </tr>
 
             <!-- ÖVRIGT -->
             <tr><td colspan={1 + data.months.length} class="section">ÖVRIGT</td></tr>
