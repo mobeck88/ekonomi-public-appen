@@ -30,27 +30,25 @@
         return `${num.toLocaleString('sv-SE')} kr`;
     }
 
+    // ⭐ FIX 1 — summering tar med korrigering inkomst
     function sumIn(i) {
         return (data.incomeTotal?.[i] ?? 0) + (data.correctionIncome?.[i] ?? 0);
     }
 
+    // ⭐ FIX 2 — summering tar med korrigering utgift
     function sumOut(i) {
         let total = 0;
 
-        // Fasta kostnader Bistånd
         for (const name of Object.keys(data.riksnormPerGroup ?? {})) {
             total += data.riksnormPerGroup[name][i];
         }
 
-        // Riksnorm (Vuxen + Barn + Gemensam)
         total += (data.riksnorm?.Vuxen?.[i] ?? 0);
         total += (data.riksnorm?.Barn?.[i] ?? 0);
         total += (data.riksnorm?.Gemensam?.[i] ?? 0);
 
-        // El
         total += data.electricityPerMonth[i] ?? 0;
 
-        // Korrigering utgift
         total += (data.correctionExpense?.[i] ?? 0);
 
         return total;
@@ -59,18 +57,6 @@
     function sumDiff(i) {
         return sumIn(i) - sumOut(i);
     }
-
-    let startingBuffer = 0;
-
-    $: bufferValues = (() => {
-        let buffer = startingBuffer;
-        const result = [];
-        for (let i = 0; i < data.months.length; i++) {
-            buffer += sumDiff(i);
-            result.push(buffer);
-        }
-        return result;
-    })();
 
     function monthLabel(ym) {
         const d = new Date(ym + '-01');
@@ -122,7 +108,6 @@
     }
 
     function updateCorrection(i, field, value) {
-        // Debounce 300 ms
         if (saveTimeout) clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => {
             doSave(i, field, value);
@@ -155,7 +140,6 @@
         </thead>
 
         <tbody>
-            <!-- INKOMSTER -->
             <tr><td colspan={1 + data.months.length} class="section income-section">INKOMSTER</td></tr>
 
             {#each members as member}
@@ -167,7 +151,6 @@
                 </tr>
             {/each}
 
-            <!-- Korrigering inkomst före Totalt hushåll -->
             <tr>
                 <td>Korrigering inkomst</td>
                 {#each data.months as _, i}
@@ -190,7 +173,6 @@
                 {/each}
             </tr>
 
-            <!-- UTGIFTER -->
             <tr><td colspan={1 + data.months.length} class="section">UTGIFTER</td></tr>
 
             {#each expenseSections as section}
@@ -216,7 +198,6 @@
                 {/if}
             {/each}
 
-            <!-- RIKSNORM -->
             <tr><td colspan={1 + data.months.length} class="subsection">Riksnorm</td></tr>
 
             {#each ['Vuxen', 'Barn', 'Gemensam'] as rowName}
@@ -228,7 +209,6 @@
                 </tr>
             {/each}
 
-            <!-- Korrigering utgift + Totala utgifter innan ÖVRIGT -->
             <tr>
                 <td>Korrigering utgift</td>
                 {#each data.months as _, i}
@@ -251,7 +231,6 @@
                 {/each}
             </tr>
 
-            <!-- ÖVRIGT -->
             <tr><td colspan={1 + data.months.length} class="section">ÖVRIGT</td></tr>
 
             {#each otherSections as oc}
@@ -263,7 +242,6 @@
                 </tr>
             {/each}
 
-            <!-- SUMMERING -->
             <tr><td colspan={1 + data.months.length} class="section">SUMMERING</td></tr>
 
             <tr class="sum">
@@ -284,13 +262,6 @@
                 <td>Diff</td>
                 {#each data.months as _, i}
                     <td>{formatKr(sumDiff(i))}</td>
-                {/each}
-            </tr>
-
-            <tr class="sum buffer">
-                <td>Buffert</td>
-                {#each bufferValues as b}
-                    <td>{formatKr(b)}</td>
                 {/each}
             </tr>
         </tbody>
