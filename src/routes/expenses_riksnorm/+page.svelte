@@ -1,9 +1,6 @@
 <script lang="ts">
     export let data;
 
-<<<<<<< HEAD
-=======
-    // 🔽 LOKAL LISTA FÖR DROPDOWNEN
     const riksnormTitles = [
         "A-kassa",
         "Barnomsorgsavgift",
@@ -12,7 +9,6 @@
         "Hyra"
     ];
 
->>>>>>> restore-20mars
     let createTitle = '';
     let createDescription = '';
     let createAmount = '';
@@ -31,7 +27,6 @@
 
 <h1>Fasta utgifter (Riksnorm)</h1>
 
-<!-- Aktiva utgifter -->
 <div class="section">
     <button class="section-header" on:click={() => (showActive = !showActive)}>
         <span>Aktiva utgifter</span>
@@ -97,7 +92,6 @@
     {/if}
 </div>
 
-<!-- Ny utgift -->
 <div class="section">
     <button class="section-header" on:click={() => (showCreate = !showCreate)}>
         <span>Ny utgift</span>
@@ -106,12 +100,7 @@
 
     {#if showCreate}
         <form method="post" action="?/create" class="create-form">
-<<<<<<< HEAD
-            <label for="title">Rubrik</label>
-            <input id="title" name="title" type="text" bind:value={createTitle} required />
-=======
 
-            <!-- 🔽 ÄNDRING: RUBRIK ÄR NU DROPDOWN -->
             <label for="title">Rubrik</label>
             <select id="title" name="title" bind:value={createTitle} required>
                 <option value="" disabled selected>Välj rubrik…</option>
@@ -119,7 +108,6 @@
                     <option value={t}>{t}</option>
                 {/each}
             </select>
->>>>>>> restore-20mars
 
             <label for="description">Beskrivning</label>
             <textarea id="description" name="description" rows="2" bind:value={createDescription}></textarea>
@@ -144,7 +132,6 @@
     {/if}
 </div>
 
-<!-- Historik -->
 <div class="section">
     <button class="section-header" on:click={() => (showHistory = !showHistory)}>
         <span>Historik</span>
