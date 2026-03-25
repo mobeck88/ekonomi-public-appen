@@ -1,19 +1,41 @@
 <script lang="ts">
     export let data;
 
+    // Form state
     let month = '';
     let eonAmount = '';
     let tibberAmount = '';
 
-    // Konvertera YYYY-MM-01 → YYYY-MM
+    // Selected row for editing
+    let selected: any = null;
+
+    // Accordion states
+    let showForm = false;
+    let showList = false;
+
+    // Convert YYYY-MM-01 → YYYY-MM
     function toMonthInput(dateString: string | null) {
         if (!dateString) return "";
         return dateString.slice(0, 7);
     }
 
-    // Accordion states
-    let showForm = false;
-    let showList = false;
+    // Load row into form for editing
+    function editRow(row) {
+        selected = row;
+        month = toMonthInput(row.month);
+        eonAmount = row.eon_amount;
+        tibberAmount = row.tibber_amount;
+        showForm = true;
+    }
+
+    // Reset form for new entry
+    function newEntry() {
+        selected = null;
+        month = '';
+        eonAmount = '';
+        tibberAmount = '';
+        showForm = true;
+    }
 </script>
 
 <h1>Elkostnader</h1>
@@ -21,12 +43,17 @@
 <!-- ⭐ Sektion: Lägg till / ändra månad -->
 <div class="section">
     <button class="section-header" on:click={() => showForm = !showForm}>
-        <span>Lägg till / ändra månad</span>
+        <span>{selected ? "Redigera månad" : "Lägg till månad"}</span>
         <span>{showForm ? "▲" : "▼"}</span>
     </button>
 
     {#if showForm}
         <form method="post" action="?/save" class="create-form">
+
+            {#if selected}
+                <input type="hidden" name="id" value={selected.id} />
+            {/if}
+
             <label for="month">Månad</label>
             <input id="month" name="month" type="month" bind:value={month} required />
 
@@ -51,7 +78,7 @@
     {#if showList}
         {#if data.entries.length > 0}
             {#each data.entries as row}
-                <div class="card">
+                <div class="card" on:click={() => editRow(row)} style="cursor:pointer;">
                     <div class="row">
                         <div class="info">
                             <strong>{toMonthInput(row.month)}</strong><br />
