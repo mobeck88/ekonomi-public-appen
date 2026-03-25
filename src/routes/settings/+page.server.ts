@@ -9,7 +9,10 @@ export const load: PageServerLoad = async ({ locals }) => {
             hasGuardian: false,
             enableAssistance: false,
             householdId: null,
-            role: "member" // <-- tillagt fallback
+            role: "member",
+            useCustomRiksnorm: false,
+            customRiksnorm: null,
+            selectedYear: new Date().getFullYear()
         };
     }
 
@@ -23,26 +26,42 @@ export const load: PageServerLoad = async ({ locals }) => {
         .eq("year", year)
         .maybeSingle();
 
-    // Hämta guardian + household_id + role  <-- UPPDATERAT
+    // Hämta guardian + household_id + role
     const { data: memberData } = await locals.supabase
         .from("household_members")
-        .select("guardian_for, household_id, role") // <-- role tillagd
+        .select("guardian_for, household_id, role")
         .eq("user_id", user.id)
         .maybeSingle();
 
     const householdId = memberData?.household_id ?? null;
 
-    // Hämta ekonomiskt bistånd
+    // Hämta ekonomiskt bistånd + egen riksnorm-toggle
     let enableAssistance = false;
+    let useCustomRiksnorm = false;
 
     if (householdId) {
         const { data: household } = await locals.supabase
             .from("households")
-            .select("enable_assistance")
+            .select("enable_assistance, use_custom_riksnorm")
             .eq("id", householdId)
             .maybeSingle();
 
         enableAssistance = household?.enable_assistance ?? false;
+        useCustomRiksnorm = household?.use_custom_riksnorm ?? false;
+    }
+
+    // Hämta ev. egen riksnorm för innevarande år
+    let customRiksnorm = null;
+
+    if (householdId) {
+        const { data } = await locals.supabase
+            .from("custom_riksnorm")
+            .select("*")
+            .eq("household_id", householdId)
+            .eq("year", year)
+            .maybeSingle();
+
+        customRiksnorm = data ?? null;
     }
 
     return {
@@ -50,12 +69,14 @@ export const load: PageServerLoad = async ({ locals }) => {
         hasGuardian: memberData?.guardian_for ?? false,
         enableAssistance,
         householdId,
-        role: memberData?.role ?? "member" // <-- skickas upp till Svelte
+        role: memberData?.role ?? "member",
+        useCustomRiksnorm,
+        customRiksnorm,
+        selectedYear: year
     };
 };
 
 export const actions: Actions = {
-    // SAMMANSLAGEN ACTION FÖR TRE INSTÄLLNINGAR
     updateSettings: async ({ request, locals }) => {
         const user = locals.user;
         if (!user) throw redirect(303, "/login");
@@ -65,6 +86,13 @@ export const actions: Actions = {
         const isMember = form.get("isMember") === "on";
         const hasGuardian = form.get("hasGuardian") === "on";
         const enableAssistance = form.get("enableAssistance") === "on";
+
+        const useCustomRiksnorm = form.get("useCustomRiksnorm") === "on";
+        const selectedYear = Number(form.get("riksnormYear"));
+
+        const adult = form.get("riksnormAdult");
+        const child = form.get("riksnormChild");
+        const shared = form.get("riksnormShared");
 
         const year = new Date().getFullYear();
 
@@ -86,10 +114,10 @@ export const actions: Actions = {
             });
         }
 
-        // 2. Hämta household_id + role  <-- UPPDATERAT
+        // 2. Hämta household_id + role
         const { data: memberData, error: memberError } = await locals.supabase
             .from("household_members")
-            .select("household_id, role") // <-- role tillagd
+            .select("household_id, role")
             .eq("user_id", user.id)
             .maybeSingle();
 
@@ -101,8 +129,6 @@ export const actions: Actions = {
 
         // Roller som INTE får välja "Jag har en god man"
         const forbiddenRoles = ["guardian", "child", "youth"];
-
-        // Om rollen är förbjuden → ignorera checkboxen
         const effectiveHasGuardian = forbiddenRoles.includes(memberData.role)
             ? false
             : hasGuardian;
@@ -120,10 +146,13 @@ export const actions: Actions = {
             });
         }
 
-        // 4. Ekonomiskt bistånd
+        // 4. Ekonomiskt bistånd + egen riksnorm-toggle
         const { error: assistanceError } = await locals.supabase
             .from("households")
-            .update({ enable_assistance: enableAssistance })
+            .update({
+                enable_assistance: enableAssistance,
+                use_custom_riksnorm: useCustomRiksnorm
+            })
             .eq("id", householdId);
 
         if (assistanceError) {
@@ -132,11 +161,28 @@ export const actions: Actions = {
             });
         }
 
+        // 5. Spara egen riksnorm (om togglen är true)
+        if (useCustomRiksnorm) {
+            await locals.supabase
+                .from("custom_riksnorm")
+                .upsert(
+                    {
+                        household_id: householdId,
+                        year: selectedYear,
+                        adult: adult ? Number(adult) : null,
+                        child: child ? Number(child) : null,
+                        shared: shared ? Number(shared) : null
+                    },
+                    { onConflict: "household_id,year" }
+                );
+        }
+
         return {
             message: "Inställningar sparade.",
             isMember,
             hasGuardian: effectiveHasGuardian,
-            enableAssistance
+            enableAssistance,
+            useCustomRiksnorm
         };
     },
 
