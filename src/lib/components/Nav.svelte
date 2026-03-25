@@ -32,12 +32,12 @@
 
         ...(enable_assistance
             ? [
-                  // ⭐ BYTT NAMN
                   { label: "Ekonomiskt bistånd", header: true },
                   { label: "Beräkning", path: "/assistance" },
+                  { label: "Fasta utgifter", path: "/expenses_riksnorm" },
 
-                  // ⭐ NYTT MENYVAL — INGEN HEADER
-                  { label: "Fasta utgifter", path: "/expenses_riksnorm" }
+                  // ⭐ NYTT MENYVAL — exakt där du ville ha det
+                  { label: "Ekonomiskt bistånd", path: "/economic_assistance" }
               ]
             : []),
 
