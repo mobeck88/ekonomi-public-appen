@@ -56,7 +56,7 @@
         let total = 0;
 
         // Fasta kostnader
-        for (const name of data.fixedGroups) {
+        for (const name of Object.keys(data.fixedPerGroup ?? {})) {
             total += data.fixedPerGroup[name][i];
         }
 
@@ -168,7 +168,7 @@
                         <tr class="fixed">
                             <td>{name}</td>
                             {#each data.months as _, i}
-                                <td>{formatKr(data[section.key][i][name] ?? data[section.key][name]?.[i] ?? 0)}</td>
+                                <td>{formatKr(data[section.key][name][i] ?? 0)}</td>
                             {/each}
                         </tr>
                     {/each}
