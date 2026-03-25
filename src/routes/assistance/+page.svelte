@@ -1,394 +1,409 @@
-<script lang="ts">
+<script>
     export let data;
+    import { invalidateAll } from '$app/navigation';
 
-    const months: string[] = data.months ?? [];
-    const rows = data.rows ?? [];
-    const incomeRows: string[] = data.incomeRows ?? [];
+    const members = data.members;
 
-    const monthNames = [
-        'Januari',
-        'Februari',
-        'Mars',
-        'April',
-        'Maj',
-        'Juni',
-        'Juli',
-        'Augusti',
-        'September',
-        'Oktober',
-        'November',
-        'December'
+    const userColorClasses = [
+        'andreas', 'hanna', 'purple', 'orange', 'yellow', 'teal', 'red'
     ];
 
-    function formatMonth(m: string) {
-        const [y, mm] = m.split('-').map(Number);
-        return monthNames[mm - 1];
+    function colorClassForUser(userId) {
+        let hash = 0;
+        for (let i = 0; i < userId.length; i++) {
+            hash = (hash * 31 + userId.charCodeAt(i)) % 100000;
+        }
+        return userColorClasses[hash % userColorClasses.length];
     }
 
-    function getYear(m: string) {
-        return m.split('-')[0];
-    }
-
-    const homeRows = [
-        'Hyra',
-        'El',
-        'Hemförsäkring',
-        'Mat vuxen',
-        'Mat barn',
-        'Övriga kostnad barn',
-        'Internet'
+    const expenseSections = [
+        { title: 'El', key: 'electricityPerMonth', type: 'simple' },
+        { title: 'Fasta kostnader Bistånd', key: 'riksnormPerGroup', type: 'fixed' }
     ];
 
-    const workRows = ['Facket', 'A-kassa (avgift)'];
-    const societyRows = ['Barnomsorg'];
-    const healthRows = ['Sjukhuskostnader', 'Mediciner'];
+    const otherSections = [
+        { title: 'Extra inkomster', key: 'extraPerMonth' }
+    ];
 
-    // ⭐ RIKSNORM – ALLA TRE RADERNA
-    const riksnormRows = ['Riksnorm vuxen', 'Riksnorm barn', 'Riksnorm hushåll'];
-
-    const rowMap = new Map<string, { label: string; values: number[] }>();
-    rows.forEach((r) => rowMap.set(r.label, r));
-
-    function getRow(label: string) {
-        const r = rowMap.get(label);
-        if (!r) return { label, values: months.map(() => 0) };
-        if (!r.values) return { label, values: months.map(() => 0) };
-        return r;
+    function formatKr(v) {
+        const num = Number(v ?? 0);
+        return `${num.toLocaleString('sv-SE')} kr`;
     }
 
-    function isRowVisible(label: string) {
-        const row = getRow(label);
-        return row.values.some((v) => v !== 0 && v !== null && v !== '');
+    function overskott(i) {
+        if (i === 0) return 0;
+        const prev = sumDiff(i - 1);
+        return prev > 0 ? prev : 0;
     }
 
-    const sumIncome = getRow('Summa inkomst');
-    const sumExpenses = getRow('Summa utgifter');
-    const balance = getRow('Balans');
-    const assist = getRow('Biståndsmånad');
-    const calendar = getRow('Kalendermånad');
-
-    const incomeCorrectionRow = getRow('Korrigering inkomst');
-    const expenseCorrectionRow = getRow('Korrigering utgift');
-
-    let saving = false;
-    let saveError: string | null = null;
-    let saveTimeout: ReturnType<typeof setTimeout> | null = null;
-
-    function recalc() {
-        // Inkomster
-        sumIncome.values = months.map((_, i) => {
-            let total = 0;
-
-            for (const label of incomeRows) {
-                total += getRow(label).values[i] ?? 0;
-            }
-
-            total += incomeCorrectionRow.values[i] ?? 0;
-
-            return total;
-        });
-
-        // Utgifter
-        const expenseLabels = [
-            'Hyra',
-            'El',
-            'Hemförsäkring',
-            'Mat vuxen',
-            'Mat barn',
-            'Övriga kostnad barn',
-            'Internet',
-            'Facket',
-            'A-kassa (avgift)',
-            'Barnomsorg',
-            'Sjukhuskostnader',
-            'Mediciner',
-            'Riksnorm vuxen',
-            'Riksnorm barn',
-            'Riksnorm hushåll'
-        ];
-
-        sumExpenses.values = months.map((_, i) => {
-            let total = 0;
-
-            for (const label of expenseLabels) {
-                total += getRow(label).values[i] ?? 0;
-            }
-
-            total += expenseCorrectionRow.values[i] ?? 0;
-
-            return total;
-        });
-
-        // Balans
-        balance.values = months.map((_, i) => {
-            return (sumIncome.values[i] ?? 0) - (sumExpenses.values[i] ?? 0);
-        });
+    function sumIn(i) {
+        return (
+            (data.incomeTotal?.[i] ?? 0) +
+            (data.correctionIncome?.[i] ?? 0) +
+            overskott(i)
+        );
     }
 
-    async function saveCorrection(
-        type: 'income' | 'expense',
-        month: string,
-        value: string
-    ) {
-        const amount = Number(value || 0);
-        saving = true;
-        saveError = null;
+    function sumOut(i) {
+        let total = 0;
+
+        for (const name of Object.keys(data.riksnormPerGroup ?? {})) {
+            total += data.riksnormPerGroup[name][i];
+        }
+
+        total += (data.riksnorm?.Vuxen?.[i] ?? 0);
+        total += (data.riksnorm?.Barn?.[i] ?? 0);
+        total += (data.riksnorm?.Gemensam?.[i] ?? 0);
+
+        total += data.electricityPerMonth[i] ?? 0;
+
+        total += (data.correctionExpense?.[i] ?? 0);
+
+        return total;
+    }
+
+    function sumDiff(i) {
+        return sumIn(i) - sumOut(i);
+    }
+
+    function monthLabel(ym) {
+        const d = new Date(ym + '-01');
+        return d.toLocaleString('sv-SE', { month: 'short' });
+    }
+
+    function bistandsmanad(ym) {
+        const d = new Date(ym + '-01');
+        d.setMonth(d.getMonth() + 1);
+        return d.toLocaleString('sv-SE', { month: 'short' });
+    }
+
+    let isSaving = false;
+    let saveStatus = '';
+    let saveError = '';
+    let saveTimeout;
+
+    async function doSave(i, field, value) {
+        const ym = data.months[i];
+        const [year, month] = ym.split('-').map(Number);
+
+        isSaving = true;
+        saveStatus = 'Sparar...';
+        saveError = '';
 
         try {
-            const res = await fetch('/assistance/updateCorrection', {
+            const res = await fetch('/api/update-assistance', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type, month, amount })
+                body: JSON.stringify({
+                    year,
+                    month,
+                    field,
+                    value
+                })
             });
 
             if (!res.ok) {
-                saveError = 'Kunde inte spara korrigering.';
+                const body = await res.json().catch(() => ({}));
+                throw new Error(body.error || 'Okänt fel vid sparning');
             }
-        } catch (e) {
-            saveError = 'Kunde inte spara korrigering.';
+
+            await invalidateAll();
+            location.reload();
+
+        } catch (err) {
+            console.error(err);
+            saveError = 'Kunde inte spara ändringen';
         } finally {
-            saving = false;
+            isSaving = false;
         }
     }
 
-    function onCorrectionInput(
-        type: 'income' | 'expense',
-        month: string,
-        index: number,
-        event: Event
-    ) {
-        const target = event.target as HTMLInputElement;
-        const value = target.value;
-
-        if (type === 'income') {
-            incomeCorrectionRow.values[index] = Number(value || 0);
-        } else {
-            expenseCorrectionRow.values[index] = Number(value || 0);
-        }
-
-        recalc();
-
+    function updateCorrection(i, field, value) {
         if (saveTimeout) clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => {
-            saveCorrection(type, month, value);
-        }, 400);
+            doSave(i, field, value);
+        }, 300);
     }
 </script>
 
-<style>
-    thead th {
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        background: #f3f4f6;
-    }
-    tbody tr:hover td {
-        background-color: #f9fafb;
-    }
-    td,
-    th {
-        padding: 10px 12px;
-        font-size: 0.9rem;
-    }
-    table {
-        border-radius: 8px;
-        overflow: hidden;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-    }
-    .section-header {
-        background: #e5e7eb;
-        font-weight: 700;
-        font-size: 1rem;
-    }
-    .income-header {
-        background: #bbf7d0;
-    }
-    .expense-header {
-        background: #fecaca;
-    }
-    .expense-subheader {
-        background: #fee2e2;
-    }
-    .balance-row {
-        background: #e5e7eb;
-        font-weight: 600;
-    }
-    input[type='number'] {
-        width: 100%;
-        text-align: right;
-        border: 1px solid #d1d5db;
-        border-radius: 4px;
-        padding: 2px 4px;
-        font-size: 0.85rem;
-    }
-</style>
+<h1>Budget</h1>
 
-<h1 class="text-2xl font-bold mb-6">Bistånd</h1>
+<div class="status-row">
+    {#if isSaving}
+        <span class="status saving">Sparar...</span>
+    {:else if saveStatus}
+        <span class="status saved">{saveStatus}</span>
+    {/if}
+    {#if saveError}
+        <span class="status error">{saveError}</span>
+    {/if}
+</div>
 
-{#if saving}
-    <p class="text-xs text-gray-500 mb-2">Sparar korrigering...</p>
-{/if}
-{#if saveError}
-    <p class="text-xs text-red-600 mb-2">{saveError}</p>
-{/if}
-
-<div class="overflow-x-auto">
-    <table class="min-w-full text-sm border-collapse">
+<div class="table-wrapper">
+    <table>
         <thead>
             <tr>
-                <th class="border text-left">Kategori</th>
-                {#each months as m}
-                    <th class="border text-right">{getYear(m)}</th>
+                <th>Kategori</th>
+                {#each data.months as m}
+                    <th>{monthLabel(m)}</th>
                 {/each}
             </tr>
         </thead>
 
         <tbody>
-            <tr class="section-header">
-                <td class="border">Biståndsmånad</td>
-                {#each assist.values as v}
-                    <td class="border text-right">{formatMonth(v as string)}</td>
+
+            <tr class="sum">
+                <td>Biståndsmånad</td>
+                {#each data.months as m}
+                    <td>{bistandsmanad(m)}</td>
                 {/each}
             </tr>
 
-            <tr class="section-header">
-                <td class="border">Kalendermånad</td>
-                {#each calendar.values as v}
-                    <td class="border text-right">{formatMonth(v as string)}</td>
-                {/each}
-            </tr>
+            <tr><td colspan={1 + data.months.length} class="section income-section">INKOMSTER</td></tr>
 
-            <tr class="income-header section-header">
-                <td class="border" colspan={1 + months.length}>Inkomster</td>
-            </tr>
-
-            {#each incomeRows.filter(isRowVisible) as label}
-                <tr class="bg-green-50">
-                    <td class="border">{label}</td>
-                    {#each getRow(label).values as v}
-                        <td class="border text-right">{v} kr</td>
+            {#each members as member}
+                <tr class="income-person">
+                    <td>Inkomst {member.name}</td>
+                    {#each data.months as _, i}
+                        <td>{formatKr(data.incomePerUser?.[member.name]?.[i] ?? 0)}</td>
                     {/each}
                 </tr>
             {/each}
 
-            <tr class="bg-green-50">
-                <td class="border font-semibold">Korrigering</td>
-                {#each months as m, i}
-                    <td class="border text-right">
+            <tr>
+                <td>Korrigering inkomst</td>
+                {#each data.months as _, i}
+                    <td>
                         <input
                             type="number"
-                            step="1"
-                            bind:value={incomeCorrectionRow.values[i]}
-                            on:input={(e) => onCorrectionInput('income', m, i, e)}
+                            class="correction-input"
+                            value={data.correctionIncome[i]}
+                            on:change={(e) => updateCorrection(i, 'correction_income', Number(e.target.value))}
+                            disabled={isSaving}
                         />
                     </td>
                 {/each}
             </tr>
 
-            <tr class="income-header font-semibold">
-                <td class="border">Summa inkomst</td>
-                {#each sumIncome.values as v}
-                    <td class="border text-right">{v} kr</td>
+            <tr class="sum income-total">
+                <td>Totalt inkomster</td>
+                {#each data.months as _, i}
+                    <td>{formatKr(sumIn(i))}</td>
                 {/each}
             </tr>
 
-            <tr class="expense-header section-header">
-                <td class="border" colspan={1 + months.length}>Utgifter</td>
-            </tr>
+            <tr><td colspan={1 + data.months.length} class="section">UTGIFTER</td></tr>
 
-            <tr class="expense-subheader section-header">
-                <td class="border" colspan={1 + months.length}>Hem</td>
-            </tr>
+            {#each expenseSections as section}
+                <tr><td colspan={1 + data.months.length} class="subsection">{section.title}</td></tr>
 
-            {#each homeRows.filter(isRowVisible) as label}
-                <tr class="bg-red-50">
-                    <td class="border">{label}</td>
-                    {#each getRow(label).values as v}
-                        <td class="border text-right">{v} kr</td>
+                {#if section.type === 'simple'}
+                    <tr>
+                        <td>{section.title}</td>
+                        {#each data.months as _, i}
+                            <td>{formatKr(data[section.key][i])}</td>
+                        {/each}
+                    </tr>
+
+                {:else if section.type === 'fixed'}
+                    {#each Object.keys(data[section.key] ?? {}) as name}
+                        <tr class="fixed">
+                            <td>{name}</td>
+                            {#each data.months as _, i}
+                                <td>{formatKr(data[section.key][name][i] ?? 0)}</td>
+                            {/each}
+                        </tr>
+                    {/each}
+                {/if}
+            {/each}
+
+            <tr><td colspan={1 + data.months.length} class="subsection">Riksnorm</td></tr>
+
+            {#each ['Vuxen', 'Barn', 'Gemensam'] as rowName}
+                <tr>
+                    <td>{rowName}</td>
+                    {#each data.months as _, i}
+                        <td>{formatKr(data.riksnorm?.[rowName]?.[i] ?? 0)}</td>
                     {/each}
                 </tr>
             {/each}
 
-            <tr class="expense-subheader section-header">
-                <td class="border" colspan={1 + months.length}>Arbete</td>
-            </tr>
-
-            {#each workRows.filter(isRowVisible) as label}
-                <tr class="bg-red-50">
-                    <td class="border">{label}</td>
-                    {#each getRow(label).values as v}
-                        <td class="border text-right">{v} kr</td>
-                    {/each}
-                </tr>
-            {/each}
-
-            <tr class="expense-subheader section-header">
-                <td class="border" colspan={1 + months.length}>Samhäll</td>
-            </tr>
-
-            {#each societyRows.filter(isRowVisible) as label}
-                <tr class="bg-red-50">
-                    <td class="border">{label}</td>
-                    {#each getRow(label).values as v}
-                        <td class="border text-right">{v} kr</td>
-                    {/each}
-                </tr>
-            {/each}
-
-            <tr class="expense-subheader section-header">
-                <td class="border" colspan={1 + months.length}>Samhäll (vård)</td>
-            </tr>
-
-            {#each healthRows.filter(isRowVisible) as label}
-                <tr class="bg-red-50">
-                    <td class="border">{label}</td>
-                    {#each getRow(label).values as v}
-                        <td class="border text-right">{v} kr</td>
-                    {/each}
-                </tr>
-            {/each}
-
-            <!-- ⭐ RIKSNORM – ALLA TRE RADERNA -->
-            <tr class="expense-subheader section-header">
-                <td class="border" colspan={1 + months.length}>Riksnorm</td>
-            </tr>
-
-            {#each riksnormRows as label}
-                <tr class="bg-red-50">
-                    <td class="border">{label}</td>
-                    {#each getRow(label).values as v}
-                        <td class="border text-right">{v} kr</td>
-                    {/each}
-                </tr>
-            {/each}
-
-            <tr class="bg-red-50">
-                <td class="border font-semibold">Korrigering</td>
-                {#each months as m, i}
-                    <td class="border text-right">
+            <tr>
+                <td>Korrigering utgift</td>
+                {#each data.months as _, i}
+                    <td>
                         <input
                             type="number"
-                            step="1"
-                            bind:value={expenseCorrectionRow.values[i]}
-                            on:input={(e) => onCorrectionInput('expense', m, i, e)}
+                            class="correction-input"
+                            value={data.correctionExpense[i]}
+                            on:change={(e) => updateCorrection(i, 'correction_expense', Number(e.target.value))}
+                            disabled={isSaving}
                         />
                     </td>
                 {/each}
             </tr>
 
-            <tr class="expense-header font-semibold">
-                <td class="border">Summa utgifter</td>
-                {#each sumExpenses.values as v}
-                    <td class="border text-right">{v} kr</td>
+            <tr class="sum">
+                <td>Totala utgifter</td>
+                {#each data.months as _, i}
+                    <td>{formatKr(sumOut(i))}</td>
                 {/each}
             </tr>
 
-            <tr class="balance-row">
-                <td class="border">Balans</td>
-                {#each balance.values as v}
-                    <td class="border text-right">{v} kr</td>
+            <tr><td colspan={1 + data.months.length} class="section">ÖVRIGT</td></tr>
+
+            {#each otherSections as oc}
+                <tr>
+                    <td>{oc.title}</td>
+                    {#each data.months as _, i}
+                        <td>{formatKr(data[oc.key][i])}</td>
+                    {/each}
+                </tr>
+            {/each}
+
+            <tr><td colspan={1 + data.months.length} class="section">SUMMERING</td></tr>
+
+            <tr class="sum">
+                <td>In</td>
+                {#each data.months as _, i}
+                    <td>{formatKr(sumIn(i))}</td>
                 {/each}
             </tr>
+
+            <tr class="sum">
+                <td>Ut</td>
+                {#each data.months as _, i}
+                    <td>{formatKr(sumOut(i))}</td>
+                {/each}
+            </tr>
+
+            <tr class="sum diff">
+                <td>Diff</td>
+                {#each data.months as _, i}
+                    <td>{formatKr(sumDiff(i))}</td>
+                {/each}
+            </tr>
+
         </tbody>
     </table>
 </div>
+
+<style>
+    .section {
+        background: #e8eef7;
+        color: #111827;
+        font-weight: bold;
+        text-align: left;
+        padding: 0.5rem;
+    }
+
+    .income-section {
+        background: #d9fbe0;
+    }
+
+    .subsection {
+        background: #f3f6fb;
+        font-weight: bold;
+        text-align: left;
+        padding: 0.4rem;
+    }
+
+    .table-wrapper {
+        overflow-x: auto;
+    }
+
+    table {
+        width: max-content;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+    }
+
+    th, td {
+        border: 1px solid #ddd;
+        padding: 0.4rem 0.6rem;
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    th:first-child, td:first-child {
+        text-align: left;
+        font-weight: bold;
+    }
+
+    .andreas { background: #e0ecff; }
+    .hanna { background: #ffe0e6; }
+    .purple { background: #f0e6ff; }
+    .orange { background: #ffe8d1; }
+    .yellow { background: #fff9cc; }
+    .teal { background: #d9f7f5; }
+    .red { background: #ffd6d6; }
+
+    .joint td { background: #f4f4f4; }
+    .fixed td { background: #fff2cc; }
+
+    tr.sum td {
+        background: #e0e0e0 !important;
+        font-weight: bold;
+    }
+
+    tr.sum.income-total td {
+        background: #c9f7c9 !important;
+    }
+
+    tr.diff td {
+        background: #d0ffd0 !important;
+    }
+
+    .status-row {
+        margin-bottom: 0.5rem;
+        min-height: 1.2rem;
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+        font-size: 0.85rem;
+    }
+
+    .status {
+        padding: 0.1rem 0.4rem;
+        border-radius: 4px;
+    }
+
+    .status.saving {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .status.saved {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .status.error {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    input {
+        width: 80px;
+        padding: 2px 4px;
+        text-align: right;
+        font-size: 0.8rem;
+        border-radius: 3px;
+        border: 1px solid #ccc;
+    }
+
+    input:disabled {
+        background: #f5f5f5;
+        color: #888;
+    }
+
+    .correction-input {
+        background: #fffef5;
+    }
+
+    .correction-input:focus {
+        outline: 2px solid #93c5fd;
+        outline-offset: 1px;
+        background: #ffffff;
+    }
+</style>

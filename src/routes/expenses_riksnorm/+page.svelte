@@ -1,6 +1,18 @@
 <script lang="ts">
     export let data;
 
+<<<<<<< HEAD
+=======
+    // 🔽 LOKAL LISTA FÖR DROPDOWNEN
+    const riksnormTitles = [
+        "A-kassa",
+        "Barnomsorgsavgift",
+        "Bredband",
+        "Facket",
+        "Hyra"
+    ];
+
+>>>>>>> restore-20mars
     let createTitle = '';
     let createDescription = '';
     let createAmount = '';
@@ -94,8 +106,20 @@
 
     {#if showCreate}
         <form method="post" action="?/create" class="create-form">
+<<<<<<< HEAD
             <label for="title">Rubrik</label>
             <input id="title" name="title" type="text" bind:value={createTitle} required />
+=======
+
+            <!-- 🔽 ÄNDRING: RUBRIK ÄR NU DROPDOWN -->
+            <label for="title">Rubrik</label>
+            <select id="title" name="title" bind:value={createTitle} required>
+                <option value="" disabled selected>Välj rubrik…</option>
+                {#each riksnormTitles as t}
+                    <option value={t}>{t}</option>
+                {/each}
+            </select>
+>>>>>>> restore-20mars
 
             <label for="description">Beskrivning</label>
             <textarea id="description" name="description" rows="2" bind:value={createDescription}></textarea>

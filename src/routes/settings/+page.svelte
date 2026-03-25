@@ -5,19 +5,36 @@
     let isMember = form?.isMember ?? data.isMemberOfChurch;
     let hasGuardian = form?.hasGuardian ?? data.hasGuardian;
     let enableAssistance = form?.enableAssistance ?? data.enableAssistance;
+
+    let useCustomRiksnorm = form?.useCustomRiksnorm ?? data.useCustomRiksnorm;
+
+    let selectedYear = form?.riksnormYear ?? data.selectedYear;
+
+    let riksnormAdult = form?.riksnormAdult ?? data.customRiksnorm?.adult ?? "";
+    let riksnormChild = form?.riksnormChild ?? data.customRiksnorm?.child ?? "";
+    let riksnormShared = form?.riksnormShared ?? data.customRiksnorm?.shared ?? "";
+
     let message = form?.message ?? "";
 
-    let showSettings = true;
+    let role = data.role;
+
+    const hideGuardianCheckbox = ["guardian", "child", "youth"].includes(role);
+    const hideSettingsSection = ["child", "youth"].includes(role);
+
+    let showSettings = false;
     let showPassword = false;
     let showLogout = false;
+
+    const currentYear = new Date().getFullYear();
+    const years = Array.from({ length: 7 }, (_, i) => currentYear - 5 + i);
 </script>
 
 <h1>Inställningar</h1>
 
-<!-- SAMLAD SEKTION -->
+{#if !hideSettingsSection}
 <div class="section">
     <button class="section-header" on:click={() => (showSettings = !showSettings)}>
-        <span>Allmänna inställningar</span>
+        <span>Personliga inställningar</span>
         <span>{showSettings ? "▲" : "▼"}</span>
     </button>
 
@@ -29,10 +46,39 @@
                 Visa ekonomiskt bistånd i menyn
             </label>
 
-            <label class="checkbox-row">
-                <input type="checkbox" name="hasGuardian" bind:checked={hasGuardian}>
-                Jag har en god man
-            </label>
+            {#if enableAssistance}
+                <label class="checkbox-row">
+                    <input type="checkbox" name="useCustomRiksnorm" bind:checked={useCustomRiksnorm}>
+                    Egen riksnorm
+                </label>
+
+                {#if useCustomRiksnorm}
+                    <div class="subsection">
+                        <label>År</label>
+                        <select name="riksnormYear" bind:value={selectedYear}>
+                            {#each years as y}
+                                <option value={y}>{y}</option>
+                            {/each}
+                        </select>
+
+                        <label>Vuxen</label>
+                        <input type="number" name="riksnormAdult" bind:value={riksnormAdult}>
+
+                        <label>Barn</label>
+                        <input type="number" name="riksnormChild" bind:value={riksnormChild}>
+
+                        <label>Gemensam</label>
+                        <input type="number" name="riksnormShared" bind:value={riksnormShared}>
+                    </div>
+                {/if}
+            {/if}
+
+            {#if !hideGuardianCheckbox}
+                <label class="checkbox-row">
+                    <input type="checkbox" name="hasGuardian" bind:checked={hasGuardian}>
+                    Jag har en god man
+                </label>
+            {/if}
 
             <label class="checkbox-row">
                 <input type="checkbox" name="isMember" bind:checked={isMember}>
@@ -43,8 +89,8 @@
         </form>
     {/if}
 </div>
+{/if}
 
-<!-- BYT LÖSENORD -->
 <div class="section">
     <button class="section-header" on:click={() => (showPassword = !showPassword)}>
         <span>Byt lösenord</span>
@@ -61,7 +107,6 @@
     {/if}
 </div>
 
-<!-- LOGGA UT -->
 <div class="section">
     <button class="section-header" on:click={() => (showLogout = !showLogout)}>
         <span>Logga ut</span>
@@ -186,5 +231,14 @@
         margin-top: 1rem;
         color: green;
         font-weight: 600;
+    }
+
+    .subsection {
+        display: grid;
+        gap: 0.6rem;
+        padding: 0.6rem;
+        background: #f9fafb;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
     }
 </style>

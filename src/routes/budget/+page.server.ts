@@ -15,6 +15,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             members: [],
             electricityPerMonth: [],
             fixedPerGroup: {},
+            riksnormPerGroup: {},
             loansPerMonth: [],
             subs: [],
             savings: [],
@@ -29,17 +30,20 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         };
     }
 
-    // Hämta hushållets medlemmar
+    // ⭐ Hämta hushållets medlemmar + roll
     const { data: members } = await supabase
         .from('household_members')
-        .select('user_id, profiles(full_name)')
+        .select('user_id, role, profiles(full_name)')
         .eq('household_id', householdId);
 
+    // ⭐ Filtrera bort guardians helt
     const memberList =
-        members?.map((m) => ({
-            id: m.user_id,
-            name: m.profiles.full_name
-        })) ?? [];
+        members
+            ?.filter((m) => m.role !== 'guardian')
+            .map((m) => ({
+                id: m.user_id,
+                name: m.profiles.full_name
+            })) ?? [];
 
     const selectedYear = url.searchParams.get('year') ?? new Date().getFullYear().toString();
 
@@ -63,7 +67,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         incomeMonthsRes,
         primaryRes,
         extraJobsRes,
-        fkRes
+        fkRes,
+        riksnormRes
     ] = await Promise.all([
         supabase.from('electricity').select('*').eq('household_id', householdId),
         supabase.from('fixed_costs').select('*').eq('household_id', householdId),
@@ -83,7 +88,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             .lte('month_date', `${selectedYear}-12-31`),
         supabase.from('income_primary_job').select('*').eq('household_id', householdId),
         supabase.from('income_extra_jobs').select('*').eq('household_id', householdId),
-        supabase.from('income_fk').select('*').eq('household_id', householdId)
+        supabase.from('income_fk').select('*').eq('household_id', householdId),
+        supabase.from('expenses_riksnorm').select('*').eq('household_id', householdId)
     ]);
 
     const electricityRows = electricityRes.data ?? [];
@@ -96,6 +102,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     const extra = extraRes.data ?? [];
     const loans = loansRes.data ?? [];
     const expenses = expensesRes.data ?? [];
+    const riksnorm = riksnormRes.data ?? [];
 
     const incomeMonths = incomeMonthsRes.data ?? [];
     const primary = primaryRes.data ?? [];
@@ -180,6 +187,18 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         if (!ownerMap[key]) ownerMap[key] = f.owner ?? f.user_id ?? 'shared';
     }
 
+    // ⭐ Fasta kostnader Bistånd (expenses_riksnorm)
+    const riksnormPerGroup = Object.fromEntries(
+        [...new Set(riksnorm.map((f) => f.title as string))].map((name) => [
+            name,
+            months.map((m) =>
+                riksnorm
+                    .filter((f) => f.title === name && isActive(f, m))
+                    .reduce((acc, f) => acc + Number(f.amount ?? 0), 0)
+            )
+        ])
+    );
+
     // Abonnemang
     const subs = months.map((m) => perUserOrShared(subscriptions, m));
 
@@ -187,20 +206,17 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     const savings = months.map((m) => {
         const result: Record<string, number> = {};
 
-        // Initiera alla användare + shared
         for (const member of memberList) {
             result[member.name] = 0;
         }
         result.shared = 0;
 
-        // Filtrera aktiva sparrader
         const active = savingsRows.filter((r) => {
             const start = toYM(r.start_month);
             const end = toYM(r.end_month);
             return start && start <= m && (!end || end >= m);
         });
 
-        // Summera per ägare
         for (const row of active) {
             const amount = Number(row.amount ?? 0);
 
@@ -254,7 +270,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             .reduce((acc, u) => acc + Number(u.amount ?? 0), 0)
     );
 
-    // Extra inkomster (separat rad, inte kopplad till income-systemet)
+    // Extra inkomster
     const extraPerMonth = months.map((m) =>
         extra
             .filter((x) => toYM(x.date) === m)
@@ -314,6 +330,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         electricityPerMonth,
         fixedPerGroup,
         fixedGroups,
+        riksnormPerGroup,
         ownerMap,
         subs,
         savings,

@@ -29,16 +29,16 @@
 
     const links = [
         ...baseLinks,
+
         ...(enable_assistance
             ? [
                   { label: "Ekonomiskt bistånd", header: true },
-                  { label: "Ekonomiskt bistånd", path: "/assistance" },
-
-                  // ⭐ NYA SIDAN
-                  { label: "Fasta utgifter riksnorm", header: true },
-                  { label: "Fasta utgifter riksnorm", path: "/fasta-utgifter-riksnorm" }
+                  { label: "Beräkning", path: "/assistance" },
+                  { label: "Fasta utgifter", path: "/expenses_riksnorm" },
+                  { label: "Ekonomiskt bistånd", path: "/economic_assistance" }
               ]
             : []),
+
         { label: "Inställningar", header: true },
         { label: "Inställningar", path: "/settings" }
     ];

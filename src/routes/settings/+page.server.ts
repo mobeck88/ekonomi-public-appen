@@ -8,13 +8,16 @@ export const load: PageServerLoad = async ({ locals }) => {
             isMemberOfChurch: true,
             hasGuardian: false,
             enableAssistance: false,
-            householdId: null
+            householdId: null,
+            role: "member",
+            useCustomRiksnorm: false,
+            customRiksnorm: null,
+            selectedYear: new Date().getFullYear()
         };
     }
 
     const year = new Date().getFullYear();
 
-    // 1. Hämta kyrkotillhörighet
     const { data: churchData } = await locals.supabase
         .from("tax_user_settings")
         .select("is_member_of_church")
@@ -22,40 +25,50 @@ export const load: PageServerLoad = async ({ locals }) => {
         .eq("year", year)
         .maybeSingle();
 
-    // 2. Hämta hushåll via user_households (KORREKT TABELL)
-    const { data: householdLink } = await locals.supabase
-        .from("user_households")
-        .select("household_id")
-        .eq("user_id", user.id)
-        .single();
-
-    const householdId = householdLink?.household_id ?? null;
-
-    // 3. Hämta god man från household_members (den tabellen använder du fortfarande)
     const { data: memberData } = await locals.supabase
         .from("household_members")
-        .select("guardian_for")
+        .select("guardian_for, household_id, role")
         .eq("user_id", user.id)
         .maybeSingle();
 
-    // 4. Hämta ekonomiskt bistånd från households
+    const householdId = memberData?.household_id ?? null;
+
     let enableAssistance = false;
+    let useCustomRiksnorm = false;
 
     if (householdId) {
         const { data: household } = await locals.supabase
             .from("households")
-            .select("enable_assistance")
+            .select("enable_assistance, use_custom_riksnorm")
             .eq("id", householdId)
             .maybeSingle();
 
         enableAssistance = household?.enable_assistance ?? false;
+        useCustomRiksnorm = household?.use_custom_riksnorm ?? false;
+    }
+
+    let customRiksnorm = null;
+
+    if (householdId) {
+        const { data } = await locals.supabase
+            .from("custom_riksnorm")
+            .select("*")
+            .eq("household_id", householdId)
+            .eq("year", year)
+            .maybeSingle();
+
+        customRiksnorm = data ?? null;
     }
 
     return {
         isMemberOfChurch: churchData?.is_member_of_church ?? true,
         hasGuardian: memberData?.guardian_for ?? false,
         enableAssistance,
-        householdId
+        householdId,
+        role: memberData?.role ?? "member",
+        useCustomRiksnorm,
+        customRiksnorm,
+        selectedYear: year
     };
 };
 
@@ -70,9 +83,15 @@ export const actions: Actions = {
         const hasGuardian = form.get("hasGuardian") === "on";
         const enableAssistance = form.get("enableAssistance") === "on";
 
+        const useCustomRiksnorm = form.get("useCustomRiksnorm") === "on";
+        const selectedYear = Number(form.get("riksnormYear"));
+
+        const adult = form.get("riksnormAdult");
+        const child = form.get("riksnormChild");
+        const shared = form.get("riksnormShared");
+
         const year = new Date().getFullYear();
 
-        // 1. Uppdatera kyrkotillhörighet
         const { error: churchError } = await locals.supabase
             .from("tax_user_settings")
             .upsert(
@@ -90,24 +109,28 @@ export const actions: Actions = {
             });
         }
 
-        // 2. Hämta hushåll via user_households (KORREKT TABELL)
-        const { data: householdLink, error: linkError } = await locals.supabase
-            .from("user_households")
-            .select("household_id")
+        const { data: memberData, error: memberError } = await locals.supabase
+            .from("household_members")
+            .select("household_id, role")
             .eq("user_id", user.id)
             .single();
 
-        if (linkError || !householdLink) {
+        if (memberError || !memberData) {
             return fail(500, { message: "Kunde inte hitta hushåll." });
         }
 
-        const householdId = householdLink.household_id;
+        const householdId = memberData.household_id;
 
-        // 3. Uppdatera god man i household_members
+        const forbiddenRoles = ["guardian", "child", "youth"];
+        const effectiveHasGuardian = forbiddenRoles.includes(memberData.role)
+            ? false
+            : hasGuardian;
+
         const { error: guardianError } = await locals.supabase
             .from("household_members")
-            .update({ guardian_for: hasGuardian })
-            .eq("user_id", user.id);
+            .update({ guardian_for: effectiveHasGuardian })
+            .eq("user_id", user.id)
+            .eq("household_id", householdId);
 
         if (guardianError) {
             return fail(500, {
@@ -115,10 +138,12 @@ export const actions: Actions = {
             });
         }
 
-        // 4. Uppdatera ekonomiskt bistånd i households
         const { error: assistanceError } = await locals.supabase
             .from("households")
-            .update({ enable_assistance: enableAssistance })
+            .update({
+                enable_assistance: enableAssistance,
+                use_custom_riksnorm: useCustomRiksnorm
+            })
             .eq("id", householdId);
 
         if (assistanceError) {
@@ -127,11 +152,42 @@ export const actions: Actions = {
             });
         }
 
+        if (useCustomRiksnorm) {
+            await locals.supabase
+                .from("custom_riksnorm")
+                .upsert(
+                    {
+                        household_id: householdId,
+                        year: selectedYear,
+                        adult: adult ? Number(adult) : null,
+                        child: child ? Number(child) : null,
+                        shared: shared ? Number(shared) : null
+                    },
+                    { onConflict: "household_id,year" }
+                );
+        }
+
         return {
             message: "Inställningar sparade.",
             isMember,
-            hasGuardian,
-            enableAssistance
+            hasGuardian: effectiveHasGuardian,
+            enableAssistance,
+            useCustomRiksnorm
         };
+    },
+
+    changePassword: async ({ request, locals }) => {
+        const form = await request.formData();
+        const newPassword = form.get("newPassword");
+
+        const { error } = await locals.supabase.auth.updateUser({
+            password: newPassword as string
+        });
+
+        if (error) {
+            return fail(500, { message: "Fel: " + error.message });
+        }
+
+        return { message: "Lösenord uppdaterat" };
     }
 };

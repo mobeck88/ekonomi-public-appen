@@ -18,27 +18,17 @@
 
 <h1>Fickpengar</h1>
 
-{#if data.access.isOwner || data.access.isGuardian}
-    <div class="selector">
-        <form method="get">
-            <label for="user_id">Välj medlem</label>
-
-            <select
-                id="user_id"
-                name="user_id"
-                on:change={(e) => e.target.form?.submit()}
-            >
-                {#each data.access.selectableMembers as m}
-                    <option
-                        value={m.user_id}
-                        selected={m.user_id === data.access.selectedUserId}
-                    >
-                        {m.profiles?.full_name}
-                    </option>
-                {/each}
-            </select>
-        </form>
-    </div>
+{#if data.access && data.access.selectableMembers.length > 1}
+    <form method="get" class="selector">
+        <label for="user">Visa för</label>
+        <select id="user" name="user_id" on:change={() => event.target.form.submit()}>
+            {#each data.access.selectableMembers as m}
+                <option value={m} selected={m === data.access.selectedUserId}>
+                    {m}
+                </option>
+            {/each}
+        </select>
+    </form>
 {/if}
 
 <div class="section">
@@ -167,13 +157,21 @@
         align-items: center;
     }
 
+    select {
+        padding: 0.5rem;
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+        background: white;
+        font-size: 0.95rem;
+    }
+
     .section {
         margin-bottom: 1.5rem;
         border: 1px solid #e5e7eb;
         border-radius: 12px;
-        overflow: hidden;
         background: #ffffff;
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        overflow: hidden;
     }
 
     .section-header {
@@ -191,11 +189,6 @@
 
     .section-header:hover {
         background: #e5e7eb;
-    }
-
-    .empty {
-        padding: 1rem;
-        color: #6b7280;
     }
 
     .card {
@@ -219,31 +212,31 @@
     .label {
         color: #6b7280;
         font-size: 0.85rem;
+        font-weight: 600;
     }
 
     .actions {
         display: flex;
         flex-direction: column;
-        gap: 1rem;
+        gap: 0.75rem;
         min-width: 200px;
     }
 
-    .create-form {
-        display: grid;
-        gap: 0.9rem;
-        padding: 1rem;
-        max-width: 420px;
+    form {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
     }
 
-    input, textarea, select {
+    input, textarea {
         padding: 0.65rem;
-        border: 1px solid #d1d5db;
         border-radius: 8px;
-        font-size: 0.95rem;
+        border: 1px solid #d1d5db;
         background: #f9fafb;
+        font-size: 0.95rem;
     }
 
-    input:focus, textarea:focus, select:focus {
+    input:focus, textarea:focus {
         outline: none;
         border-color: #2563eb;
         box-shadow: 0 0 0 2px #dbeafe;
@@ -252,14 +245,14 @@
 
     button {
         padding: 0.75rem 1rem;
+        border-radius: 8px;
         border: none;
         background: #2563eb;
         color: white;
-        border-radius: 8px;
         cursor: pointer;
         font-size: 0.95rem;
         font-weight: 600;
-        transition: background 0.15s;
+        margin-top: 0.25rem;
     }
 
     button:hover {
@@ -270,14 +263,16 @@
         background: #dc2626;
     }
 
-    button.danger:hover {
-        background: #b91c1c;
+    .empty {
+        padding: 0.75rem;
+        color: #6b7280;
+        font-style: italic;
     }
 
     .history {
-        padding: 0.9rem 1rem;
+        padding: 0.75rem 1rem;
         border-top: 1px solid #e5e7eb;
-        color: #374151;
         font-size: 0.95rem;
+        color: #374151;
     }
 </style>

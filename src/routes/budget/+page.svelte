@@ -24,6 +24,7 @@
         { title: 'Lån', key: 'loansPerMonth', type: 'perUser' },
         { title: 'El', key: 'electricityPerMonth', type: 'simple' },
         { title: 'Fasta kostnader', key: 'fixedPerGroup', type: 'fixed' },
+        { title: 'Fasta kostnader Bistånd', key: 'riksnormPerGroup', type: 'fixed' },
         { title: 'Abonnemang', key: 'subs', type: 'perUser' },
         { title: 'Sparande', key: 'savings', type: 'perUser' },
         { title: 'Fickpengar', key: 'allowanceUser', type: 'perUser' },
@@ -46,16 +47,26 @@
         return arr.some((m) => (m?.shared ?? 0) > 0);
     }
 
-    // Inkomster in i summeringen
+    // ⭐ Inkomster in i summeringen (fixad)
     function sumIn(i) {
-        return data.incomeTotal?.[i] ?? 0;
+        return (
+            (data.incomeTotal?.[i] ?? 0) +
+            (data.extraPerMonth?.[i] ?? 0)
+        );
     }
 
+    // ⭐ Utgifter in i summeringen (fixad)
     function sumOut(i) {
         let total = 0;
 
-        for (const name of data.fixedGroups) {
+        // Fasta kostnader
+        for (const name of Object.keys(data.fixedPerGroup ?? {})) {
             total += data.fixedPerGroup[name][i];
+        }
+
+        // Fasta kostnader Bistånd
+        for (const name of Object.keys(data.riksnormPerGroup ?? {})) {
+            total += data.riksnormPerGroup[name][i];
         }
 
         for (const m of members) total += data.subs[i][m.name] ?? 0;
@@ -74,7 +85,8 @@
 
         total += data.electricityPerMonth[i];
 
-        total += data.unexpectedPerMonth[i];
+        // ⭐ Fix: Oförutsägbara utgifter
+        total += (data.unexpectedPerMonth?.[i] ?? 0);
 
         return total;
     }
@@ -95,7 +107,6 @@
         return result;
     })();
 
-    // Visa inte lånerad om alla månader är 0
     function hasAnyLoanForMember(memberName) {
         return data.months.some((_, i) => (data.loansPerMonth[i][memberName] ?? 0) !== 0);
     }
@@ -157,11 +168,11 @@
                     </tr>
 
                 {:else if section.type === 'fixed'}
-                    {#each Object.keys(data.fixedPerGroup) as name}
+                    {#each Object.keys(data[section.key] ?? {}) as name}
                         <tr class="fixed">
                             <td>{name}</td>
                             {#each data.months as _, i}
-                                <td>{formatKr(data.fixedPerGroup[name][i])}</td>
+                                <td>{formatKr(data[section.key][name][i] ?? 0)}</td>
                             {/each}
                         </tr>
                     {/each}

@@ -9,10 +9,10 @@
 
 <div class="app-container">
   {#if user}
-    <Nav
-      user={user}
-      householdId={householdId}
-      enable_assistance={enable_assistance}
+    <Nav 
+      user={user} 
+      householdId={householdId} 
+      enable_assistance={enable_assistance} 
     />
   {/if}
 

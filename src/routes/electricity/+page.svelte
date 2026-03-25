@@ -1,19 +1,44 @@
 <script lang="ts">
     export let data;
 
+    // Form state
     let month = '';
     let eonAmount = '';
     let tibberAmount = '';
 
-    // Konvertera YYYY-MM-01 → YYYY-MM
+    // Selected row for editing
+    let selected: any = null;
+
+    // Accordion states
+    let showForm = false;
+    let showList = false;
+
+    // Convert YYYY-MM-01 → YYYY-MM
     function toMonthInput(dateString: string | null) {
         if (!dateString) return "";
         return dateString.slice(0, 7);
     }
 
-    // Accordion states
-    let showForm = false;
-    let showList = false;
+    // Load row into form for editing
+    function editRow(row) {
+        selected = row;
+        month = toMonthInput(row.month);
+        eonAmount = row.eon_amount;
+        tibberAmount = row.tibber_amount;
+        showForm = true;
+    }
+
+    // Reset form for new entry
+    function newEntry() {
+        selected = null;
+        month = '';
+        eonAmount = '';
+        tibberAmount = '';
+        showForm = true;
+    }
+
+    // Live total
+    $: total = (Number(eonAmount) || 0) + (Number(tibberAmount) || 0);
 </script>
 
 <h1>Elkostnader</h1>
@@ -21,12 +46,17 @@
 <!-- ⭐ Sektion: Lägg till / ändra månad -->
 <div class="section">
     <button class="section-header" on:click={() => showForm = !showForm}>
-        <span>Lägg till / ändra månad</span>
+        <span>{selected ? "Redigera månad" : "Lägg till månad"}</span>
         <span>{showForm ? "▲" : "▼"}</span>
     </button>
 
     {#if showForm}
         <form method="post" action="?/save" class="create-form">
+
+            {#if selected}
+                <input type="hidden" name="id" value={selected.id} />
+            {/if}
+
             <label for="month">Månad</label>
             <input id="month" name="month" type="month" bind:value={month} required />
 
@@ -35,6 +65,9 @@
 
             <label for="tibber_amount">Elbolag</label>
             <input id="tibber_amount" name="tibber_amount" type="number" bind:value={tibberAmount} required />
+
+            <label>Totalt</label>
+            <div class="summary-box">{total} kr</div>
 
             <button>Spara</button>
         </form>
@@ -51,12 +84,13 @@
     {#if showList}
         {#if data.entries.length > 0}
             {#each data.entries as row}
-                <div class="card">
+                <div class="card" on:click={() => editRow(row)} style="cursor:pointer;">
                     <div class="row">
                         <div class="info">
                             <strong>{toMonthInput(row.month)}</strong><br />
                             <span class="label">Nätägare:</span> {row.eon_amount} kr<br />
                             <span class="label">Elbolag:</span> {row.tibber_amount} kr<br />
+                            <span class="label">Totalt:</span> {row.eon_amount + row.tibber_amount} kr<br />
                             <span class="label">Skapad av:</span> {row.profiles.full_name}
                         </div>
                     </div>
@@ -150,6 +184,16 @@
         border-color: #2563eb;
         box-shadow: 0 0 0 2px #dbeafe;
         background: #ffffff;
+    }
+
+    .summary-box {
+        padding: 0.65rem;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        background: #f3f4f6;
+        font-weight: 600;
+        color: #111827;
     }
 
     button {

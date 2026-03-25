@@ -50,17 +50,24 @@ export const actions: Actions = {
 
         const form = await request.formData();
 
+        const id = form.get('id');
         const month = form.get('month');
         const eon_amount = Number(form.get('eon_amount'));
         const tibber_amount = Number(form.get('tibber_amount'));
 
-        const { error } = await supabase.from('electricity').upsert({
+        const payload: any = {
             household_id: householdId,
             user_id: user.id,
             month: `${month}-01`,
             eon_amount,
             tibber_amount
-        });
+        };
+
+        if (id) {
+            payload.id = id; // <-- ENDA ändringen
+        }
+
+        const { error } = await supabase.from('electricity').upsert(payload);
 
         if (error) {
             return fail(400, { error: error.message });

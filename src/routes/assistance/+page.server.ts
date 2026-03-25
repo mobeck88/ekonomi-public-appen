@@ -1,16 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
-function ageAtMonth(birthdate: string, year: number, month: number) {
-    const b = new Date(birthdate);
-    const d = new Date(year, month - 1, 1);
-    let age = d.getFullYear() - b.getFullYear();
-    if (d.getMonth() < b.getMonth() || (d.getMonth() === b.getMonth() && d.getDate() < b.getDate())) {
-        age--;
-    }
-    return age;
-}
-
 export const load: PageServerLoad = async ({ locals }) => {
     const user = locals.user;
     const householdId = locals.householdId;
@@ -20,270 +10,316 @@ export const load: PageServerLoad = async ({ locals }) => {
 
     if (!householdId) {
         return {
+            selectedYear: null,
             months: [],
-            incomeRows: [],
-            rows: []
+            members: [],
+            electricityPerMonth: [],
+            riksnormPerGroup: {},
+            extraPerMonth: [],
+            incomePerUser: {},
+            incomeTotal: [],
+            riksnorm: {
+                Vuxen: [],
+                Barn: [],
+                Gemensam: []
+            },
+            correctionIncome: [],
+            correctionExpense: []
         };
     }
 
-    // 1. Hämta alla income_months för hushållet
-    const { data: incomeMonthsData } = await supabase
-        .from('income_months')
-        .select('id, month_date')
+    // Hämta hushållets medlemmar + roll
+    const { data: members } = await supabase
+        .from('household_members')
+        .select('user_id, role, profiles(full_name)')
         .eq('household_id', householdId);
 
-    if (!incomeMonthsData || incomeMonthsData.length === 0) {
-        return { months: [], incomeRows: [], rows: [] };
+    const memberList =
+        members
+            ?.filter((m) => m.role !== 'guardian')
+            .map((m) => ({
+                id: m.user_id,
+                name: m.profiles.full_name
+            })) ?? [];
+
+    // 5 månader: 3 bakåt, innevarande, nästa
+    const today = new Date();
+    const monthInfos: { ym: string; year: number; month: number }[] = [];
+
+    for (let offset = -3; offset <= 1; offset++) {
+        const d = new Date(today.getFullYear(), today.getMonth() + offset, 1);
+        const year = d.getFullYear();
+        const month = d.getMonth() + 1;
+        const ym = `${year}-${String(month).padStart(2, '0')}`;
+        monthInfos.push({ ym, year, month });
     }
 
-    // 2. Sortera månader
-    const sorted = incomeMonthsData
-        .map((m) => ({ id: m.id, date: new Date(m.month_date) }))
-        .sort((a, b) => a.date.getTime() - b.date.getTime());
+    const months = monthInfos.map((m) => m.ym);
+    const selectedYear = String(today.getFullYear());
 
-    // 3. Ta senaste månaden
-    const last = sorted[sorted.length - 1].date;
+    // Hämta alla tabeller
+    const minYear = Math.min(...monthInfos.map((m) => m.year));
+    const maxYear = Math.max(...monthInfos.map((m) => m.year));
 
-    // 4. Bygg 5-månaderslistan: M-3 → M+1
-    const months: string[] = [];
-    for (let i = -3; i <= 1; i++) {
-        const d = new Date(last);
-        d.setMonth(d.getMonth() + i);
-        months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-    }
-
-    // 5. Hämta inkomster, utgifter, assistance_months, hushåll, barn, riksnorm
     const [
+        electricityRes,
+        extraRes,
+        incomeMonthsRes,
         primaryRes,
         extraJobsRes,
         fkRes,
-        expensesRes,
-        assistanceRes,
-        householdRes,
-        childrenRes,
-        rnPersonalRes,
-        rnHouseholdRes
+        riksnormExpensesRes
     ] = await Promise.all([
+        supabase.from('electricity').select('*').eq('household_id', householdId),
+        supabase.from('extra_income').select('*').eq('household_id', householdId),
+        supabase
+            .from('income_months')
+            .select('id, month_date')
+            .eq('household_id', householdId)
+            .gte('month_date', `${minYear}-01-01`)
+            .lte('month_date', `${maxYear}-12-31`),
         supabase.from('income_primary_job').select('*').eq('household_id', householdId),
         supabase.from('income_extra_jobs').select('*').eq('household_id', householdId),
         supabase.from('income_fk').select('*').eq('household_id', householdId),
-        supabase.from('expenses').select('*').eq('household_id', householdId),
-        supabase.from('assistance_months').select('*').eq('household_id', householdId),
-        supabase.from('households').select('*').eq('id', householdId),
-        supabase.from('households_children').select('*').eq('household_id', householdId),
-        supabase.from('riksnorm_personal').select('*'),
-        supabase.from('riksnorm_household').select('*')
+        supabase.from('expenses_riksnorm').select('*').eq('household_id', householdId)
     ]);
 
+    const electricityRows = electricityRes.data ?? [];
+    const extra = extraRes.data ?? [];
+    const incomeMonths = incomeMonthsRes.data ?? [];
     const primary = primaryRes.data ?? [];
     const extraJobs = extraJobsRes.data ?? [];
     const fk = fkRes.data ?? [];
-    const expenses = expensesRes.data ?? [];
-    const assistanceMonths = assistanceRes.data ?? [];
-    const household = householdRes.data?.[0] ?? null;
-    const children = childrenRes.data ?? [];
-    const rnPersonal = rnPersonalRes.data ?? [];
-    const rnHousehold = rnHouseholdRes.data ?? [];
+    const riksnormExpenses = riksnormExpensesRes.data ?? [];
 
-    // 6. Mappa income_month_id → YYYY-MM
     const toYM = (value: any) => {
         if (!value) return null;
         return String(value).slice(0, 7);
     };
 
+    const isActive = (row: any, ym: string) => {
+        const start = toYM(row.start_month ?? row.start_date);
+        const end = toYM(row.end_month ?? row.end_date);
+        return start && start <= ym && (!end || end >= ym);
+    };
+
+    // EL
+    const electricityPerMonth = months.map((m) =>
+        electricityRows
+            .filter((e) => toYM(e.month) === m)
+            .reduce(
+                (acc, e) =>
+                    acc +
+                    Number(e.eon_amount ?? 0) +
+                    Number(e.tibber_amount ?? 0),
+                0
+            )
+    );
+
+    // Fasta kostnader Bistånd
+    const riksnormPerGroup = Object.fromEntries(
+        [...new Set(riksnormExpenses.map((f) => f.title as string))].map((name) => [
+            name,
+            months.map((m) =>
+                riksnormExpenses
+                    .filter((f) => f.title === name && isActive(f, m))
+                    .reduce((acc, f) => acc + Number(f.amount ?? 0), 0)
+            )
+        ])
+    );
+
+    // Extra inkomster
+    const extraPerMonth = months.map((m) =>
+        extra
+            .filter((x) => toYM(x.date) === m)
+            .reduce((acc, x) => acc + Number(x.amount ?? 0), 0)
+    );
+
+    // INKOMSTER
+    const incomePerUser: Record<string, number[]> = {};
+    for (const member of memberList) {
+        incomePerUser[member.name] = months.map(() => 0);
+    }
+
     const monthIdToYm = new Map<any, string>();
-    for (const im of incomeMonthsData) {
+    for (const im of incomeMonths) {
         const ym = toYM(im.month_date);
         if (ym) monthIdToYm.set(im.id, ym);
     }
 
-    // 7. Rows-map
-    const emptyValues = () => months.map(() => 0);
-    const rows = new Map<string, number[]>();
-
-    const add = (label: string, ym: string | null, amount: any) => {
+    const addIncome = (userId: any, income_month_id: any, amount: any) => {
+        const ym = monthIdToYm.get(income_month_id);
         if (!ym) return;
         const idx = months.indexOf(ym);
         if (idx === -1) return;
-        if (!rows.has(label)) rows.set(label, emptyValues());
+
+        const member = memberList.find((m) => m.id === userId);
+        if (!member) return;
+
         const val = Number(amount ?? 0);
         if (!Number.isFinite(val)) return;
-        rows.get(label)![idx] += val;
+
+        incomePerUser[member.name][idx] += val;
     };
 
-    // 8. Inkomster
-    const incomeLabelSet = new Set<string>();
-    incomeLabelSet.add('Arbete');
+    for (const row of primary) addIncome(row.user_id, row.income_month_id, row.att_betala_ut);
+    for (const row of extraJobs) addIncome(row.user_id, row.income_month_id, row.att_betala_ut);
+    for (const row of fk) addIncome(row.user_id, row.income_month_id, row.att_betala_ut);
 
-    // Arbete = primär + extra jobb
-    for (const row of primary) {
-        const ym = monthIdToYm.get(row.income_month_id);
-        add('Arbete', ym, row.att_betala_ut);
-    }
+    const incomeTotal = months.map((_, i) =>
+        memberList.reduce(
+            (sum, member) => sum + (incomePerUser[member.name]?.[i] ?? 0),
+            0
+        )
+    );
 
-    for (const row of extraJobs) {
-        const ym = monthIdToYm.get(row.income_month_id);
-        add('Arbete', ym, row.att_betala_ut);
-    }
+    // ⭐ Correction-värden
+    const { data: correctionRows } = await supabase
+        .from('assistance_months')
+        .select('*')
+        .eq('household_id', householdId)
+        .in('year', monthInfos.map((m) => m.year))
+        .in('month', monthInfos.map((m) => m.month));
 
-    // FK – dynamiska rader
-    for (const row of fk) {
-        const ym = monthIdToYm.get(row.income_month_id);
-
-        let label: string;
-
-        if (row.fk_typ === 'Övrigt') {
-            const desc = (row.beskrivning ?? '').trim();
-            if (desc) {
-                label = desc.length > 15 ? desc.slice(0, 15) : desc;
-            } else {
-                label = 'Övrig FK';
-            }
-        } else {
-            label = row.fk_typ ?? 'Okänd FK';
-        }
-
-        incomeLabelSet.add(label);
-        add(label, ym, row.att_betala_ut);
-    }
-
-    const incomeRows = Array.from(incomeLabelSet);
-
-    // 9. Utgifter – endast biståndsrelevanta
-    const allowedExpenses = new Set<string>([
-        'Hyra',
-        'El',
-        'Hemförsäkring',
-        'Mat vuxen',
-        'Mat barn',
-        'Övriga kostnad barn',
-        'Internet',
-        'Facket',
-        'A-kassa (avgift)',
-        'Barnomsorg',
-        'Sjukhuskostnader',
-        'Mediciner'
-    ]);
-
-    for (const ex of expenses) {
-        if (!allowedExpenses.has(ex.category)) continue;
-        const ym = monthIdToYm.get(ex.income_month_id);
-        add(ex.category, ym, ex.amount);
-    }
-
-    // 10. Korrigeringar från assistance_months
-    const assistanceMap = new Map<string, (typeof assistanceMonths)[number]>();
-    for (const row of assistanceMonths) {
-        const ym = `${row.year}-${String(row.month).padStart(2, '0')}`;
-        assistanceMap.set(ym, row);
-    }
-
-    const incomeCorrection = emptyValues();
-    const expenseCorrection = emptyValues();
-
-    months.forEach((m, idx) => {
-        const row = assistanceMap.get(m);
-        if (!row) return;
-        incomeCorrection[idx] = Number(row.correction_income ?? 0);
-        expenseCorrection[idx] = Number(row.correction_expense ?? 0);
-    });
-
-    rows.set('Korrigering inkomst', incomeCorrection);
-    rows.set('Korrigering utgift', expenseCorrection);
-
-    // 11. Riksnorm – vuxen, barn, hushåll
-    const riksnormVuxen = emptyValues();
-    const riksnormBarn = emptyValues();
-    const riksnormHushall = emptyValues();
-
-    const adults = household?.adults ?? 0;
-    const childrenCount = household?.children ?? 0;
-    const totalPersons = adults + childrenCount;
-
-    months.forEach((m, idx) => {
-        const [yearStr, monthStr] = m.split('-');
-        const year = Number(yearStr);
-        const month = Number(monthStr);
-
-        // vuxen
-        const adultNorm = rnPersonal.find(
-            (r) => r.year === year && r.category === 'adult'
+    const correctionIncome = months.map((_, i) => {
+        const info = monthInfos[i];
+        const row = correctionRows?.find(
+            (r) => r.year === info.year && r.month === info.month
         );
-        const adultAmount = Number(adultNorm?.amount ?? 0);
-        riksnormVuxen[idx] = adults * adultAmount;
+        return Number(row?.correction_income ?? 0);
+    });
 
-        // barn
-        let childTotal = 0;
-        for (const child of children) {
-            const age = ageAtMonth(child.birthdate, year, month);
-            const childNorm = rnPersonal.find(
-                (r) =>
-                    r.year === year &&
-                    r.category === 'child' &&
-                    r.age_min !== null &&
-                    r.age_max !== null &&
-                    age >= r.age_min &&
-                    age <= r.age_max
-            );
-            if (childNorm) {
-                childTotal += Number(childNorm.amount ?? 0);
-            }
-        }
-        riksnormBarn[idx] = childTotal;
-
-        // hushåll
-        const hhNorm = rnHousehold.find(
-            (r) => r.year === year && r.household_size === totalPersons
+    const correctionExpense = months.map((_, i) => {
+        const info = monthInfos[i];
+        const row = correctionRows?.find(
+            (r) => r.year === info.year && r.month === info.month
         );
-        riksnormHushall[idx] = Number(hhNorm?.amount ?? 0);
+        return Number(row?.correction_expense ?? 0);
     });
 
-    rows.set('Riksnorm vuxen', riksnormVuxen);
-    rows.set('Riksnorm barn', riksnormBarn);
-    rows.set('Riksnorm hushåll', riksnormHushall);
+    // ⭐ Riksnorm (oförändrad)
+    const { data: householdSettings } = await supabase
+        .from('households')
+        .select('use_custom_riksnorm')
+        .eq('id', householdId)
+        .single();
 
-    // 12. Summeringar
-    const sumRow = (labels: string[]) => {
-        const arr = emptyValues();
-        for (const label of labels) {
-            const r = rows.get(label);
-            if (!r) continue;
-            r.forEach((v, i) => (arr[i] += v));
+    const useCustom = householdSettings?.use_custom_riksnorm === true;
+
+    let riksnorm;
+
+    if (useCustom) {
+        const customRows = await supabase
+            .from('custom_riksnorm')
+            .select('*')
+            .eq('household_id', householdId)
+            .in('year', [...new Set(monthInfos.map((m) => m.year))]);
+
+        const map = new Map<number, { vuxen: number; barn: number; gemensam: number }>();
+
+        for (const row of customRows.data ?? []) {
+            map.set(row.year, {
+                vuxen: Number(row.adult ?? 0),
+                barn: Number(row.child ?? 0),
+                gemensam: Number(row.shared ?? 0)
+            });
         }
-        return arr;
-    };
 
-    const sumIncome = sumRow([...incomeRows, 'Korrigering inkomst']);
+        riksnorm = {
+            Vuxen: monthInfos.map((m) => map.get(m.year)?.vuxen ?? 0),
+            Barn: monthInfos.map((m) => map.get(m.year)?.barn ?? 0),
+            Gemensam: monthInfos.map((m) => map.get(m.year)?.gemensam ?? 0)
+        };
+    } else {
+        const { data: household } = await supabase
+            .from('households')
+            .select('adults, children')
+            .eq('id', householdId)
+            .single();
 
-    const expenseSumLabels = [
-        ...Array.from(allowedExpenses),
-        'Riksnorm vuxen',
-        'Riksnorm barn',
-        'Riksnorm hushåll',
-        'Korrigering utgift'
-    ];
+        const { data: children } = await supabase
+            .from('household_children')
+            .select('birthdate')
+            .eq('household_id', householdId);
 
-    const sumExpenses = sumRow(expenseSumLabels);
-    const balance = sumIncome.map((v, i) => v - sumExpenses[i]);
+        const yearsSet = [...new Set(monthInfos.map((m) => m.year))];
 
-    rows.set('Summa inkomst', sumIncome);
-    rows.set('Summa utgifter', sumExpenses);
-    rows.set('Balans', balance);
+        const riksnormByYear = new Map<
+            number,
+            { vuxen: number; barn: number; gemensam: number }
+        >();
 
-    // 13. Biståndsmånad = kalendermånad + 1
-    const assistMonths = months.map((m) => {
-        const [y, mm] = m.split('-').map(Number);
-        const d = new Date(y, mm - 1);
-        d.setMonth(d.getMonth() + 1);
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    });
+        for (const year of yearsSet) {
+            const { data: personalNorm } = await supabase
+                .from('riksnorm_personal')
+                .select('*')
+                .eq('year', String(year));
 
-    rows.set('Biståndsmånad', assistMonths as unknown as number[]);
-    rows.set('Kalendermånad', months as unknown as number[]);
+            const { data: householdNorm } = await supabase
+                .from('riksnorm_household')
+                .select('*')
+                .eq('year', String(year))
+                .eq(
+                    'household_size',
+                    (household?.adults ?? 0) + (household?.children ?? 0)
+                )
+                .single();
+
+            const adults = household?.adults ?? 0;
+
+            const childAges = (children ?? []).map((c) => {
+                const birth = new Date(c.birthdate);
+                const end = new Date(year, 11, 31);
+                return end.getFullYear() - birth.getFullYear();
+            });
+
+            const adultRow = personalNorm?.find((r) => r.category === 'adult');
+            const vuxenTotal = adultRow ? Number(adultRow.amount ?? 0) * adults : 0;
+
+            let barnTotal = 0;
+            for (const age of childAges) {
+                const row = personalNorm?.find(
+                    (r) =>
+                        r.category === 'child' &&
+                        r.age_min <= age &&
+                        r.age_max >= age
+                );
+                if (row) barnTotal += Number(row.amount ?? 0);
+            }
+
+            const gemensamTotal = Number(householdNorm?.amount ?? 0);
+
+            riksnormByYear.set(year, {
+                vuxen: vuxenTotal,
+                barn: barnTotal,
+                gemensam: gemensamTotal
+            });
+        }
+
+        riksnorm = {
+            Vuxen: monthInfos.map(
+                (m) => riksnormByYear.get(m.year)?.vuxen ?? 0
+            ),
+            Barn: monthInfos.map(
+                (m) => riksnormByYear.get(m.year)?.barn ?? 0
+            ),
+            Gemensam: monthInfos.map(
+                (m) => riksnormByYear.get(m.year)?.gemensam ?? 0
+            )
+        };
+    }
 
     return {
+        selectedYear,
         months,
-        incomeRows,
-        rows: [...rows.entries()].map(([label, values]) => ({ label, values }))
+        members: memberList,
+        electricityPerMonth,
+        riksnormPerGroup,
+        extraPerMonth,
+        incomePerUser,
+        incomeTotal,
+        riksnorm,
+        correctionIncome,
+        correctionExpense
     };
 };
