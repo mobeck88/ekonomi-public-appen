@@ -3,6 +3,13 @@ import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
 export const handle = async ({ event, resolve }) => {
+
+    // ⭐ MINIMALT UNDANTAG FÖR KEEPALIVE
+    if (event.url.pathname === '/keepalive') {
+        return resolve(event);
+    }
+    // ⭐ SLUT PÅ UNDANTAG
+
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         global: { fetch: event.fetch },
         cookies: {
