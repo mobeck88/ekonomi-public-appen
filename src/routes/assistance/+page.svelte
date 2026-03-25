@@ -77,27 +77,71 @@
         return d.toLocaleString('sv-SE', { month: 'short' });
     }
 
-    async function updateCorrection(i, field, value) {
+    // --- Autosave / debounce / feedback ---
+    let isSaving = false;
+    let saveStatus = '';
+    let saveError = '';
+    let saveTimeout;
+
+    async function doSave(i, field, value) {
         const ym = data.months[i];
         const [year, month] = ym.split('-').map(Number);
 
-        await fetch('/api/update-assistance', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                year,
-                month,
-                field,
-                value
-            })
-        });
+        isSaving = true;
+        saveStatus = 'Sparar...';
+        saveError = '';
 
-        // Ladda om alla data från load()
-        await invalidateAll();
+        try {
+            const res = await fetch('/api/update-assistance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    year,
+                    month,
+                    field,
+                    value
+                })
+            });
+
+            if (!res.ok) {
+                const body = await res.json().catch(() => ({}));
+                throw new Error(body.error || 'Okänt fel vid sparning');
+            }
+
+            await invalidateAll();
+            saveStatus = 'Sparat';
+            setTimeout(() => {
+                saveStatus = '';
+            }, 1000);
+        } catch (err) {
+            console.error(err);
+            saveError = 'Kunde inte spara ändringen';
+        } finally {
+            isSaving = false;
+        }
+    }
+
+    function updateCorrection(i, field, value) {
+        // Debounce 300 ms
+        if (saveTimeout) clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(() => {
+            doSave(i, field, value);
+        }, 300);
     }
 </script>
 
 <h1>Budget</h1>
+
+<div class="status-row">
+    {#if isSaving}
+        <span class="status saving">Sparar...</span>
+    {:else if saveStatus}
+        <span class="status saved">{saveStatus}</span>
+    {/if}
+    {#if saveError}
+        <span class="status error">{saveError}</span>
+    {/if}
+</div>
 
 <div class="table-wrapper">
     <table>
@@ -130,8 +174,10 @@
                     <td>
                         <input
                             type="number"
+                            class="correction-input"
                             value={data.correctionIncome[i]}
-                            on:change={(e) => updateCorrection(i, 'correction_income', Number(e.target.value))}
+                            on:input={(e) => updateCorrection(i, 'correction_income', Number(e.target.value))}
+                            disabled={isSaving}
                         />
                     </td>
                 {/each}
@@ -189,8 +235,10 @@
                     <td>
                         <input
                             type="number"
+                            class="correction-input"
                             value={data.correctionExpense[i]}
-                            on:change={(e) => updateCorrection(i, 'correction_expense', Number(e.target.value))}
+                            on:input={(e) => updateCorrection(i, 'correction_expense', Number(e.target.value))}
+                            disabled={isSaving}
                         />
                     </td>
                 {/each}
@@ -319,9 +367,56 @@
         background: #c9e7ff !important;
     }
 
+    .status-row {
+        margin-bottom: 0.5rem;
+        min-height: 1.2rem;
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+        font-size: 0.85rem;
+    }
+
+    .status {
+        padding: 0.1rem 0.4rem;
+        border-radius: 4px;
+    }
+
+    .status.saving {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .status.saved {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .status.error {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
     input {
         width: 80px;
         padding: 2px 4px;
         text-align: right;
+        font-size: 0.8rem;
+        border-radius: 3px;
+        border: 1px solid #ccc;
+    }
+
+    input:disabled {
+        background: #f5f5f5;
+        color: #888;
+    }
+
+    .correction-input {
+        background: #fffef5;
+    }
+
+    .correction-input:focus {
+        outline: 2px solid #93c5fd;
+        outline-offset: 1px;
+        background: #ffffff;
     }
 </style>
