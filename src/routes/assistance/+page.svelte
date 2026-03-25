@@ -30,9 +30,20 @@
         return `${num.toLocaleString('sv-SE')} kr`;
     }
 
-    // ⭐ Summering tar med korrigeringar
+    // ⭐ Överskott = positiv diff från föregående månad
+    function overskott(i) {
+        if (i === 0) return 0;
+        const prev = sumDiff(i - 1);
+        return prev > 0 ? prev : 0;
+    }
+
+    // ⭐ Summering tar med korrigeringar + överskott
     function sumIn(i) {
-        return (data.incomeTotal?.[i] ?? 0) + (data.correctionIncome?.[i] ?? 0);
+        return (
+            (data.incomeTotal?.[i] ?? 0) +
+            (data.correctionIncome?.[i] ?? 0) +
+            overskott(i)
+        );
     }
 
     function sumOut(i) {
@@ -59,6 +70,13 @@
 
     function monthLabel(ym) {
         const d = new Date(ym + '-01');
+        return d.toLocaleString('sv-SE', { month: 'short' });
+    }
+
+    // ⭐ Biståndsmånad = månad + 1
+    function bistandsmanad(ym) {
+        const d = new Date(ym + '-01');
+        d.setMonth(d.getMonth() + 1);
         return d.toLocaleString('sv-SE', { month: 'short' });
     }
 
@@ -94,7 +112,7 @@
             }
 
             await invalidateAll();
-            location.reload();   // ⭐ Uppdaterar sidan direkt
+            location.reload();
 
         } catch (err) {
             console.error(err);
@@ -137,6 +155,15 @@
         </thead>
 
         <tbody>
+
+            <!-- ⭐ NY RAD HÖGST UPP: Biståndsmånad -->
+            <tr class="sum">
+                <td>Biståndsmånad</td>
+                {#each data.months as m}
+                    <td>{bistandsmanad(m)}</td>
+                {/each}
+            </tr>
+
             <!-- INKOMSTER -->
             <tr><td colspan={1 + data.months.length} class="section income-section">INKOMSTER</td></tr>
 
@@ -161,6 +188,14 @@
                             disabled={isSaving}
                         />
                     </td>
+                {/each}
+            </tr>
+
+            <!-- Överskott -->
+            <tr class="sum">
+                <td>Överskott</td>
+                {#each data.months as _, i}
+                    <td>{formatKr(overskott(i))}</td>
                 {/each}
             </tr>
 
