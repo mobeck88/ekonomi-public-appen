@@ -47,11 +47,15 @@
         return arr.some((m) => (m?.shared ?? 0) > 0);
     }
 
-    // Inkomster in i summeringen
+    // ⭐ Inkomster in i summeringen (fixad)
     function sumIn(i) {
-        return data.incomeTotal?.[i] ?? 0;
+        return (
+            (data.incomeTotal?.[i] ?? 0) +
+            (data.extraPerMonth?.[i] ?? 0)
+        );
     }
 
+    // ⭐ Utgifter in i summeringen (fixad)
     function sumOut(i) {
         let total = 0;
 
@@ -81,7 +85,8 @@
 
         total += data.electricityPerMonth[i];
 
-        total += data.unexpectedPerMonth[i];
+        // ⭐ Fix: Oförutsägbara utgifter
+        total += (data.unexpectedPerMonth?.[i] ?? 0);
 
         return total;
     }
@@ -102,7 +107,6 @@
         return result;
     })();
 
-    // Visa inte lånerad om alla månader är 0
     function hasAnyLoanForMember(memberName) {
         return data.months.some((_, i) => (data.loansPerMonth[i][memberName] ?? 0) !== 0);
     }
