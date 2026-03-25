@@ -36,6 +36,9 @@
         tibberAmount = '';
         showForm = true;
     }
+
+    // Live total
+    $: total = (Number(eonAmount) || 0) + (Number(tibberAmount) || 0);
 </script>
 
 <h1>Elkostnader</h1>
@@ -63,6 +66,9 @@
             <label for="tibber_amount">Elbolag</label>
             <input id="tibber_amount" name="tibber_amount" type="number" bind:value={tibberAmount} required />
 
+            <label>Totalt</label>
+            <div class="summary-box">{total} kr</div>
+
             <button>Spara</button>
         </form>
     {/if}
@@ -84,6 +90,7 @@
                             <strong>{toMonthInput(row.month)}</strong><br />
                             <span class="label">Nätägare:</span> {row.eon_amount} kr<br />
                             <span class="label">Elbolag:</span> {row.tibber_amount} kr<br />
+                            <span class="label">Totalt:</span> {row.eon_amount + row.tibber_amount} kr<br />
                             <span class="label">Skapad av:</span> {row.profiles.full_name}
                         </div>
                     </div>
@@ -177,6 +184,16 @@
         border-color: #2563eb;
         box-shadow: 0 0 0 2px #dbeafe;
         background: #ffffff;
+    }
+
+    .summary-box {
+        padding: 0.65rem;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        background: #f3f4f6;
+        font-weight: 600;
+        color: #111827;
     }
 
     button {
