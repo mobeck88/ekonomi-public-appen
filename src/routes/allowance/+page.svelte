@@ -144,15 +144,109 @@
 </div>
 
 <style>
+    h1 {
+        margin-bottom: 1rem;
+    }
+
     .selector {
         margin-bottom: 1rem;
         display: flex;
         gap: 0.5rem;
         align-items: center;
     }
+
     select {
         padding: 0.4rem;
         border-radius: 6px;
         border: 1px solid #d1d5db;
+        background: white;
+    }
+
+    .section {
+        background: #f3f6fb;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        padding: 0.5rem;
+    }
+
+    .section-header {
+        width: 100%;
+        background: none;
+        border: none;
+        font-size: 1rem;
+        font-weight: bold;
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        cursor: pointer;
+    }
+
+    .card {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+
+    .info {
+        line-height: 1.4;
+    }
+
+    .label {
+        font-weight: bold;
+        color: #555;
+    }
+
+    .actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        min-width: 200px;
+    }
+
+    form {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    input, textarea {
+        padding: 0.4rem;
+        border-radius: 6px;
+        border: 1px solid #d1d5db;
+        font-size: 0.9rem;
+    }
+
+    button {
+        padding: 0.5rem;
+        border-radius: 6px;
+        border: none;
+        background: #2563eb;
+        color: white;
+        cursor: pointer;
+        margin-top: 0.25rem;
+    }
+
+    button.danger {
+        background: #dc2626;
+    }
+
+    .empty {
+        padding: 0.5rem;
+        color: #666;
+        font-style: italic;
+    }
+
+    .history {
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #e5e7eb;
     }
 </style>
