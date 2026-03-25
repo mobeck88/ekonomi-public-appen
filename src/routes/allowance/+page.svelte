@@ -18,7 +18,6 @@
 
 <h1>Fickpengar</h1>
 
-<!-- Dropdown för owner/guardian -->
 {#if data.access && data.access.selectableMembers.length > 1}
     <form method="get" class="selector">
         <label for="user">Visa för</label>
@@ -145,7 +144,10 @@
 
 <style>
     h1 {
-        margin-bottom: 1rem;
+        margin-bottom: 1.2rem;
+        color: #1f2937;
+        font-size: 1.6rem;
+        font-weight: 700;
     }
 
     .selector {
@@ -156,53 +158,61 @@
     }
 
     select {
-        padding: 0.4rem;
-        border-radius: 6px;
+        padding: 0.5rem;
+        border-radius: 8px;
         border: 1px solid #d1d5db;
         background: white;
+        font-size: 0.95rem;
     }
 
     .section {
-        background: #f3f6fb;
-        border: 1px solid #d1d5db;
-        border-radius: 8px;
-        margin-bottom: 1rem;
-        padding: 0.5rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        background: #ffffff;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        overflow: hidden;
     }
 
     .section-header {
         width: 100%;
-        background: none;
+        background: #f3f4f6;
         border: none;
-        font-size: 1rem;
-        font-weight: bold;
+        padding: 1rem 1.2rem;
+        font-size: 1.05rem;
+        font-weight: 600;
         display: flex;
         justify-content: space-between;
-        padding: 0.5rem 0;
         cursor: pointer;
+        color: #111827;
+    }
+
+    .section-header:hover {
+        background: #e5e7eb;
     }
 
     .card {
-        background: white;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
+        border-top: 1px solid #e5e7eb;
         padding: 1rem;
-        margin-bottom: 0.75rem;
+        background: #ffffff;
     }
 
     .row {
         display: flex;
         justify-content: space-between;
-        gap: 1rem;
+        gap: 1.2rem;
+        flex-wrap: wrap;
     }
 
     .info {
-        line-height: 1.4;
+        font-size: 0.95rem;
+        color: #374151;
     }
 
     .label {
-        font-weight: bold;
-        color: #555;
+        color: #6b7280;
+        font-size: 0.85rem;
+        font-weight: 600;
     }
 
     .actions {
@@ -215,24 +225,38 @@
     form {
         display: flex;
         flex-direction: column;
-        gap: 0.25rem;
+        gap: 0.4rem;
     }
 
     input, textarea {
-        padding: 0.4rem;
-        border-radius: 6px;
+        padding: 0.65rem;
+        border-radius: 8px;
         border: 1px solid #d1d5db;
-        font-size: 0.9rem;
+        background: #f9fafb;
+        font-size: 0.95rem;
+    }
+
+    input:focus, textarea:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 2px #dbeafe;
+        background: #ffffff;
     }
 
     button {
-        padding: 0.5rem;
-        border-radius: 6px;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
         border: none;
         background: #2563eb;
         color: white;
         cursor: pointer;
+        font-size: 0.95rem;
+        font-weight: 600;
         margin-top: 0.25rem;
+    }
+
+    button:hover {
+        background: #1d4ed8;
     }
 
     button.danger {
@@ -240,13 +264,15 @@
     }
 
     .empty {
-        padding: 0.5rem;
-        color: #666;
+        padding: 0.75rem;
+        color: #6b7280;
         font-style: italic;
     }
 
     .history {
-        padding: 0.5rem 0;
-        border-bottom: 1px solid #e5e7eb;
+        padding: 0.75rem 1rem;
+        border-top: 1px solid #e5e7eb;
+        font-size: 0.95rem;
+        color: #374151;
     }
 </style>
