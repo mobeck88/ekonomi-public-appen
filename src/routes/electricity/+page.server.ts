@@ -64,7 +64,7 @@ export const actions: Actions = {
         };
 
         if (id) {
-            payload.id = Number(id);
+            payload.id = id; // <-- ENDA ändringen
         }
 
         const { error } = await supabase.from('electricity').upsert(payload);
