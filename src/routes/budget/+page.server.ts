@@ -26,7 +26,9 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             fixedGroups: [],
             ownerMap: {},
             incomePerUser: {},
-            incomeTotal: []
+            incomeTotal: [],
+            economicAssistancePerMonth: [],
+            hasEconomicAssistance: false
         };
     }
 
@@ -68,7 +70,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         primaryRes,
         extraJobsRes,
         fkRes,
-        riksnormRes
+        riksnormRes,
+        economicAssistanceRes
     ] = await Promise.all([
         supabase.from('electricity').select('*').eq('household_id', householdId),
         supabase.from('fixed_costs').select('*').eq('household_id', householdId),
@@ -89,7 +92,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         supabase.from('income_primary_job').select('*').eq('household_id', householdId),
         supabase.from('income_extra_jobs').select('*').eq('household_id', householdId),
         supabase.from('income_fk').select('*').eq('household_id', householdId),
-        supabase.from('expenses_riksnorm').select('*').eq('household_id', householdId)
+        supabase.from('expenses_riksnorm').select('*').eq('household_id', householdId),
+        supabase.from('economic_assistance').select('*').eq('household_id', householdId)
     ]);
 
     const electricityRows = electricityRes.data ?? [];
@@ -103,6 +107,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     const loans = loansRes.data ?? [];
     const expenses = expensesRes.data ?? [];
     const riksnorm = riksnormRes.data ?? [];
+    const economicAssistance = economicAssistanceRes.data ?? [];
 
     const incomeMonths = incomeMonthsRes.data ?? [];
     const primary = primaryRes.data ?? [];
@@ -277,6 +282,16 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             .reduce((acc, x) => acc + Number(x.amount ?? 0), 0)
     );
 
+    // ⭐ Ekonomiskt bistånd
+    const economicAssistancePerMonth = months.map((m) =>
+        economicAssistance
+            .filter((e) => toYM(e.date) === m)
+            .reduce((acc, e) => acc + Number(e.amount ?? 0), 0)
+    );
+
+    const hasEconomicAssistance =
+        economicAssistancePerMonth.reduce((a, b) => a + b, 0) > 0;
+
     // ⭐ INKOMSTER – per person och total hushåll
     const incomePerUser: Record<string, number[]> = {};
     for (const member of memberList) {
@@ -340,6 +355,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         unexpectedPerMonth,
         extraPerMonth,
         incomePerUser,
-        incomeTotal
+        incomeTotal,
+        economicAssistancePerMonth,
+        hasEconomicAssistance
     };
 };

@@ -47,15 +47,16 @@
         return arr.some((m) => (m?.shared ?? 0) > 0);
     }
 
-    // ⭐ Inkomster in i summeringen (fixad)
+    // ⭐ Inkomster in i summeringen (inkl. Ekonomiskt bistånd)
     function sumIn(i) {
         return (
             (data.incomeTotal?.[i] ?? 0) +
-            (data.extraPerMonth?.[i] ?? 0)
+            (data.extraPerMonth?.[i] ?? 0) +
+            (data.economicAssistancePerMonth?.[i] ?? 0)
         );
     }
 
-    // ⭐ Utgifter in i summeringen (fixad)
+    // ⭐ Utgifter in i summeringen
     function sumOut(i) {
         let total = 0;
 
@@ -85,7 +86,7 @@
 
         total += data.electricityPerMonth[i];
 
-        // ⭐ Fix: Oförutsägbara utgifter
+        // Oförutsägbara
         total += (data.unexpectedPerMonth?.[i] ?? 0);
 
         return total;
@@ -210,6 +211,7 @@
                 {/if}
             {/each}
 
+            <!-- ÖVRIGT -->
             <tr><td colspan="13" class="section">ÖVRIGT</td></tr>
 
             {#each otherSections as oc}
@@ -221,6 +223,16 @@
                 </tr>
             {/each}
 
+            {#if data.hasEconomicAssistance}
+                <tr>
+                    <td>Ekonomiskt bistånd</td>
+                    {#each data.months as _, i}
+                        <td>{formatKr(data.economicAssistancePerMonth[i])}</td>
+                    {/each}
+                </tr>
+            {/if}
+
+            <!-- SUMMERING -->
             <tr><td colspan="13" class="section">SUMMERING</td></tr>
 
             <tr class="sum">
