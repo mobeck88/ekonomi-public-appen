@@ -189,11 +189,11 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 
     // ⭐ Fasta kostnader Bistånd (expenses_riksnorm)
     const riksnormPerGroup = Object.fromEntries(
-        [...new Set(riksnorm.map((f) => f.cost_name as string))].map((name) => [
+        [...new Set(riksnorm.map((f) => f.title as string))].map((name) => [
             name,
             months.map((m) =>
                 riksnorm
-                    .filter((f) => f.cost_name === name && isActive(f, m))
+                    .filter((f) => f.title === name && isActive(f, m))
                     .reduce((acc, f) => acc + Number(f.amount ?? 0), 0)
             )
         ])
