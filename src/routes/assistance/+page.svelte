@@ -1,5 +1,6 @@
 <script>
     export let data;
+    import { invalidate } from '$app/navigation';
 
     const members = data.members;
 
@@ -36,20 +37,16 @@
     function sumOut(i) {
         let total = 0;
 
-        // Fasta kostnader Bistånd
         for (const name of Object.keys(data.riksnormPerGroup ?? {})) {
             total += data.riksnormPerGroup[name][i];
         }
 
-        // Riksnorm (Vuxen + Barn + Gemensam)
         total += (data.riksnorm?.Vuxen?.[i] ?? 0);
         total += (data.riksnorm?.Barn?.[i] ?? 0);
         total += (data.riksnorm?.Gemensam?.[i] ?? 0);
 
-        // El
         total += data.electricityPerMonth[i] ?? 0;
 
-        // Korrigering utgift
         total += (data.correctionExpense?.[i] ?? 0);
 
         return total;
@@ -90,6 +87,9 @@
                 value
             })
         });
+
+        // ⭐ Minimal fix: uppdatera sidan direkt
+        await invalidate('load');
     }
 </script>
 
@@ -119,7 +119,6 @@
                 </tr>
             {/each}
 
-            <!-- Korrigering inkomst före Totalt hushåll -->
             <tr>
                 <td>Korrigering inkomst</td>
                 {#each data.months as _, i}
@@ -166,7 +165,6 @@
                 {/if}
             {/each}
 
-            <!-- RIKSNORM -->
             <tr><td colspan={1 + data.months.length} class="subsection">Riksnorm</td></tr>
 
             {#each ['Vuxen', 'Barn', 'Gemensam'] as rowName}
@@ -178,7 +176,6 @@
                 </tr>
             {/each}
 
-            <!-- Korrigering utgift + Totala utgifter innan ÖVRIGT -->
             <tr>
                 <td>Korrigering utgift</td>
                 {#each data.months as _, i}
