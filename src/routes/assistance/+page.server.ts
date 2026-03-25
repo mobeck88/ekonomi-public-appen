@@ -178,83 +178,122 @@ export const load: PageServerLoad = async ({ locals }) => {
         )
     );
 
-    // RIKSNORM (Vuxen, Barn, Gemensam) per månad
-    const { data: household } = await supabase
+    // ⭐ HÄR KOMMER DIN NYA DEL
+    // -----------------------------------------
+    // 1. Kolla om hushållet använder egen riksnorm
+    const { data: householdSettings } = await supabase
         .from('households')
-        .select('adults, children')
+        .select('use_custom_riksnorm')
         .eq('id', householdId)
         .single();
 
-    const { data: children } = await supabase
-        .from('household_children')
-        .select('birthdate')
-        .eq('household_id', householdId);
+    const useCustom = householdSettings?.use_custom_riksnorm === true;
 
-    const yearsSet = [...new Set(monthInfos.map((m) => m.year))];
+    let riksnorm;
 
-    const riksnormByYear = new Map<
-        number,
-        { vuxen: number; barn: number; gemensam: number }
-    >();
-
-    for (const year of yearsSet) {
-        const { data: personalNorm } = await supabase
-            .from('riksnorm_personal')
+    if (useCustom) {
+        // 2. Hämta egen riksnorm för varje år
+        const customRows = await supabase
+            .from('custom_riksnorm')
             .select('*')
-            .eq('year', String(year));
+            .eq('household_id', householdId)
+            .in('year', [...new Set(monthInfos.map((m) => m.year))]);
 
-        const { data: householdNorm } = await supabase
-            .from('riksnorm_household')
-            .select('*')
-            .eq('year', String(year))
-            .eq(
-                'household_size',
-                (household?.adults ?? 0) + (household?.children ?? 0)
-            )
-            .single();
+        const map = new Map<number, { vuxen: number; barn: number; gemensam: number }>();
 
-        const adults = household?.adults ?? 0;
-
-        const childAges = (children ?? []).map((c) => {
-            const birth = new Date(c.birthdate);
-            const end = new Date(year, 11, 31);
-            return end.getFullYear() - birth.getFullYear();
-        });
-
-        const adultRow = personalNorm?.find((r) => r.category === 'adult');
-        const vuxenTotal = adultRow ? Number(adultRow.amount ?? 0) * adults : 0;
-
-        let barnTotal = 0;
-        for (const age of childAges) {
-            const row = personalNorm?.find(
-                (r) =>
-                    r.category === 'child' &&
-                    r.age_min <= age &&
-                    r.age_max >= age
-            );
-            if (row) barnTotal += Number(row.amount ?? 0);
+        for (const row of customRows.data ?? []) {
+            map.set(row.year, {
+                vuxen: Number(row.adult ?? 0),
+                barn: Number(row.child ?? 0),
+                gemensam: Number(row.shared ?? 0)
+            });
         }
 
-        const gemensamTotal = Number(householdNorm?.amount ?? 0);
+        riksnorm = {
+            Vuxen: monthInfos.map((m) => map.get(m.year)?.vuxen ?? 0),
+            Barn: monthInfos.map((m) => map.get(m.year)?.barn ?? 0),
+            Gemensam: monthInfos.map((m) => map.get(m.year)?.gemensam ?? 0)
+        };
+    } else {
+        // ⭐ ORIGINALKOD — orörd
+        const { data: household } = await supabase
+            .from('households')
+            .select('adults, children')
+            .eq('id', householdId)
+            .single();
 
-        riksnormByYear.set(year, {
-            vuxen: vuxenTotal,
-            barn: barnTotal,
-            gemensam: gemensamTotal
-        });
+        const { data: children } = await supabase
+            .from('household_children')
+            .select('birthdate')
+            .eq('household_id', householdId);
+
+        const yearsSet = [...new Set(monthInfos.map((m) => m.year))];
+
+        const riksnormByYear = new Map<
+            number,
+            { vuxen: number; barn: number; gemensam: number }
+        >();
+
+        for (const year of yearsSet) {
+            const { data: personalNorm } = await supabase
+                .from('riksnorm_personal')
+                .select('*')
+                .eq('year', String(year));
+
+            const { data: householdNorm } = await supabase
+                .from('riksnorm_household')
+                .select('*')
+                .eq('year', String(year))
+                .eq(
+                    'household_size',
+                    (household?.adults ?? 0) + (household?.children ?? 0)
+                )
+                .single();
+
+            const adults = household?.adults ?? 0;
+
+            const childAges = (children ?? []).map((c) => {
+                const birth = new Date(c.birthdate);
+                const end = new Date(year, 11, 31);
+                return end.getFullYear() - birth.getFullYear();
+            });
+
+            const adultRow = personalNorm?.find((r) => r.category === 'adult');
+            const vuxenTotal = adultRow ? Number(adultRow.amount ?? 0) * adults : 0;
+
+            let barnTotal = 0;
+            for (const age of childAges) {
+                const row = personalNorm?.find(
+                    (r) =>
+                        r.category === 'child' &&
+                        r.age_min <= age &&
+                        r.age_max >= age
+                );
+                if (row) barnTotal += Number(row.amount ?? 0);
+            }
+
+            const gemensamTotal = Number(householdNorm?.amount ?? 0);
+
+            riksnormByYear.set(year, {
+                vuxen: vuxenTotal,
+                barn: barnTotal,
+                gemensam: gemensamTotal
+            });
+        }
+
+        riksnorm = {
+            Vuxen: monthInfos.map(
+                (m) => riksnormByYear.get(m.year)?.vuxen ?? 0
+            ),
+            Barn: monthInfos.map(
+                (m) => riksnormByYear.get(m.year)?.barn ?? 0
+            ),
+            Gemensam: monthInfos.map(
+                (m) => riksnormByYear.get(m.year)?.gemensam ?? 0
+            )
+        };
     }
-
-    const riksnorm = {
-        Vuxen: monthInfos.map(
-            (m) => riksnormByYear.get(m.year)?.vuxen ?? 0
-        ),
-        Barn: monthInfos.map(
-            (m) => riksnormByYear.get(m.year)?.barn ?? 0
-        ),
-        Gemensam: monthInfos.map(
-            (m) => riksnormByYear.get(m.year)?.gemensam ?? 0
-        )
-    };
+    // -----------------------------------------
 
     return {
         selectedYear,
