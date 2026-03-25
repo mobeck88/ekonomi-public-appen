@@ -15,7 +15,6 @@
         return userColorClasses[hash % userColorClasses.length];
     }
 
-    // Endast kvarvarande utgiftssektioner
     const expenseSections = [
         { title: 'El', key: 'electricityPerMonth', type: 'simple' },
         { title: 'Fasta kostnader Bistånd', key: 'riksnormPerGroup', type: 'fixed' }
@@ -31,24 +30,23 @@
     }
 
     function sumIn(i) {
-        return data.incomeTotal?.[i] ?? 0;
+        return (data.incomeTotal?.[i] ?? 0) + (data.correctionIncome?.[i] ?? 0);
     }
 
     function sumOut(i) {
         let total = 0;
 
-        // Fasta kostnader Bistånd
         for (const name of Object.keys(data.riksnormPerGroup ?? {})) {
             total += data.riksnormPerGroup[name][i];
         }
 
-        // Riksnorm (Vuxen + Barn + Gemensam)
         total += (data.riksnorm?.Vuxen?.[i] ?? 0);
         total += (data.riksnorm?.Barn?.[i] ?? 0);
         total += (data.riksnorm?.Gemensam?.[i] ?? 0);
 
-        // El
         total += data.electricityPerMonth[i] ?? 0;
+
+        total += (data.correctionExpense?.[i] ?? 0);
 
         return total;
     }
@@ -69,10 +67,25 @@
         return result;
     })();
 
-    // Dynamiska månadsetiketter från data.months
     function monthLabel(ym) {
         const d = new Date(ym + '-01');
         return d.toLocaleString('sv-SE', { month: 'short' });
+    }
+
+    async function updateCorrection(i, field, value) {
+        const ym = data.months[i];
+        const [year, month] = ym.split('-').map(Number);
+
+        await fetch('/api/update-assistance', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                year,
+                month,
+                field,
+                value
+            })
+        });
     }
 </script>
 
@@ -109,7 +122,20 @@
                 {/each}
             </tr>
 
-            <!-- UTGIFTER -->
+            <!-- ⭐ KORRIGERING INKOMST -->
+            <tr>
+                <td>Korrigering inkomst</td>
+                {#each data.months as _, i}
+                    <td>
+                        <input
+                            type="number"
+                            value={data.correctionIncome[i]}
+                            on:change={(e) => updateCorrection(i, 'correction_income', Number(e.target.value))}
+                        />
+                    </td>
+                {/each}
+            </tr>
+
             <tr><td colspan={1 + data.months.length} class="section">UTGIFTER</td></tr>
 
             {#each expenseSections as section}
@@ -134,6 +160,20 @@
                     {/each}
                 {/if}
             {/each}
+
+            <!-- ⭐ KORRIGERING UTGIFT -->
+            <tr>
+                <td>Korrigering utgift</td>
+                {#each data.months as _, i}
+                    <td>
+                        <input
+                            type="number"
+                            value={data.correctionExpense[i]}
+                            on:change={(e) => updateCorrection(i, 'correction_expense', Number(e.target.value))}
+                        />
+                    </td>
+                {/each}
+            </tr>
 
             <!-- RIKSNORM -->
             <tr><td colspan={1 + data.months.length} class="subsection">Riksnorm</td></tr>
@@ -261,5 +301,11 @@
 
     tr.buffer td {
         background: #c9e7ff !important;
+    }
+
+    input {
+        width: 80px;
+        padding: 2px 4px;
+        text-align: right;
     }
 </style>

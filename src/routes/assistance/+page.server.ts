@@ -22,7 +22,9 @@ export const load: PageServerLoad = async ({ locals }) => {
                 Vuxen: [],
                 Barn: [],
                 Gemensam: []
-            }
+            },
+            correctionIncome: [],
+            correctionExpense: []
         };
     }
 
@@ -42,13 +44,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 
     // 5 månader: 3 bakåt, innevarande, nästa
     const today = new Date();
-    const monthInfos: { ym: string; year: number }[] = [];
+    const monthInfos: { ym: string; year: number; month: number }[] = [];
 
     for (let offset = -3; offset <= 1; offset++) {
         const d = new Date(today.getFullYear(), today.getMonth() + offset, 1);
         const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        monthInfos.push({ ym: `${year}-${month}`, year });
+        const month = d.getMonth() + 1;
+        const ym = `${year}-${String(month).padStart(2, '0')}`;
+        monthInfos.push({ ym, year, month });
     }
 
     const months = monthInfos.map((m) => m.ym);
@@ -113,7 +116,7 @@ export const load: PageServerLoad = async ({ locals }) => {
             )
     );
 
-    // Fasta kostnader Bistånd (expenses_riksnorm)
+    // Fasta kostnader Bistånd
     const riksnormPerGroup = Object.fromEntries(
         [...new Set(riksnormExpenses.map((f) => f.title as string))].map((name) => [
             name,
@@ -125,14 +128,14 @@ export const load: PageServerLoad = async ({ locals }) => {
         ])
     );
 
-    // Extra inkomster per månad
+    // Extra inkomster
     const extraPerMonth = months.map((m) =>
         extra
             .filter((x) => toYM(x.date) === m)
             .reduce((acc, x) => acc + Number(x.amount ?? 0), 0)
     );
 
-    // INKOMSTER – per person och total hushåll
+    // INKOMSTER
     const incomePerUser: Record<string, number[]> = {};
     for (const member of memberList) {
         incomePerUser[member.name] = months.map(() => 0);
@@ -159,17 +162,9 @@ export const load: PageServerLoad = async ({ locals }) => {
         incomePerUser[member.name][idx] += val;
     };
 
-    for (const row of primary) {
-        addIncome(row.user_id, row.income_month_id, row.att_betala_ut);
-    }
-
-    for (const row of extraJobs) {
-        addIncome(row.user_id, row.income_month_id, row.att_betala_ut);
-    }
-
-    for (const row of fk) {
-        addIncome(row.user_id, row.income_month_id, row.att_betala_ut);
-    }
+    for (const row of primary) addIncome(row.user_id, row.income_month_id, row.att_betala_ut);
+    for (const row of extraJobs) addIncome(row.user_id, row.income_month_id, row.att_betala_ut);
+    for (const row of fk) addIncome(row.user_id, row.income_month_id, row.att_betala_ut);
 
     const incomeTotal = months.map((_, i) =>
         memberList.reduce(
@@ -178,9 +173,31 @@ export const load: PageServerLoad = async ({ locals }) => {
         )
     );
 
-    // ⭐ HÄR KOMMER DIN NYA DEL
-    // -----------------------------------------
-    // 1. Kolla om hushållet använder egen riksnorm
+    // ⭐ Correction-värden
+    const { data: correctionRows } = await supabase
+        .from('assistance_months')
+        .select('*')
+        .eq('household_id', householdId)
+        .in('year', monthInfos.map((m) => m.year))
+        .in('month', monthInfos.map((m) => m.month));
+
+    const correctionIncome = months.map((_, i) => {
+        const info = monthInfos[i];
+        const row = correctionRows?.find(
+            (r) => r.year === info.year && r.month === info.month
+        );
+        return Number(row?.correction_income ?? 0);
+    });
+
+    const correctionExpense = months.map((_, i) => {
+        const info = monthInfos[i];
+        const row = correctionRows?.find(
+            (r) => r.year === info.year && r.month === info.month
+        );
+        return Number(row?.correction_expense ?? 0);
+    });
+
+    // ⭐ Riksnorm (oförändrad)
     const { data: householdSettings } = await supabase
         .from('households')
         .select('use_custom_riksnorm')
@@ -192,7 +209,6 @@ export const load: PageServerLoad = async ({ locals }) => {
     let riksnorm;
 
     if (useCustom) {
-        // 2. Hämta egen riksnorm för varje år
         const customRows = await supabase
             .from('custom_riksnorm')
             .select('*')
@@ -215,7 +231,6 @@ export const load: PageServerLoad = async ({ locals }) => {
             Gemensam: monthInfos.map((m) => map.get(m.year)?.gemensam ?? 0)
         };
     } else {
-        // ⭐ ORIGINALKOD — orörd
         const { data: household } = await supabase
             .from('households')
             .select('adults, children')
@@ -293,7 +308,6 @@ export const load: PageServerLoad = async ({ locals }) => {
             )
         };
     }
-    // -----------------------------------------
 
     return {
         selectedYear,
@@ -304,6 +318,8 @@ export const load: PageServerLoad = async ({ locals }) => {
         extraPerMonth,
         incomePerUser,
         incomeTotal,
-        riksnorm
+        riksnorm,
+        correctionIncome,
+        correctionExpense
     };
 };
