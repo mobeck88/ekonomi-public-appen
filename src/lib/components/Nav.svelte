@@ -112,9 +112,6 @@
     <button class="logout" on:click={logout}>Logga ut</button>
 </nav>
 
-<style>
-    /* Din CSS är oförändrad */
-</style>
 
 <style>
     .mobile-nav {
