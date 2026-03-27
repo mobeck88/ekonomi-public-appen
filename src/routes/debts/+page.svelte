@@ -1,46 +1,269 @@
-{#if selected?.isAddingCompany}
-    <input
-        type="text"
-        placeholder="Nytt inkassobolag…"
-        bind:value={selected.newCompanyName}
-    />
+<script lang="ts">
+    import { tick } from 'svelte';
 
-    <!-- ⭐ FIX: Se till att ID skickas även när select är gömd -->
-    <input type="hidden" name="collection_company_id" value={selected.collection_company_id} />
+    export let data: any;
+    const access = data.access;
 
-    <div style="display:flex; gap:0.5rem;">
-        <button type="button" on:click={() => createCompanyInline(selected)}>
-            Spara
-        </button>
-        <button
-            type="button"
-            class="danger"
-            on:click={() => cancelNewCompany(selected)}
-        >
-            Ångra
-        </button>
-    </div>
-{:else}
-    <select
-        name="collection_company_id"
-        bind:value={selected.collection_company_id}
-        on:change={(e) => {
-            if (e.target.value === '__new__') {
-                selected.isAddingCompany = true;
-                selected.newCompanyName = '';
-                selected.collection_company_id = '';
+    let selected: any = null;
+    let showList = false;
+    let showForm = false;
+
+    const members = access.selectableMembers ?? [];
+    let selectedUserId: string = access.selectedUserId;
+
+    let companies = [...(data.companies ?? [])];
+
+    function normalizeDebtForEdit(d: any) {
+        return {
+            ...structuredClone(d),
+            original_reference: d.original_reference ?? '',
+            collection_reference: d.collection_reference ?? '',
+            collection_company_id: d.collection_company_id ?? '',
+            amount: d.amount ?? '',
+            is_kronofogden: Boolean(d.is_kronofogden),
+            isAddingCompany: false,
+            newCompanyName: ''
+        };
+    }
+
+    function newDebt() {
+        selected = {
+            title: '',
+            original_company_name: '',
+            original_reference: '',
+            collection_company_id: '',
+            collection_reference: '',
+            amount: '',
+            is_kronofogden: false,
+            isAddingCompany: false,
+            newCompanyName: ''
+        };
+        showForm = true;
+    }
+
+    function editDebt(d: any) {
+        selected = normalizeDebtForEdit(d);
+        showForm = true;
+        showList = false;
+    }
+
+    function toggleForm() {
+        if (!showForm) {
+            if (!selected) {
+                newDebt();
+            } else {
+                showForm = true;
             }
-        }}
-    >
-        <option value="">Inget inkasso</option>
-        {#each companies as c}
-            <option value={c.id}>{c.name}</option>
-        {/each}
-        <option value="__new__">Lägg till nytt…</option>
-    </select>
+        } else {
+            showForm = false;
+        }
+    }
+
+    function toCurrency(n: number | string | null | undefined) {
+        const num = Number(n ?? 0);
+        return Number.isFinite(num) ? num : 0;
+    }
+
+    async function createCompanyInline(stateObj: any) {
+        const name = stateObj.newCompanyName?.trim();
+        if (!name) return;
+
+        const form = new FormData();
+        form.append('name', name);
+
+        const res = await fetch('?/create_company', { method: 'POST', body: form });
+
+        if (res.ok) {
+            const company = await res.json();
+            if (!company?.id) return;
+
+            companies = [...companies, company];
+
+            stateObj.collection_company_id = company.id;
+            stateObj.isAddingCompany = false;
+            stateObj.newCompanyName = '';
+
+            await tick();
+        }
+    }
+
+    function cancelNewCompany(stateObj: any) {
+        stateObj.isAddingCompany = false;
+        stateObj.newCompanyName = '';
+        stateObj.collection_company_id = '';
+    }
+</script>
+
+<h1>Skulder</h1>
+
+{#if access.isOwner || access.isGuardian}
+    <div class="section">
+        <form method="GET" class="member-selector">
+            <label for="user_id">Visa skulder för</label>
+
+            <select
+                id="user_id"
+                name="user_id"
+                bind:value={selectedUserId}
+                on:change={(e) => e.target.form.submit()}
+            >
+                {#each members as m}
+                    <option value={m.user_id}>
+                        {m.profiles.full_name}
+                        {m.user_id === access.currentUserId ? ' (du)' : ''}
+                    </option>
+                {/each}
+            </select>
+        </form>
+    </div>
+{/if}
+
+<div class="section">
+    <button class="section-header" on:click={() => (showList = !showList)}>
+        <span>Sparade skulder</span>
+        <span>{showList ? '▲' : '▼'}</span>
+    </button>
+
+    {#if showList}
+        {#if data.debts.length === 0}
+            <p class="empty">Inga skulder registrerade ännu.</p>
+        {:else}
+            <table class="month-list">
+                <tbody>
+                    {#each data.debts as d}
+                        <tr on:click={() => access.canEdit && editDebt(d)}>
+                            <td>
+                                <strong>{d.title}</strong><br />
+                                {toCurrency(d.amount)} kr
+                            </td>
+
+                            <td>
+                                <strong>Grundföretag</strong><br />
+                                {d.original_company_name}<br />
+                                {d.original_reference}
+                            </td>
+
+                            <td>
+                                <strong>Inkasso</strong><br />
+                                {d.collection_company_name ?? '—'}<br />
+                                {d.collection_reference ?? ''}
+                            </td>
+
+                            <td>
+                                <strong>Kronofogden</strong><br />
+                                {d.is_kronofogden ? 'Ja' : 'Nej'}
+                            </td>
+                        </tr>
+                    {/each}
+                </tbody>
+            </table>
+        {/if}
+    {/if}
+</div>
+
+{#if access.canEdit}
+    <div class="section">
+        <button class="section-header" on:click={toggleForm}>
+            <span>{selected?.id ? 'Redigera skuld' : 'Ny skuld'}</span>
+            <span>{showForm ? '▲' : '▼'}</span>
+        </button>
+
+        {#if showForm}
+            <form
+                method="POST"
+                action={selected?.id ? '?/update_debt' : '?/create_debt'}
+                class="create-form"
+            >
+                {#if selected?.id}
+                    <input type="hidden" name="debt_id" value={selected.id} />
+                {/if}
+
+                <input type="hidden" name="selected_user_id" value={selectedUserId} />
+
+                <label>Titel</label>
+                <input type="text" name="title" required bind:value={selected.title} />
+
+                <label>Grundföretag</label>
+                <input type="text" name="original_company_name" required bind:value={selected.original_company_name} />
+
+                <label>Referensnummer (grundföretag)</label>
+                <input type="text" name="original_reference" bind:value={selected.original_reference} />
+
+                <label>Inkassobolag</label>
+
+                {#if selected.isAddingCompany}
+                    <input
+                        type="text"
+                        placeholder="Nytt inkassobolag…"
+                        bind:value={selected.newCompanyName}
+                    />
+
+                    <!-- ⭐ KRITISK FIX: hidden input -->
+                    <input type="hidden" name="collection_company_id" value={selected.collection_company_id} />
+
+                    <div class="inline-buttons">
+                        <button type="button" on:click={() => createCompanyInline(selected)}>Spara</button>
+                        <button type="button" class="danger" on:click={() => cancelNewCompany(selected)}>Ångra</button>
+                    </div>
+
+                {:else}
+                    <select
+                        name="collection_company_id"
+                        bind:value={selected.collection_company_id}
+                        on:change={(e) => {
+                            if (e.target.value === '__new__') {
+                                selected.isAddingCompany = true;
+                                selected.newCompanyName = '';
+                                selected.collection_company_id = '';
+                            }
+                        }}
+                    >
+                        <option value="">Inget inkasso</option>
+                        {#each companies as c}
+                            <option value={c.id}>{c.name}</option>
+                        {/each}
+                        <option value="__new__">Lägg till nytt…</option>
+                    </select>
+                {/if}
+
+                <label>Referensnummer (inkasso)</label>
+                <input type="text" name="collection_reference" bind:value={selected.collection_reference} />
+
+                <label>Belopp</label>
+                <input type="number" step="0.01" name="amount" required bind:value={selected.amount} />
+
+                <label class="checkbox-row">
+                    <input type="checkbox" name="is_kronofogden" bind:checked={selected.is_kronofogden} />
+                    Är hos Kronofogden
+                </label>
+
+                <button type="submit">
+                    {selected?.id ? 'Spara ändringar' : 'Spara skuld'}
+                </button>
+            </form>
+        {/if}
+    </div>
 {/if}
 
 <style>
+    .section { margin-bottom: 2rem; }
+    .section-header {
+        width: 100%;
+        background: #f3f4f6;
+        padding: 0.8rem;
+        border-radius: 6px;
+        font-weight: bold;
+        display: flex;
+        justify-content: space-between;
+        cursor: pointer;
+    }
+    .month-list { width: 100%; border-collapse: collapse; }
+    .month-list td { padding: 0.6rem; border-bottom: 1px solid #ddd; }
+    .create-form { display: flex; flex-direction: column; gap: 0.8rem; }
+    .inline-buttons { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+    .danger { background: #dc2626; color: white; }
+    .checkbox-row { display: flex; align-items: center; gap: 0.5rem; }
+
     h1 {
         margin-bottom: 1.2rem;
         color: #1f2937;
