@@ -1,15 +1,28 @@
-<script>
-    export let data;
+<script lang="ts">
+    export let data: any;
     const access = data.access;
 
-    let selected = null;
+    let selected: any = null;
     let showList = false;
     let showForm = false;
 
     const members = access.selectableMembers ?? [];
-    let selectedUserId = access.selectedUserId;
+    let selectedUserId: string = access.selectedUserId;
 
     let companies = [...(data.companies ?? [])];
+
+    function normalizeDebtForEdit(d: any) {
+        return {
+            ...structuredClone(d),
+            original_reference: d.original_reference ?? '',
+            collection_reference: d.collection_reference ?? '',
+            collection_company_id: d.collection_company_id ?? '',
+            amount: d.amount ?? '',
+            is_kronofogden: Boolean(d.is_kronofogden),
+            isAddingCompany: false,
+            newCompanyName: ''
+        };
+    }
 
     function newDebt() {
         selected = {
@@ -26,21 +39,31 @@
         showForm = true;
     }
 
-    function editDebt(d) {
-        selected = {
-            ...structuredClone(d),
-            isAddingCompany: false,
-            newCompanyName: ''
-        };
+    function editDebt(d: any) {
+        selected = normalizeDebtForEdit(d);
         showForm = true;
         showList = false;
     }
 
-    function toCurrency(n) {
-        return Number(n ?? 0);
+    function toggleForm() {
+        if (!showForm) {
+            // Vi öppnar formuläret – se till att selected alltid är satt
+            if (!selected) {
+                newDebt();
+            } else {
+                showForm = true;
+            }
+        } else {
+            showForm = false;
+        }
     }
 
-    async function createCompanyInline(stateObj) {
+    function toCurrency(n: number | string | null | undefined) {
+        const num = Number(n ?? 0);
+        return Number.isFinite(num) ? num : 0;
+    }
+
+    async function createCompanyInline(stateObj: any) {
         const name = stateObj.newCompanyName?.trim();
         if (!name) return;
 
@@ -51,6 +74,8 @@
 
         if (res.ok) {
             const company = await res.json();
+            if (!company?.id) return;
+
             companies = [...companies, company];
 
             stateObj.collection_company_id = company.id;
@@ -59,7 +84,7 @@
         }
     }
 
-    function cancelNewCompany(stateObj) {
+    function cancelNewCompany(stateObj: any) {
         stateObj.isAddingCompany = false;
         stateObj.newCompanyName = '';
         stateObj.collection_company_id = '';
@@ -135,7 +160,7 @@
 
 {#if access.canEdit}
     <div class="section">
-        <button class="section-header" on:click={() => (showForm = !showForm)}>
+        <button class="section-header" on:click={toggleForm}>
             <span>{selected?.id ? 'Redigera skuld' : 'Ny skuld'}</span>
             <span>{showForm ? '▲' : '▼'}</span>
         </button>

@@ -1,7 +1,8 @@
 import { redirect, fail } from '@sveltejs/kit';
+import type { Actions, PageServerLoad } from './$types';
 import { getAccessContext } from '$lib/server/access';
 
-export const load = async ({ locals, url }) => {
+export const load: PageServerLoad = async ({ locals, url }) => {
     const access = await getAccessContext(locals, url);
     if (!access.allowed) throw redirect(303, '/login');
 
@@ -40,14 +41,14 @@ export const load = async ({ locals, url }) => {
     };
 };
 
-function resolveTargetUserId(access, form: FormData): string {
+function resolveTargetUserId(access: any, form: FormData): string {
     const selected = form.get('selected_user_id')?.toString();
 
     if (!selected) {
         return access.selectedUserId;
     }
 
-    const allowed = (access.selectableMembers ?? []).map((m) => m.user_id);
+    const allowed = (access.selectableMembers ?? []).map((m: any) => m.user_id);
 
     if (!allowed.includes(selected)) {
         throw redirect(303, '/login');
@@ -56,7 +57,7 @@ function resolveTargetUserId(access, form: FormData): string {
     return selected;
 }
 
-export const actions = {
+export const actions: Actions = {
     create_company: async ({ request, locals, url }) => {
         const access = await getAccessContext(locals, url);
         if (!access.allowed) throw redirect(303, '/login');
