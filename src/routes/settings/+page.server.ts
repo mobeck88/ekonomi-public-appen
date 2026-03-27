@@ -12,7 +12,10 @@ export const load: PageServerLoad = async ({ locals }) => {
             role: "member",
             useCustomRiksnorm: false,
             customRiksnorm: null,
-            selectedYear: new Date().getFullYear()
+            selectedYear: new Date().getFullYear(),
+
+            // ⭐ NYTT
+            showDebts: false
         };
     }
 
@@ -36,15 +39,21 @@ export const load: PageServerLoad = async ({ locals }) => {
     let enableAssistance = false;
     let useCustomRiksnorm = false;
 
+    // ⭐ NYTT
+    let showDebts = false;
+
     if (householdId) {
         const { data: household } = await locals.supabase
             .from("households")
-            .select("enable_assistance, use_custom_riksnorm")
+            .select("enable_assistance, use_custom_riksnorm, show_debts") // ⭐ NYTT
             .eq("id", householdId)
             .maybeSingle();
 
         enableAssistance = household?.enable_assistance ?? false;
         useCustomRiksnorm = household?.use_custom_riksnorm ?? false;
+
+        // ⭐ NYTT
+        showDebts = household?.show_debts ?? false;
     }
 
     let customRiksnorm = null;
@@ -68,7 +77,10 @@ export const load: PageServerLoad = async ({ locals }) => {
         role: memberData?.role ?? "member",
         useCustomRiksnorm,
         customRiksnorm,
-        selectedYear: year
+        selectedYear: year,
+
+        // ⭐ NYTT
+        showDebts
     };
 };
 
@@ -89,6 +101,9 @@ export const actions: Actions = {
         const adult = form.get("riksnormAdult");
         const child = form.get("riksnormChild");
         const shared = form.get("riksnormShared");
+
+        // ⭐ NYTT
+        const showDebts = form.get("showDebts") === "on";
 
         const year = new Date().getFullYear();
 
@@ -142,7 +157,10 @@ export const actions: Actions = {
             .from("households")
             .update({
                 enable_assistance: enableAssistance,
-                use_custom_riksnorm: useCustomRiksnorm
+                use_custom_riksnorm: useCustomRiksnorm,
+
+                // ⭐ NYTT
+                show_debts: showDebts
             })
             .eq("id", householdId);
 
@@ -172,7 +190,10 @@ export const actions: Actions = {
             isMember,
             hasGuardian: effectiveHasGuardian,
             enableAssistance,
-            useCustomRiksnorm
+            useCustomRiksnorm,
+
+            // ⭐ NYTT
+            showDebts
         };
     },
 

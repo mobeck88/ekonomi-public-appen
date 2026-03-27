@@ -27,6 +27,9 @@
 
     const currentYear = new Date().getFullYear();
     const years = Array.from({ length: 7 }, (_, i) => currentYear - 5 + i);
+
+    // ⭐ NYTT FÄLT
+    let showDebts = form?.showDebts ?? data.showDebts;
 </script>
 
 <h1>Inställningar</h1>
@@ -72,6 +75,12 @@
                     </div>
                 {/if}
             {/if}
+
+            <!-- ⭐ NY CHECKBOX -->
+            <label class="checkbox-row">
+                <input type="checkbox" name="showDebts" bind:checked={showDebts}>
+                Visa skulder i menyn
+            </label>
 
             {#if !hideGuardianCheckbox}
                 <label class="checkbox-row">
@@ -124,6 +133,7 @@
 {#if message}
     <p class="feedback">{message}</p>
 {/if}
+
 
 <style>
     h1 {

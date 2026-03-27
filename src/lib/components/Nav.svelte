@@ -4,6 +4,9 @@
     export let householdId;
     export let enable_assistance;
 
+    // ⭐ NYTT
+    export let showDebts;
+
     let open = false;
 
     const baseLinks = [
@@ -36,6 +39,14 @@
                   { label: "Beräkning", path: "/assistance" },
                   { label: "Fasta utgifter", path: "/expenses_riksnorm" },
                   { label: "Ekonomiskt bistånd", path: "/economic_assistance" }
+              ]
+            : []),
+
+        // ⭐ NYTT: Skulder-sektion
+        ...(showDebts
+            ? [
+                  { label: "Skulder", header: true },
+                  { label: "Inkasso", path: "/debtsview" }
               ]
             : []),
 
@@ -100,6 +111,10 @@
 
     <button class="logout" on:click={logout}>Logga ut</button>
 </nav>
+
+<style>
+    /* Din CSS är oförändrad */
+</style>
 
 <style>
     .mobile-nav {
