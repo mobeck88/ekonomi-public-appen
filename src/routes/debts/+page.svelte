@@ -1,0 +1,352 @@
+<script>
+    export let data;
+    const access = data.access;
+
+    let selected = null;
+    let showList = false;
+    let showForm = false;
+
+    const members = access.selectableMembers ?? [];
+    let selectedUserId = access.selectedUserId;
+
+    let companies = [...(data.companies ?? [])];
+
+    function newDebt() {
+        selected = null;
+        showForm = true;
+    }
+
+    function editDebt(d) {
+        selected = {
+            ...structuredClone(d),
+            isAddingCompany: false,
+            newCompanyName: ''
+        };
+        showForm = true;
+        showList = false;
+    }
+
+    function toCurrency(n) {
+        return Number(n ?? 0);
+    }
+
+    async function createCompanyInline(stateObj) {
+        const name = stateObj.newCompanyName?.trim();
+        if (!name) return;
+
+        const form = new FormData();
+        form.append('name', name);
+
+        const res = await fetch('?/create_company', { method: 'POST', body: form });
+
+        if (res.ok) {
+            const company = await res.json();
+            companies = [...companies, company];
+
+            stateObj.collection_company_id = company.id;
+            stateObj.isAddingCompany = false;
+            stateObj.newCompanyName = '';
+        }
+    }
+
+    function cancelNewCompany(stateObj) {
+        stateObj.isAddingCompany = false;
+        stateObj.newCompanyName = '';
+        stateObj.collection_company_id = '';
+    }
+</script>
+
+<h1>Skulder</h1>
+
+{#if access.isOwner || access.isGuardian}
+    <div class="section">
+        <form method="GET" class="member-selector">
+            <label for="user_id">Visa skulder för</label>
+
+            <select
+                id="user_id"
+                name="user_id"
+                bind:value={selectedUserId}
+                on:change={(e) => e.target.form.submit()}
+            >
+                {#each members as m}
+                    <option value={m.user_id}>
+                        {m.profiles.full_name}
+                        {m.user_id === access.currentUserId ? ' (du)' : ''}
+                    </option>
+                {/each}
+            </select>
+        </form>
+    </div>
+{/if}
+
+<div class="section">
+    <button class="section-header" on:click={() => (showList = !showList)}>
+        <span>Sparade skulder</span>
+        <span>{showList ? '▲' : '▼'}</span>
+    </button>
+
+    {#if showList}
+        {#if data.debts.length === 0}
+            <p class="empty">Inga skulder registrerade ännu.</p>
+        {:else}
+            <table class="month-list">
+                <tbody>
+                    {#each data.debts as d}
+                        <tr on:click={() => access.canEdit && editDebt(d)}>
+                            <td>
+                                <strong>{d.title}</strong><br />
+                                {toCurrency(d.amount)} kr
+                            </td>
+
+                            <td>
+                                <strong>Grundföretag</strong><br />
+                                {d.original_company_name}<br />
+                                {d.original_reference}
+                            </td>
+
+                            <td>
+                                <strong>Inkasso</strong><br />
+                                {d.collection_company_name ?? '—'}<br />
+                                {d.collection_reference ?? ''}
+                            </td>
+
+                            <td>
+                                <strong>Kronofogden</strong><br />
+                                {d.is_kronofogden ? 'Ja' : 'Nej'}
+                            </td>
+                        </tr>
+                    {/each}
+                </tbody>
+            </table>
+        {/if}
+    {/if}
+</div>
+
+{#if access.canEdit}
+    <div class="section">
+        <button class="section-header" on:click={() => (showForm = !showForm)}>
+            <span>{selected?.id ? 'Redigera skuld' : 'Ny skuld'}</span>
+            <span>{showForm ? '▲' : '▼'}</span>
+        </button>
+
+        {#if showForm}
+            <form
+                method="POST"
+                action={selected?.id ? '?/update_debt' : '?/create_debt'}
+                class="create-form"
+            >
+                {#if selected?.id}
+                    <input type="hidden" name="debt_id" value={selected.id} />
+                {/if}
+
+                <input type="hidden" name="selected_user_id" value={selectedUserId} />
+
+                <label>Titel</label>
+                <input
+                    type="text"
+                    name="title"
+                    required
+                    value={selected?.title ?? ''}
+                />
+
+                <label>Grundföretag</label>
+                <input
+                    type="text"
+                    name="original_company_name"
+                    required
+                    value={selected?.original_company_name ?? ''}
+                />
+
+                <label>Referensnummer (grundföretag)</label>
+                <input
+                    type="text"
+                    name="original_reference"
+                    value={selected?.original_reference ?? ''}
+                />
+
+                <label>Inkassobolag</label>
+
+                {#if selected?.isAddingCompany}
+                    <input
+                        type="text"
+                        placeholder="Nytt inkassobolag…"
+                        bind:value={selected.newCompanyName}
+                    />
+                    <div style="display:flex; gap:0.5rem;">
+                        <button type="button" on:click={() => createCompanyInline(selected)}>
+                            Spara
+                        </button>
+                        <button
+                            type="button"
+                            class="danger"
+                            on:click={() => cancelNewCompany(selected)}
+                        >
+                            Ångra
+                        </button>
+                    </div>
+                {:else}
+                    <select
+                        name="collection_company_id"
+                        bind:value={selected?.collection_company_id}
+                        on:change={(e) => {
+                            if (e.target.value === '__new__') {
+                                selected.isAddingCompany = true;
+                                selected.newCompanyName = '';
+                                selected.collection_company_id = '';
+                            }
+                        }}
+                    >
+                        <option value="">Inget inkasso</option>
+                        {#each companies as c}
+                            <option value={c.id}>{c.name}</option>
+                        {/each}
+                        <option value="__new__">Lägg till nytt…</option>
+                    </select>
+                {/if}
+
+                <label>Referensnummer (inkasso)</label>
+                <input
+                    type="text"
+                    name="collection_reference"
+                    value={selected?.collection_reference ?? ''}
+                />
+
+                <label>Belopp</label>
+                <input
+                    type="number"
+                    step="0.01"
+                    name="amount"
+                    required
+                    value={selected?.amount ?? ''}
+                />
+
+                <label style="display:flex; align-items:center; gap:0.5rem;">
+                    <input
+                        type="checkbox"
+                        name="is_kronofogden"
+                        bind:checked={selected.is_kronofogden}
+                    />
+                    Är hos Kronofogden
+                </label>
+
+                <button type="submit">
+                    {selected?.id ? 'Spara ändringar' : 'Spara skuld'}
+                </button>
+            </form>
+        {/if}
+    </div>
+{/if}
+
+<style>
+    h1 {
+        margin-bottom: 1.2rem;
+        color: #1f2937;
+        font-size: 1.6rem;
+        font-weight: 700;
+    }
+
+    .section {
+        margin-bottom: 1.5rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        overflow: hidden;
+        background: #ffffff;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .section-header {
+        width: 100%;
+        background: #f3f4f6;
+        border: none;
+        padding: 1rem 1.2rem;
+        font-size: 1.05rem;
+        font-weight: 600;
+        display: flex;
+        justify-content: space-between;
+        cursor: pointer;
+        color: #111827;
+    }
+
+    .section-header:hover {
+        background: #e5e7eb;
+    }
+
+    .empty {
+        padding: 1rem;
+        color: #6b7280;
+    }
+
+    .create-form {
+        display: grid;
+        gap: 0.9rem;
+        padding: 1rem;
+        max-width: 420px;
+    }
+
+    input,
+    select {
+        padding: 0.65rem;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        background: #f9fafb;
+    }
+
+    input:focus,
+    select:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 2px #dbeafe;
+        background: #ffffff;
+    }
+
+    button {
+        padding: 0.75rem 1rem;
+        border: none;
+        background: #2563eb;
+        color: white;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.95rem;
+        font-weight: 600;
+        transition: background 0.15s;
+    }
+
+    button:hover {
+        background: #1d4ed8;
+    }
+
+    button.danger {
+        background: #dc2626;
+    }
+
+    button.danger:hover {
+        background: #b91c1c;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    td,
+    th {
+        padding: 0.75rem;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 0.95rem;
+        vertical-align: top;
+    }
+
+    tr:hover {
+        background: #f3f4f6;
+        cursor: pointer;
+    }
+
+    .member-selector {
+        padding: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+</style>
