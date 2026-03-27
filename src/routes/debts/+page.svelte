@@ -1,4 +1,6 @@
 <script lang="ts">
+    import { tick } from 'svelte';   <!-- FIX: behövs för att vänta på DOM -->
+
     export let data: any;
     const access = data.access;
 
@@ -47,7 +49,6 @@
 
     function toggleForm() {
         if (!showForm) {
-            // Vi öppnar formuläret – se till att selected alltid är satt
             if (!selected) {
                 newDebt();
             } else {
@@ -81,6 +82,8 @@
             stateObj.collection_company_id = company.id;
             stateObj.isAddingCompany = false;
             stateObj.newCompanyName = '';
+
+            await tick();   <!-- FIX: säkerställer att <select> uppdateras -->
         }
     }
 
@@ -220,6 +223,7 @@
                             Ångra
                         </button>
                     </div>
+
                 {:else}
                     <select
                         name="collection_company_id"
@@ -272,6 +276,7 @@
         {/if}
     </div>
 {/if}
+
 
 <style>
     h1 {
