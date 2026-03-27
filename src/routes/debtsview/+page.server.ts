@@ -10,23 +10,27 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     const householdId = locals.householdId;
     const selectedUserId = access.selectedUserId;
 
+    // ⭐ Hämta inkassobolag
     const { data: companies } = await supabase
         .from('collection_companies')
         .select('*')
         .eq('household_id', householdId)
         .order('name', { ascending: true });
 
+    // ⭐ Hämta skulder
     const { data: debts } = await supabase
         .from('debts')
         .select('*')
         .eq('household_id', householdId)
         .eq('user_id', selectedUserId);
 
+    // ⭐ Gruppering och totalsummor
     const grouped: Record<string, any[]> = {};
     const totals: Record<string, number> = {};
 
     for (const d of debts ?? []) {
         const key = d.collection_company_id ?? 'none';
+
         if (!grouped[key]) grouped[key] = [];
         grouped[key].push(d);
 
@@ -34,6 +38,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
         totals[key] += Number(d.amount ?? 0);
     }
 
+    // ⭐ Kronofogden-lista
     const krono = (debts ?? []).filter((d) => d.is_kronofogden);
 
     return {
@@ -45,6 +50,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     };
 };
 
+// ⭐ Hjälpfunktion för att säkerställa att användaren får redigera rätt person
 function resolveTargetUserId(access: any, form: FormData): string {
     const selected = form.get('selected_user_id')?.toString();
     if (!selected) return access.selectedUserId;
@@ -56,6 +62,7 @@ function resolveTargetUserId(access: any, form: FormData): string {
 }
 
 export const actions: Actions = {
+    // ⭐ Skapa inkassobolag inline
     create_company: async ({ request, locals, url }) => {
         const access = await getAccessContext(locals, url);
         if (!access.allowed) throw redirect(303, '/login');
@@ -87,6 +94,7 @@ export const actions: Actions = {
         });
     },
 
+    // ⭐ Uppdatera skuld
     update_debt: async ({ request, locals, url }) => {
         const access = await getAccessContext(locals, url);
         if (!access.allowed) throw redirect(303, '/login');
@@ -101,10 +109,12 @@ export const actions: Actions = {
         const debtId = form.get('debt_id')?.toString();
         if (!debtId) return fail(400, { message: 'Saknar debt_id' });
 
+        // ⭐ Hantera inkassobolag
         const rawCompanyId = form.get('collection_company_id')?.toString() ?? '';
         const collection_company_id =
             rawCompanyId === '' || rawCompanyId === '__new__' ? null : rawCompanyId;
 
+        // ⭐ Belopp
         const amountRaw = form.get('amount')?.toString() ?? '';
         const amount = amountRaw ? Number(amountRaw) : NaN;
 
@@ -134,6 +144,7 @@ export const actions: Actions = {
         throw redirect(303, '/debtsview');
     },
 
+    // ⭐ Ta bort skuld
     delete_debt: async ({ request, locals, url }) => {
         const access = await getAccessContext(locals, url);
         if (!access.allowed) throw redirect(303, '/login');
