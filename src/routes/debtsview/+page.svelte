@@ -132,9 +132,7 @@
 
     <div class="card danger" on:click={openKrono}>
         <h2>Kronofogden</h2>
-        <p class="amount">
-            {toCurrency(totalKrono)} kr
-        </p>
+        <p class="amount">{toCurrency(totalKrono)} kr</p>
     </div>
 </div>
 
@@ -203,8 +201,99 @@
 {/if}
 
 {#if modalOpen && editing}
-    <!-- MODAL KOD OFÖRÄNDRAD -->
-    <!-- (jag lämnar den som den är eftersom du inte bad om ändringar där) -->
+    <div class="modal-backdrop" on:click={closeModal}></div>
+
+    <div class="modal" on:click|stopPropagation>
+        <h2>Redigera skuld</h2>
+
+        <form method="POST" action="?/update_debt" class="modal-form">
+            <input type="hidden" name="debt_id" value={editing.id} />
+            <input type="hidden" name="selected_user_id" value={access.selectedUserId} />
+
+            <label>Titel</label>
+            <input type="text" name="title" required bind:value={editing.title} />
+
+            <label>Grundföretag</label>
+            <input type="text" name="original_company_name" required bind:value={editing.original_company_name} />
+
+            <label>Referensnummer (grundföretag)</label>
+            <input type="text" name="original_reference" bind:value={editing.original_reference} />
+
+            <label>Inkassobolag</label>
+
+            {#if editing.isAddingCompany}
+                <input
+                    type="text"
+                    placeholder="Nytt inkassobolag…"
+                    bind:value={editing.newCompanyName}
+                />
+
+                <input type="hidden" name="collection_company_id" value={editing.collection_company_id} />
+
+                <div class="inline-buttons">
+                    <button type="button" on:click={() => createCompanyInline(editing)}>Spara bolag</button>
+                    <button type="button" class="danger" on:click={() => cancelNewCompany(editing)}>Ångra</button>
+                </div>
+
+            {:else}
+                <select
+                    name="collection_company_id"
+                    bind:value={editing.collection_company_id}
+                    on:change={(e) => {
+                        const v = e.target.value;
+                        if (v === '__new__') {
+                            editing.isAddingCompany = true;
+                            editing.newCompanyName = '';
+                            editing.collection_company_id = '';
+                        }
+                    }}
+                >
+                    <option value="">Inget inkasso</option>
+                    {#each data.companies as c}
+                        <option value={c.id}>{c.name}</option>
+                    {/each}
+                    <option value="__new__">Lägg till nytt…</option>
+                </select>
+            {/if}
+
+            <label>Referensnummer (inkasso)</label>
+            <input type="text" name="collection_reference" bind:value={editing.collection_reference} />
+
+            <label>Belopp</label>
+            <input type="number" step="0.01" name="amount" required bind:value={editing.amount} />
+
+            <label class="checkbox-row">
+                <input type="checkbox" name="is_kronofogden" bind:checked={editing.is_kronofogden} />
+                Är hos Kronofogden
+            </label>
+
+            <div class="modal-actions">
+                <button type="submit">Spara</button>
+                <button type="button" class="secondary" on:click={closeModal}>Stäng</button>
+            </div>
+        </form>
+
+        <form method="POST" action="?/delete_debt" class="delete-form">
+            <input type="hidden" name="debt_id" value={editing.id} />
+            <input type="hidden" name="selected_user_id" value={access.selectedUserId} />
+
+            {#if !confirmDelete}
+                <button type="button" class="danger" on:click={() => (confirmDelete = true)}>
+                    Ta bort skuld
+                </button>
+            {:else}
+                <div class="confirm-box">
+                    <span>Är du säker på att du vill ta bort skulden?</span>
+                    <div class="inline-buttons">
+                        <button type="submit" class="danger">Ja, ta bort</button>
+                        <button type="button" class="secondary" on:click={() => (confirmDelete = false)}>
+                            Avbryt
+                        </button>
+                    </div>
+                </div>
+            {/if}
+        </form>
+    </div>
 {/if}
 
 <style>
@@ -218,199 +307,63 @@
         font-size: 1.1rem;
     }
 
-    .totals-bar div {
-        display: flex;
-        flex-direction: column;
-    }
-
     .total-all {
         margin-left: auto;
         font-size: 1.2rem;
         color: #111;
     }
 
-    h1 {
-        margin-bottom: 1.2rem;
-        color: #1f2937;
-        font-size: 1.6rem;
-        font-weight: 700;
-    }
-
-    .top-actions {
-        display: flex;
-        justify-content: flex-end;
-        margin-bottom: 1rem;
-    }
-
-    .new-link {
-        color: #2563eb;
-        font-weight: 600;
-        text-decoration: none;
-    }
-
-    .new-link:hover {
-        text-decoration: underline;
-    }
-
     .grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
         gap: 1rem;
         margin-bottom: 2rem;
     }
 
     .card {
+        background: white;
         padding: 1rem;
-        border-radius: 12px;
-        background: #ffffff;
-        border: 1px solid #e5e7eb;
+        border-radius: 8px;
         cursor: pointer;
-        transition: 0.15s;
-    }
-
-    .card:hover {
-        background: #f3f4f6;
-    }
-
-    .card h2 {
-        margin: 0;
-        font-size: 1.1rem;
-        font-weight: 600;
-    }
-
-    .amount {
-        margin-top: 0.5rem;
-        font-size: 1.2rem;
-        font-weight: 700;
-        color: #2563eb;
+        border: 1px solid #e5e7eb;
     }
 
     .card.danger {
-        border-color: #dc2626;
+        background: #fee2e2;
+        border-color: #fca5a5;
     }
-
-    .card.danger .amount {
-        color: #dc2626;
-    }
-
-    .table-title {
-        margin-top: 1rem;
-        margin-bottom: 0.5rem;
-        font-size: 1.3rem;
-        font-weight: 600;
-    }
-
-    table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-bottom: 1rem;
-    }
-
-    th,
-    td {
-        padding: 0.75rem;
-        border-bottom: 1px solid #e5e7eb;
-        font-size: 0.95rem;
-        vertical-align: top;
-    }
-
-    tr:hover {
-        background: #f3f4f6;
-        cursor: pointer;
-    }
-
-    /* Modal */
 
     .modal-backdrop {
         position: fixed;
         inset: 0;
-        background: rgba(0, 0, 0, 0.35);
-        z-index: 40;
+        background: rgba(0,0,0,0.4);
     }
 
     .modal {
         position: fixed;
-        inset: 0;
-        margin: auto;
-        max-width: 480px;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        padding: 2rem;
+        border-radius: 10px;
+        width: 90%;
+        max-width: 500px;
         max-height: 90vh;
-        background: #ffffff;
-        border-radius: 12px;
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-        padding: 1.25rem 1.5rem;
-        z-index: 50;
         overflow-y: auto;
     }
 
-    .modal h2 {
-        margin-top: 0;
-        margin-bottom: 1rem;
-        font-size: 1.3rem;
-        font-weight: 600;
-    }
-
-    .modal-form {
-        display: grid;
-        gap: 0.75rem;
-    }
-
-    input,
-    select {
-        padding: 0.6rem;
-        border: 1px solid #d1d5db;
-        border-radius: 8px;
-        font-size: 0.95rem;
-        background: #f9fafb;
-    }
-
-    input:focus,
-    select:focus {
-        outline: none;
-        border-color: #2563eb;
-        box-shadow: 0 0 0 2px #dbeafe;
-        background: #ffffff;
-    }
-
-    label {
-        font-size: 0.9rem;
-        font-weight: 500;
-    }
-
-    .checkbox-row {
+    .modal-form,
+    .delete-form {
         display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin-top: 0.25rem;
+        flex-direction: column;
+        gap: 1rem;
+        margin-top: 1rem;
     }
 
-    button {
-        padding: 0.6rem 1rem;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 0.95rem;
-        font-weight: 600;
-        transition: background 0.15s;
-    }
-
-    button:hover {
-        opacity: 0.95;
-    }
-
-    .modal-actions {
+    .inline-buttons {
         display: flex;
         gap: 0.5rem;
-        margin-top: 0.5rem;
-    }
-
-    .modal-actions button[type='submit'] {
-        background: #2563eb;
-        color: white;
-    }
-
-    .secondary {
-        background: #e5e7eb;
-        color: #111827;
     }
 
     .danger {
@@ -418,23 +371,13 @@
         color: white;
     }
 
-    .delete-form {
-        margin-top: 1rem;
-        border-top: 1px solid #e5e7eb;
-        padding-top: 0.75rem;
+    .secondary {
+        background: #e5e7eb;
     }
 
-    .confirm-box {
+    .checkbox-row {
         display: flex;
-        flex-direction: column;
+        align-items: center;
         gap: 0.5rem;
-        font-size: 0.9rem;
-        color: #111827;
-    }
-
-    .inline-buttons {
-        display: flex;
-        gap: 0.5rem;
-        flex-wrap: wrap;
     }
 </style>
