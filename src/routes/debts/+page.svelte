@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { tick } from 'svelte';   <!-- FIX: behövs för att vänta på DOM -->
+    import { tick } from 'svelte';
 
     export let data: any;
     const access = data.access;
@@ -83,7 +83,7 @@
             stateObj.isAddingCompany = false;
             stateObj.newCompanyName = '';
 
-            await tick();   <!-- FIX: säkerställer att <select> uppdateras -->
+            await tick(); // FIX: säkerställer att <select> uppdateras innan bind:value körs
         }
     }
 
@@ -276,7 +276,6 @@
         {/if}
     </div>
 {/if}
-
 
 <style>
     h1 {
