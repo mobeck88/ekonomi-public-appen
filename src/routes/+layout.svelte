@@ -5,6 +5,9 @@
   const user = data.user;
   const householdId = data.householdId;
   const enable_assistance = data.enable_assistance;
+
+  // ⭐ NYTT
+  const showDebts = data.showDebts;
 </script>
 
 <div class="app-container">
@@ -12,7 +15,8 @@
     <Nav 
       user={user} 
       householdId={householdId} 
-      enable_assistance={enable_assistance} 
+      enable_assistance={enable_assistance}
+      showDebts={showDebts}   <!-- ⭐ KRITISK RAD -->
     />
   {/if}
 
