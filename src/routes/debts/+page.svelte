@@ -12,7 +12,17 @@
     let companies = [...(data.companies ?? [])];
 
     function newDebt() {
-        selected = null;
+        selected = {
+            title: '',
+            original_company_name: '',
+            original_reference: '',
+            collection_company_id: '',
+            collection_reference: '',
+            amount: '',
+            is_kronofogden: false,
+            isAddingCompany: false,
+            newCompanyName: ''
+        };
         showForm = true;
     }
 
@@ -188,7 +198,7 @@
                 {:else}
                     <select
                         name="collection_company_id"
-                        bind:value={selected?.collection_company_id}
+                        bind:value={selected.collection_company_id}
                         on:change={(e) => {
                             if (e.target.value === '__new__') {
                                 selected.isAddingCompany = true;
