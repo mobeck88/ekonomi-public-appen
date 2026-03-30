@@ -101,8 +101,31 @@ export const actions: Actions = {
         const targetUserId = resolveTargetUserId(access, form);
 
         const rawCompanyId = form.get('collection_company_id')?.toString() ?? '';
-        const collection_company_id =
-            rawCompanyId === '' || rawCompanyId === '__new__' ? null : rawCompanyId;
+
+        let collection_company_id: string | null = null;
+
+        if (rawCompanyId === '__new__') {
+            const newName = form.get('new_company_name')?.toString().trim();
+            if (!newName) return fail(400, { message: 'Nytt bolagsnamn saknas' });
+
+            const { data: newCompany, error: companyError } = await supabase
+                .from('collection_companies')
+                .insert({
+                    household_id: householdId,
+                    user_id: access.currentUserId,
+                    name: newName
+                })
+                .select('id')
+                .single();
+
+            if (companyError || !newCompany) {
+                return fail(500, { message: 'Kunde inte skapa nytt bolag' });
+            }
+
+            collection_company_id = newCompany.id;
+        } else if (rawCompanyId !== '') {
+            collection_company_id = rawCompanyId;
+        }
 
         const amountRaw = form.get('amount')?.toString() ?? '';
         const amount = amountRaw ? Number(amountRaw) : NaN;
@@ -144,8 +167,32 @@ export const actions: Actions = {
         if (!debtId) return fail(400, { message: 'Saknar debt_id' });
 
         const rawCompanyId = form.get('collection_company_id')?.toString() ?? '';
-        const collection_company_id =
-            rawCompanyId === '' || rawCompanyId === '__new__' ? null : rawCompanyId;
+
+        let collection_company_id: string | null = null;
+
+        // ⭐ Minimal fix även här
+        if (rawCompanyId === '__new__') {
+            const newName = form.get('new_company_name')?.toString().trim();
+            if (!newName) return fail(400, { message: 'Nytt bolagsnamn saknas' });
+
+            const { data: newCompany, error: companyError } = await supabase
+                .from('collection_companies')
+                .insert({
+                    household_id: householdId,
+                    user_id: access.currentUserId,
+                    name: newName
+                })
+                .select('id')
+                .single();
+
+            if (companyError || !newCompany) {
+                return fail(500, { message: 'Kunde inte skapa nytt bolag' });
+            }
+
+            collection_company_id = newCompany.id;
+        } else if (rawCompanyId !== '') {
+            collection_company_id = rawCompanyId;
+        }
 
         const amountRaw = form.get('amount')?.toString() ?? '';
         const amount = amountRaw ? Number(amountRaw) : NaN;

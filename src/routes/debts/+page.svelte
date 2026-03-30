@@ -198,8 +198,9 @@
                         bind:value={selected.newCompanyName}
                     />
 
-                    <!-- ⭐ KRITISK FIX: hidden input -->
-                    <input type="hidden" name="collection_company_id" value={selected.collection_company_id} />
+                    <!-- ⭐ Minimal fix: skickar rätt värden även vid UPDATE -->
+                    <input type="hidden" name="collection_company_id" value="__new__" />
+                    <input type="hidden" name="new_company_name" value={selected.newCompanyName} />
 
                     <div class="inline-buttons">
                         <button type="button" on:click={() => createCompanyInline(selected)}>Spara</button>
@@ -214,7 +215,7 @@
                             if (e.target.value === '__new__') {
                                 selected.isAddingCompany = true;
                                 selected.newCompanyName = '';
-                                selected.collection_company_id = '';
+                                selected.collection_company_id = '__new__';
                             }
                         }}
                     >
