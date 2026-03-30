@@ -64,28 +64,8 @@
         return Number.isFinite(num) ? num : 0;
     }
 
-    async function createCompanyInline(stateObj: any) {
-        const name = stateObj.newCompanyName?.trim();
-        if (!name) return;
-
-        const form = new FormData();
-        form.append('name', name);
-
-        const res = await fetch('?/create_company', { method: 'POST', body: form });
-
-        if (res.ok) {
-            const company = await res.json();
-            if (!company?.id) return;
-
-            companies = [...companies, company];
-
-            stateObj.collection_company_id = company.id;
-            stateObj.isAddingCompany = false;
-            stateObj.newCompanyName = '';
-
-            await tick();
-        }
-    }
+    // ⭐ INLINE-SKAPANDE BORTTAGET
+    // async function createCompanyInline(...) { ... }  ← borttagen
 
     function cancelNewCompany(stateObj: any) {
         stateObj.isAddingCompany = false;
@@ -198,12 +178,12 @@
                         bind:value={selected.newCompanyName}
                     />
 
-                    <!-- ⭐ Minimal fix: skickar rätt värden även vid UPDATE -->
+                    <!-- ⭐ Minimal fix: endast backend skapar -->
                     <input type="hidden" name="collection_company_id" value="__new__" />
                     <input type="hidden" name="new_company_name" value={selected.newCompanyName} />
 
                     <div class="inline-buttons">
-                        <button type="button" on:click={() => createCompanyInline(selected)}>Spara</button>
+                        <!-- ⭐ KNAPP BORTTAGEN -->
                         <button type="button" class="danger" on:click={() => cancelNewCompany(selected)}>Ångra</button>
                     </div>
 
