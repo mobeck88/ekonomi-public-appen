@@ -10,21 +10,18 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     const householdId = locals.householdId;
     const selectedUserId = access.selectedUserId;
 
-    // ⭐ Hämta inkassobolag
     const { data: companies } = await supabase
         .from('collection_companies')
         .select('*')
         .eq('household_id', householdId)
         .order('name', { ascending: true });
 
-    // ⭐ Hämta skulder
     const { data: debts } = await supabase
         .from('debts')
         .select('*')
         .eq('household_id', householdId)
         .eq('user_id', selectedUserId);
 
-    // ⭐ Gruppering och totalsummor
     const grouped: Record<string, any[]> = {};
     const totals: Record<string, number> = {};
 
@@ -38,7 +35,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
         totals[key] += Number(d.amount ?? 0);
     }
 
-    // ⭐ Kronofogden-lista
     const krono = (debts ?? []).filter((d) => d.is_kronofogden);
 
     return {
@@ -50,7 +46,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     };
 };
 
-// ⭐ Hjälpfunktion för att säkerställa att användaren får redigera rätt person
 function resolveTargetUserId(access: any, form: FormData): string {
     const selected = form.get('selected_user_id')?.toString();
     if (!selected) return access.selectedUserId;
@@ -62,7 +57,6 @@ function resolveTargetUserId(access: any, form: FormData): string {
 }
 
 export const actions: Actions = {
-    // ⭐ Skapa inkassobolag inline
     create_company: async ({ request, locals, url }) => {
         const access = await getAccessContext(locals, url);
         if (!access.allowed) throw redirect(303, '/login');
@@ -94,7 +88,6 @@ export const actions: Actions = {
         });
     },
 
-    // ⭐ Uppdatera skuld
     update_debt: async ({ request, locals, url }) => {
         const access = await getAccessContext(locals, url);
         if (!access.allowed) throw redirect(303, '/login');
@@ -109,12 +102,34 @@ export const actions: Actions = {
         const debtId = form.get('debt_id')?.toString();
         if (!debtId) return fail(400, { message: 'Saknar debt_id' });
 
-        // ⭐ Hantera inkassobolag
         const rawCompanyId = form.get('collection_company_id')?.toString() ?? '';
-        const collection_company_id =
-            rawCompanyId === '' || rawCompanyId === '__new__' ? null : rawCompanyId;
 
-        // ⭐ Belopp
+        let collection_company_id: string | null = null;
+
+        // ⭐ Minimal fix
+        if (rawCompanyId === '__new__') {
+            const newName = form.get('new_company_name')?.toString().trim();
+            if (!newName) return fail(400, { message: 'Nytt bolagsnamn saknas' });
+
+            const { data: newCompany, error: companyError } = await supabase
+                .from('collection_companies')
+                .insert({
+                    household_id: householdId,
+                    user_id: access.currentUserId,
+                    name: newName
+                })
+                .select('id')
+                .single();
+
+            if (companyError || !newCompany) {
+                return fail(500, { message: 'Kunde inte skapa nytt bolag' });
+            }
+
+            collection_company_id = newCompany.id;
+        } else if (rawCompanyId !== '') {
+            collection_company_id = rawCompanyId;
+        }
+
         const amountRaw = form.get('amount')?.toString() ?? '';
         const amount = amountRaw ? Number(amountRaw) : NaN;
 
@@ -144,7 +159,6 @@ export const actions: Actions = {
         throw redirect(303, '/debtsview');
     },
 
-    // ⭐ Ta bort skuld
     delete_debt: async ({ request, locals, url }) => {
         const access = await getAccessContext(locals, url);
         if (!access.allowed) throw redirect(303, '/login');

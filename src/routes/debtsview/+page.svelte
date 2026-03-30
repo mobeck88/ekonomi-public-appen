@@ -83,12 +83,8 @@
         stateObj.collection_company_id = '';
     }
 
-    // ⭐ TOTALSUMMOR
-
-    // Kronofogden: alla skulder i data.krono
     const totalKrono = data.krono.reduce((s, d) => s + Number(d.amount ?? 0), 0);
 
-    // Inkasso: totals per bolag (ej 'none') minus de som ligger hos Kronofogden
     const totalInkasso = Object.entries(data.totals)
         .filter(([key]) => key !== 'none')
         .reduce((sum, [companyId, totalForCompany]) => {
@@ -99,16 +95,13 @@
             return sum + (Number(totalForCompany ?? 0) - kronoForCompany);
         }, 0);
 
-    // Utan inkasso: används bara för kortet, inte i summeringen
     const totalUtanInkasso = Number(data.totals['none'] ?? 0);
 
-    // Total: endast Inkasso + Kronofogden
     const totalAll = totalKrono + totalInkasso;
 </script>
 
 <h1>Skuldöversikt</h1>
 
-<!-- ⭐ TOTALSUMMOR HÖGST UPP -->
 <div class="totals-bar">
     <div>
         <strong>Inkasso:</strong> {toCurrency(totalInkasso)} kr
@@ -236,7 +229,9 @@
                     bind:value={editing.newCompanyName}
                 />
 
-                <input type="hidden" name="collection_company_id" value={editing.collection_company_id} />
+                <!-- ⭐ Minimal fix -->
+                <input type="hidden" name="collection_company_id" value="__new__" />
+                <input type="hidden" name="new_company_name" value={editing.newCompanyName} />
 
                 <div class="inline-buttons">
                     <button type="button" on:click={() => createCompanyInline(editing)}>Spara bolag</button>
@@ -252,7 +247,7 @@
                         if (v === '__new__') {
                             editing.isAddingCompany = true;
                             editing.newCompanyName = '';
-                            editing.collection_company_id = '';
+                            editing.collection_company_id = '__new__';
                         }
                     }}
                 >
