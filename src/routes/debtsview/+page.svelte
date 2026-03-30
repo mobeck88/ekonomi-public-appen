@@ -84,21 +84,20 @@
     }
 
     // ⭐ KORRIGERADE TOTALSUMMOR
-    const allDebts = data.allDebts ?? [];
+    const totalKrono = data.krono.reduce((s, d) => s + Number(d.amount ?? 0), 0);
 
-    const totalKrono = allDebts
-        .filter(d => d.is_kronofogden)
-        .reduce((s, d) => s + Number(d.amount ?? 0), 0);
+    // Inkasso = totals per bolag minus de som ligger hos Kronofogden
+    const totalInkasso = Object.entries(data.totals)
+        .filter(([key]) => key !== 'none') // endast inkassobolag
+        .reduce((sum, [companyId, totalForCompany]) => {
+            const kronoForCompany = data.krono
+                .filter(d => d.collection_company_id === companyId)
+                .reduce((s, d) => s + Number(d.amount ?? 0), 0);
 
-    const totalInkasso = allDebts
-        .filter(d => d.collection_company_id && !d.is_kronofogden)
-        .reduce((s, d) => s + Number(d.amount ?? 0), 0);
+            return sum + (Number(totalForCompany ?? 0) - kronoForCompany);
+        }, 0);
 
-    const totalUtanInkasso = allDebts
-        .filter(d => !d.collection_company_id && !d.is_kronofogden)
-        .reduce((s, d) => s + Number(d.amount ?? 0), 0);
-
-    const totalAll = totalInkasso + totalUtanInkasso + totalKrono;
+    const totalAll = totalInkasso + totalKrono;
 </script>
 
 <h1>Skuldöversikt</h1>
@@ -107,9 +106,6 @@
 <div class="totals-bar">
     <div>
         <strong>Inkasso:</strong> {toCurrency(totalInkasso)} kr
-    </div>
-    <div>
-        <strong>Utan inkasso:</strong> {toCurrency(totalUtanInkasso)} kr
     </div>
     <div>
         <strong>Kronofogden:</strong> {toCurrency(totalKrono)} kr
@@ -131,11 +127,6 @@
         </div>
     {/each}
 
-    <div class="card" on:click={() => openCompany('none')}>
-        <h2>Utan inkasso</h2>
-        <p class="amount">{toCurrency(totalUtanInkasso)} kr</p>
-    </div>
-
     <div class="card danger" on:click={openKrono}>
         <h2>Kronofogden</h2>
         <p class="amount">{toCurrency(totalKrono)} kr</p>
@@ -144,9 +135,7 @@
 
 {#if selectedCompanyId !== null}
     <h2 class="table-title">
-        {selectedCompanyId === 'none'
-            ? 'Skulder utan inkasso'
-            : data.companies.find((c) => c.id === selectedCompanyId)?.name}
+        {data.companies.find((c) => c.id === selectedCompanyId)?.name}
     </h2>
 
     <table>
