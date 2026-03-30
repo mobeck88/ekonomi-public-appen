@@ -83,16 +83,22 @@
         stateObj.collection_company_id = '';
     }
 
-    // ⭐ TOTALSUMMOR
-    const totalKrono = data.krono.reduce((s, d) => s + Number(d.amount ?? 0), 0);
+    // ⭐ KORRIGERADE TOTALSUMMOR
+    const allDebts = data.allDebts ?? [];
 
-    const totalInkasso = Object.entries(data.totals)
-        .filter(([key]) => key !== 'none')
-        .reduce((s, [, v]) => s + Number(v ?? 0), 0);
+    const totalKrono = allDebts
+        .filter(d => d.is_kronofogden)
+        .reduce((s, d) => s + Number(d.amount ?? 0), 0);
 
-    const totalUtanInkasso = Number(data.totals['none'] ?? 0);
+    const totalInkasso = allDebts
+        .filter(d => d.collection_company_id && !d.is_kronofogden)
+        .reduce((s, d) => s + Number(d.amount ?? 0), 0);
 
-    const totalAll = totalKrono + totalInkasso + totalUtanInkasso;
+    const totalUtanInkasso = allDebts
+        .filter(d => !d.collection_company_id && !d.is_kronofogden)
+        .reduce((s, d) => s + Number(d.amount ?? 0), 0);
+
+    const totalAll = totalInkasso + totalUtanInkasso + totalKrono;
 </script>
 
 <h1>Skuldöversikt</h1>
@@ -127,7 +133,7 @@
 
     <div class="card" on:click={() => openCompany('none')}>
         <h2>Utan inkasso</h2>
-        <p class="amount">{toCurrency(data.totals['none'] ?? 0)} kr</p>
+        <p class="amount">{toCurrency(totalUtanInkasso)} kr</p>
     </div>
 
     <div class="card danger" on:click={openKrono}>
