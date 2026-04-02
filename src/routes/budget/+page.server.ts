@@ -82,7 +82,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         supabase.from('unexpected_expenses').select('*').eq('household_id', householdId),
         supabase.from('extra_income').select('*').eq('household_id', householdId),
         supabase.from('loans').select('*').eq('household_id', householdId),
-        supabase.from('expenses').select('*').eq('household_id', householdId),
+        supabase.from('expenses').select('*').eq('household_id', householdId), // ⭐ UTGIFTER
         supabase
             .from('income_months')
             .select('id, month_date')
@@ -119,21 +119,29 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         return String(value).slice(0, 7);
     };
 
+    // ⭐ Uppdaterad: används för fasta kostnader, abonnemang, sparande etc.
     const isActive = (row: any, ym: string) => {
         const start = toYM(row.start_month ?? row.start_date);
         const end = toYM(row.end_month ?? row.end_date);
         return start && start <= ym && (!end || end >= ym);
     };
 
-    const occursThisMonth = (row: any, ym: string) => {
+    // ⭐ Ny korrekt intervallhantering för UTGIFTER
+    const isExpenseActive = (row: any, ym: string) => {
         const start = toYM(row.start_month);
-        if (!start) return false;
+        const end = toYM(row.end_month);
+
+        if (!start || start > ym) return false;
+        if (end && end < ym) return false;
 
         const [startY, startM] = start.split('-').map(Number);
         const [curY, curM] = ym.split('-').map(Number);
 
         const diff = (curY - startY) * 12 + (curM - startM);
-        return diff >= 0 && diff % Number(row.interval_months ?? 1) === 0;
+        if (diff < 0) return false;
+
+        const interval = Number(row.interval_months ?? 1);
+        return diff % interval === 0;
     };
 
     const perUserOrShared = (rows: any[], ym: string) => {
@@ -202,15 +210,15 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         ])
     );
 
-    // ⭐ Utgifter – samma struktur som fasta kostnader
-    const expenseGroups = [...new Set(expenses.map((e) => e.cost_name as string))];
+    // ⭐ Utgifter – korrekt version med title + interval_months
+    const expenseGroups = [...new Set(expenses.map((e) => e.title as string))];
 
     const expensesPerGroup = Object.fromEntries(
         expenseGroups.map((name) => [
             name,
             months.map((m) =>
                 expenses
-                    .filter((e) => e.cost_name === name && isActive(e, m))
+                    .filter((e) => e.title === name && isExpenseActive(e, m))
                     .reduce((acc, e) => acc + Number(e.amount ?? 0), 0)
             )
         ])

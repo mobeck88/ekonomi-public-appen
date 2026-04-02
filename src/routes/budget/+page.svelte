@@ -27,7 +27,7 @@
         ...(data.hasEconomicAssistance
             ? [{ title: 'Fasta kostnader Bistånd', key: 'riksnormPerGroup', type: 'fixed' }]
             : []),
-        { title: 'Utgifter', key: 'expensesPerGroup', type: 'fixed' }, // ⭐ NY
+        { title: 'Utgifter', key: 'expensesPerGroup', type: 'fixed' }, // ⭐ KORREKT
         { title: 'Abonnemang', key: 'subs', type: 'perUser' },
         { title: 'Sparande', key: 'savings', type: 'perUser' },
         { title: 'Fickpengar', key: 'allowanceUser', type: 'perUser' },
@@ -71,7 +71,7 @@
             total += data.riksnormPerGroup[name][i];
         }
 
-        // Utgifter (samma struktur som fasta)
+        // Utgifter
         for (const name of Object.keys(data.expensesPerGroup ?? {})) {
             total += data.expensesPerGroup[name][i];
         }
