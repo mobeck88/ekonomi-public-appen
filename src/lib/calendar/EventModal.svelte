@@ -3,71 +3,114 @@
   export let event = null;
   export let members = [];
   export let onClose = () => {};
-  export let onSave = () => {};
-  export let onDelete = () => {};
+  export let onSave = (_payload: any) => {};
+  export let onDelete = (_id: string) => {};
 
   let title = '';
   let description = '';
   let start = '';
   let end = '';
-  let attendees = [];
+  let attendees: string[] = [];
+  let is_shared = false;
 
   $: if (event) {
-    title = event.title;
-    description = event.description;
-    start = event.start.slice(0, 16);
-    end = event.end.slice(0, 16);
+    title = event.title ?? '';
+    description = event.description ?? '';
+    start = event.start ? event.start.slice(0, 16) : '';
+    end = event.end ? event.end.slice(0, 16) : '';
     attendees = event.attendees ?? [];
+    is_shared = event.is_shared ?? false;
   } else {
     title = '';
     description = '';
     start = '';
     end = '';
     attendees = [];
+    is_shared = false; // default: min händelse
+  }
+
+  function toggleAttendee(id: string) {
+    attendees = attendees.includes(id)
+      ? attendees.filter((a) => a !== id)
+      : [...attendees, id];
+  }
+
+  function handleSave() {
+    onSave({
+      title,
+      description,
+      start,
+      end,
+      attendees,
+      is_shared
+    });
+    onClose();
   }
 </script>
 
 {#if open}
-<div class="overlay" on:click={onClose}>
-  <div class="modal" on:click|stopPropagation>
-    <h2>{event ? 'Redigera händelse' : 'Ny händelse'}</h2>
+  <div class="overlay" on:click={onClose}>
+    <div class="modal" on:click|stopPropagation>
+      <h2>{event ? 'Redigera händelse' : 'Ny händelse'}</h2>
 
-    <input bind:value={title} placeholder="Titel" />
-    <textarea bind:value={description} placeholder="Beskrivning"></textarea>
-    <input type="datetime-local" bind:value={start} />
-    <input type="datetime-local" bind:value={end} />
+      <div class="field">
+        <label>Titel</label>
+        <input bind:value={title} />
+      </div>
 
-    <label>Deltagare</label>
-    <div class="attendees">
-      {#each members as m}
-        <label class="member">
-          <input
-            type="checkbox"
-            value={m.id}
-            checked={attendees.includes(m.id)}
-            on:change={() => {
-              attendees = attendees.includes(m.id)
-                ? attendees.filter(a => a !== m.id)
-                : [...attendees, m.id];
-            }}
-          />
-          <span class="dot" style={`background:${m.color}`}></span>
-          {m.name}
+      <div class="field">
+        <label>Beskrivning</label>
+        <textarea bind:value={description}></textarea>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label>Start</label>
+          <input type="datetime-local" bind:value={start} />
+        </div>
+        <div class="field">
+          <label>Slut</label>
+          <input type="datetime-local" bind:value={end} />
+        </div>
+      </div>
+
+      <div class="field">
+        <label>
+          <input type="checkbox" bind:checked={is_shared} />
+          Delad händelse (annars bara min)
         </label>
-      {/each}
-    </div>
+      </div>
 
-    <div class="actions">
-      {#if event}
-        <button class="delete" on:click={() => onDelete(event.id)}>Radera</button>
+      {#if is_shared}
+        <div class="field">
+          <label>Deltagare</label>
+          <div class="attendees">
+            {#each members as m}
+              <label class="member">
+                <input
+                  type="checkbox"
+                  checked={attendees.includes(m.id)}
+                  on:change={() => toggleAttendee(m.id)}
+                />
+                <span class="dot" style={`background:${m.color}`}></span>
+                {m.name}
+              </label>
+            {/each}
+          </div>
+        </div>
       {/if}
-      <button on:click={() => onSave({ title, description, start, end, attendees })}>
-        Spara
-      </button>
-      <button on:click={onClose}>Stäng</button>
+
+      <div class="actions">
+        {#if event}
+          <button class="delete" on:click={() => onDelete(event.id)}>Radera</button>
+        {/if}
+        <div class="right">
+          <button type="button" on:click={handleSave}>Spara</button>
+          <button type="button" class="secondary" on:click={onClose}>Avbryt</button>
+        </div>
+      </div>
     </div>
   </div>
-</div>
 {/if}
 
 <style>
@@ -83,20 +126,39 @@
     background: white;
     padding: 1.5rem;
     border-radius: 8px;
-    width: 350px;
+    width: 380px;
+    max-width: 90vw;
+  }
+  .field {
+    margin-bottom: 0.75rem;
+  }
+  label {
+    font-size: 0.9rem;
+    display: block;
+    margin-bottom: 0.25rem;
   }
   input, textarea {
     width: 100%;
-    margin-bottom: 0.5rem;
     padding: 0.4rem;
+    box-sizing: border-box;
+  }
+  textarea {
+    min-height: 60px;
+  }
+  .row {
+    display: flex;
+    gap: 0.5rem;
   }
   .attendees {
-    margin-bottom: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
   }
   .member {
     display: flex;
     align-items: center;
     gap: 0.4rem;
+    font-size: 0.9rem;
   }
   .dot {
     width: 12px;
@@ -106,9 +168,25 @@
   .actions {
     display: flex;
     justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+  }
+  .right {
+    display: flex;
+    gap: 0.5rem;
   }
   .delete {
     background: #ff6b6b;
     color: white;
+    border: none;
+    padding: 0.4rem 0.8rem;
+    cursor: pointer;
+  }
+  button {
+    padding: 0.4rem 0.8rem;
+    cursor: pointer;
+  }
+  .secondary {
+    background: #eee;
   }
 </style>

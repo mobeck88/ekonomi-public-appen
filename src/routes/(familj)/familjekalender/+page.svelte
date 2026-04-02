@@ -8,11 +8,11 @@
   let modalOpen = false;
   let selectedEvent = null;
 
-  let filter = data.members.map(m => m.id);
+  let filter = data.members.map((m) => m.id);
 
-  function toggleFilter(id) {
+  function toggleFilter(id: string) {
     filter = filter.includes(id)
-      ? filter.filter(f => f !== id)
+      ? filter.filter((f) => f !== id)
       : [...filter, id];
   }
 
@@ -28,18 +28,18 @@
 
   async function saveEvent(payload) {
     if (selectedEvent) {
-      // UPDATE
       await fetch('?/update', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           event_id: selectedEvent.id,
           ...payload
         })
       });
     } else {
-      // CREATE
       await fetch('?/create', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
     }
@@ -47,9 +47,10 @@
     window.location.reload();
   }
 
-  async function deleteEvent(id) {
+  async function deleteEvent(id: string) {
     await fetch('?/delete', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ event_id: id })
     });
 
@@ -73,9 +74,10 @@
 />
 
 <CalendarView
-  events={data.events.filter(e =>
-    e.attendees.length === 0 ||
-    e.attendees.some(a => filter.includes(a))
+  events={data.events.filter(
+    (e) =>
+      e.attendees.length === 0 ||
+      e.attendees.some((a) => filter.includes(a))
   )}
   view={data.view}
   onSelect={openEvent}

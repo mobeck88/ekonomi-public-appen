@@ -1,7 +1,7 @@
 <script lang="ts">
   export let members = [];
   export let active = [];
-  export let onToggle = () => {};
+  export let onToggle = (_id: string) => {};
 </script>
 
 <div class="filters">
