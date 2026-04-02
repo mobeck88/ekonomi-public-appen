@@ -11,6 +11,10 @@
 
     const today = new Date();
 
+    function toLocalDate(d: Date) {
+        return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+
     function sameDay(a: Date, b: Date) {
         return (
             a.getFullYear() === b.getFullYear() &&
@@ -73,7 +77,7 @@
     }
 
     function normalizeDate(d: Date) {
-        return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        return toLocalDate(d);
     }
 
     function diffInDays(a: Date, b: Date) {
@@ -102,77 +106,55 @@
         const interval = rule['INTERVAL'] ? parseInt(rule['INTERVAL'], 10) : 1;
 
         const startRaw = new Date(e.start);
-        const start = new Date(startRaw.getFullYear(), startRaw.getMonth(), startRaw.getDate());
+        const start = toLocalDate(startRaw);
 
         const until = e.recurrence_end
-            ? normalizeDate(new Date(e.recurrence_end))
-            : new Date(start.getFullYear() + 5, start.getMonth(), start.getDate()); // default 5 år
+            ? toLocalDate(new Date(e.recurrence_end))
+            : new Date(start.getFullYear() + 5, start.getMonth(), start.getDate());
 
-        const d = normalizeDate(day);
+        const d = toLocalDate(day);
 
         if (d < start || d > until) return false;
 
         if (freq === 'DAILY') {
             const diff = diffInDays(start, d);
-            if (diff < 0) return false;
-            if (diff % interval !== 0) return false;
-            return true;
+            return diff >= 0 && diff % interval === 0;
         }
 
         if (freq === 'WEEKLY') {
             const diff = diffInDays(start, d);
             if (diff < 0) return false;
             const weeks = Math.floor(diff / 7);
-            if (weeks % interval !== 0) return false;
-            return true;
+            return weeks % interval === 0;
         }
 
         if (freq === 'MONTHLY') {
-            const sY = start.getFullYear();
-            const sM = start.getMonth();
-            const sD = start.getDate();
-
-            const dY = d.getFullYear();
-            const dM = d.getMonth();
-            const dD = d.getDate();
-
-            if (dD !== sD) return false;
-
-            const monthsDiff = (dY - sY) * 12 + (dM - sM);
-            if (monthsDiff < 0) return false;
-            if (monthsDiff % interval !== 0) return false;
-            return true;
+            if (d.getDate() !== start.getDate()) return false;
+            const monthsDiff =
+                (d.getFullYear() - start.getFullYear()) * 12 + (d.getMonth() - start.getMonth());
+            return monthsDiff >= 0 && monthsDiff % interval === 0;
         }
 
         if (freq === 'YEARLY') {
-            const sY = start.getFullYear();
-            const sM = start.getMonth();
-            const sD = start.getDate();
-
-            const dY = d.getFullYear();
-            const dM = d.getMonth();
-            const dD = d.getDate();
-
-            if (dM !== sM || dD !== sD) return false;
-
-            const yearsDiff = dY - sY;
-            if (yearsDiff < 0) return false;
-            if (yearsDiff % interval !== 0) return false;
-            return true;
+            return (
+                d.getDate() === start.getDate() &&
+                d.getMonth() === start.getMonth() &&
+                (d.getFullYear() - start.getFullYear()) % interval === 0
+            );
         }
 
         return false;
     }
 
     function eventsForDay(d: Date) {
-        const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const day = toLocalDate(d);
 
         return events.filter((e: any) => {
             const startRaw = new Date(e.start);
             const endRaw = e.end ? new Date(e.end) : new Date(e.start);
 
-            const start = new Date(startRaw.getFullYear(), startRaw.getMonth(), startRaw.getDate());
-            const end = new Date(endRaw.getFullYear(), endRaw.getMonth(), endRaw.getDate());
+            const start = toLocalDate(startRaw);
+            const end = toLocalDate(endRaw);
 
             if (end < start) end.setTime(start.getTime());
 

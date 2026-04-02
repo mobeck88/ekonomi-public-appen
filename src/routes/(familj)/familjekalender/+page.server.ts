@@ -68,11 +68,11 @@ function buildRRule(
 
     const untilPart = recurrence_end
         ? (() => {
-                const d = new Date(recurrence_end);
-                const y = d.getUTCFullYear();
-                const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-                const day = String(d.getUTCDate()).padStart(2, '0');
-                return `;UNTIL=${y}${m}${day}T000000Z`;
+              const d = new Date(recurrence_end);
+              const y = d.getUTCFullYear();
+              const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+              const day = String(d.getUTCDate()).padStart(2, '0');
+              return `;UNTIL=${y}${m}${day}T000000Z`;
           })()
         : '';
 
