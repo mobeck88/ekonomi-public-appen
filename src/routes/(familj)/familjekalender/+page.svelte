@@ -101,15 +101,16 @@
         const freq = rule['FREQ'];
         const interval = rule['INTERVAL'] ? parseInt(rule['INTERVAL'], 10) : 1;
 
-        const start = normalizeDate(new Date(e.start));
-        const until = e.recurrence_end ? normalizeDate(new Date(e.recurrence_end)) : null;
+        const startRaw = new Date(e.start);
+        const start = new Date(startRaw.getFullYear(), startRaw.getMonth(), startRaw.getDate());
+
+        const until = e.recurrence_end
+            ? normalizeDate(new Date(e.recurrence_end))
+            : new Date(start.getFullYear() + 5, start.getMonth(), start.getDate()); // default 5 år
+
         const d = normalizeDate(day);
 
-        if (d < start) return false;
-        if (until && d > until) return false;
-
-        const baseEnd = normalizeDate(new Date(e.end ?? e.start));
-        const durationDays = Math.max(0, diffInDays(start, baseEnd));
+        if (d < start || d > until) return false;
 
         if (freq === 'DAILY') {
             const diff = diffInDays(start, d);
@@ -164,14 +165,16 @@
     }
 
     function eventsForDay(d: Date) {
-        const day = normalizeDate(d);
+        const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
         return events.filter((e: any) => {
-            const start = normalizeDate(new Date(e.start));
+            const startRaw = new Date(e.start);
             const endRaw = e.end ? new Date(e.end) : new Date(e.start);
-            let end = normalizeDate(endRaw);
 
-            if (end < start) end = start;
+            const start = new Date(startRaw.getFullYear(), startRaw.getMonth(), startRaw.getDate());
+            const end = new Date(endRaw.getFullYear(), endRaw.getMonth(), endRaw.getDate());
+
+            if (end < start) end.setTime(start.getTime());
 
             if (!e.is_recurring) {
                 return day >= start && day <= end;
@@ -181,6 +184,7 @@
 
             const durationDays = Math.max(0, diffInDays(start, end));
             const diff = diffInDays(start, day);
+
             return diff >= 0 && diff <= durationDays;
         });
     }
