@@ -28,7 +28,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             incomePerUser: {},
             incomeTotal: [],
             economicAssistancePerMonth: [],
-            hasEconomicAssistance: false
+            hasEconomicAssistance: false,
+            expensesPerMonth: []   // ⭐ NYCKEL TILLAGD
         };
     }
 
@@ -38,7 +39,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         .select('user_id, role, profiles(full_name)')
         .eq('household_id', householdId);
 
-    // ⭐ Filtrera bort guardians helt
     const memberList =
         members
             ?.filter((m) => m.role !== 'guardian')
@@ -105,7 +105,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     const unexpected = unexpectedRes.data ?? [];
     const extra = extraRes.data ?? [];
     const loans = loansRes.data ?? [];
-    const expenses = expensesRes.data ?? [];
+    const expenses = expensesRes.data ?? [];   // ⭐ UTGIFTER
     const riksnorm = riksnormRes.data ?? [];
     const economicAssistance = economicAssistanceRes.data ?? [];
 
@@ -114,7 +114,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     const extraJobs = extraJobsRes.data ?? [];
     const fk = fkRes.data ?? [];
 
-    // Robust YYYY-MM extraktion
     const toYM = (value: any) => {
         if (!value) return null;
         return String(value).slice(0, 7);
@@ -137,7 +136,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         return diff >= 0 && diff % Number(row.interval_months ?? 1) === 0;
     };
 
-    // Per person + shared – utan dubbelräkning
     const perUserOrShared = (rows: any[], ym: string) => {
         const active = rows.filter((r) => isActive(r, ym));
         const result: Record<string, number> = {};
@@ -159,7 +157,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         return result;
     };
 
-    // ⭐ EL – summera eon_amount + tibber_amount per månad
+    // ⭐ EL
     const electricityPerMonth = months.map((m) =>
         electricityRows
             .filter((e) => toYM(e.month) === m)
@@ -192,22 +190,24 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         if (!ownerMap[key]) ownerMap[key] = f.owner ?? f.user_id ?? 'shared';
     }
 
-    // ⭐ Fasta kostnader Bistånd (expenses_riksnorm)
-    const riksnormPerGroup = Object.fromEntries(
-        [...new Set(riksnorm.map((f) => f.title as string))].map((name) => [
-            name,
-            months.map((m) =>
-                riksnorm
-                    .filter((f) => f.title === name && isActive(f, m))
-                    .reduce((acc, f) => acc + Number(f.amount ?? 0), 0)
-            )
-        ])
-    );
+    // ⭐ Fasta kostnader Bistånd — visas endast om hushållet har bistånd
+    const riksnormPerGroup = economicAssistance.length === 0
+        ? {}   // ⭐ DÖLJ HELT
+        : Object.fromEntries(
+            [...new Set(riksnorm.map((f) => f.title as string))].map((name) => [
+                name,
+                months.map((m) =>
+                    riksnorm
+                        .filter((f) => f.title === name && isActive(f, m))
+                        .reduce((acc, f) => acc + Number(f.amount ?? 0), 0)
+                )
+            ])
+        );
 
     // Abonnemang
     const subs = months.map((m) => perUserOrShared(subscriptions, m));
 
-    // ⭐ SPARANDE – korrekt user_id‑baserad logik
+    // ⭐ Sparande
     const savings = months.map((m) => {
         const result: Record<string, number> = {};
 
@@ -292,7 +292,14 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     const hasEconomicAssistance =
         economicAssistancePerMonth.reduce((a, b) => a + b, 0) > 0;
 
-    // ⭐ INKOMSTER – per person och total hushåll
+    // ⭐ UTGIFTER (från tabellen expenses)
+    const expensesPerMonth = months.map((m) =>
+        expenses
+            .filter((e) => toYM(e.date) === m)
+            .reduce((acc, e) => acc + Number(e.amount ?? 0), 0)
+    );
+
+    // ⭐ INKOMSTER
     const incomePerUser: Record<string, number[]> = {};
     for (const member of memberList) {
         incomePerUser[member.name] = months.map(() => 0);
@@ -357,6 +364,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         incomePerUser,
         incomeTotal,
         economicAssistancePerMonth,
-        hasEconomicAssistance
+        hasEconomicAssistance,
+        expensesPerMonth   // ⭐ NYCKEL TILLAGD
     };
 };
