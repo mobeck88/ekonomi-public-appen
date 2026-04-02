@@ -54,7 +54,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     const supabase = locals.supabase;
 
     if (!user) throw redirect(303, '/login');
-    if (!householdId) return { events: [], attendees: [], exceptions: [], view: 'week' };
+    if (!householdId) return { events: [], attendees: [], exceptions: [], members: [], view: 'week' };
 
     const view = url.searchParams.get('view') ?? 'week';
     const shift = url.searchParams.get('shift');
@@ -81,7 +81,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
     const { data: members } = await supabase
         .from('household_members')
-        .select('id, user_id, color')
+        .select('id, name, user_id, color')
         .eq('household_id', householdId);
 
     const { data: exceptions } = await supabase
@@ -89,7 +89,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
         .select('*')
         .in('parent_event_id', eventIds);
 
-    const memberById = new Map<string, { id: string; user_id: string | null; color: string | null }>();
+    const memberById = new Map<string, any>();
     const colorByUserId = new Map<string, string>();
 
     (members ?? []).forEach((m: any) => {
@@ -119,152 +119,18 @@ export const load: PageServerLoad = async ({ locals, url }) => {
             color = colorByUserId.get(e.created_by_user_id)!;
         }
 
-        return { ...e, color };
+        const attendeeColors = evAtt
+            .map(a => memberById.get(a.household_member_id)?.color)
+            .filter(Boolean);
+
+        return { ...e, attendees: evAtt.map(a => a.household_member_id), attendeeColors, color };
     });
 
     return {
         events,
         attendees: attendees ?? [],
         exceptions: exceptions ?? [],
+        members: members ?? [],
         view
     };
-};
-
-export const actions: Actions = {
-    create: async ({ request, locals }) => {
-        const user = locals.user;
-        const householdId = locals.householdId;
-        const supabase = locals.supabase;
-
-        if (!user) throw redirect(303, '/login');
-        if (!householdId) return { error: 'Inget hushåll kopplat.' };
-
-        const data = await request.formData();
-
-        const title = data.get('title');
-        const description = data.get('description');
-        const start = data.get('start');
-        const end = data.get('end');
-        const is_shared = data.get('is_shared') === 'true';
-        const attendees = JSON.parse(data.get('attendees') || '[]');
-        const recurrence_rule = data.get('recurrence_rule');
-        const recurrence_end = data.get('recurrence_end');
-        const reminders_minutes = JSON.parse(data.get('reminders_minutes') || '[]');
-
-        const { data: event, error: eventError } = await supabase
-            .from('family_calendar_events')
-            .insert({
-                household_id: householdId,
-                created_by_user_id: user.id,
-                title,
-                description,
-                start,
-                end,
-                is_shared,
-                reminders_minutes,
-                recurrence_rule,
-                recurrence_end,
-                is_recurring: recurrence_rule ? true : false
-            })
-            .select()
-            .single();
-
-        if (eventError) return { error: eventError.message };
-
-        if (attendees.length) {
-            await supabase.from('family_calendar_event_attendees').insert(
-                attendees.map((m: string) => ({
-                    event_id: event.id,
-                    household_member_id: m
-                }))
-            );
-        }
-
-        return { success: true };
-    },
-
-    update: async ({ request, locals }) => {
-        const user = locals.user;
-        const householdId = locals.householdId;
-        const supabase = locals.supabase;
-
-        if (!user) throw redirect(303, '/login');
-        if (!householdId) return { error: 'Inget hushåll kopplat.' };
-
-        const data = await request.formData();
-
-        const event_id = data.get('event_id');
-        const update_type = data.get('update_type');
-        const date = data.get('date');
-        const title = data.get('title');
-        const description = data.get('description');
-        const start = data.get('start');
-        const end = data.get('end');
-        const reminders_minutes = JSON.parse(data.get('reminders_minutes') || '[]');
-
-        if (update_type === 'single') {
-            const { error } = await supabase.from('family_calendar_event_exceptions').insert({
-                parent_event_id: event_id,
-                exception_date: date,
-                title,
-                description,
-                start,
-                end,
-                reminders_minutes
-            });
-
-            if (error) return { error: error.message };
-            return { success: true };
-        }
-
-        const { error } = await supabase
-            .from('family_calendar_events')
-            .update({
-                title,
-                description,
-                start,
-                end,
-                reminders_minutes
-            })
-            .eq('id', event_id);
-
-        if (error) return { error: error.message };
-
-        return { success: true };
-    },
-
-    delete: async ({ request, locals }) => {
-        const user = locals.user;
-        const householdId = locals.householdId;
-        const supabase = locals.supabase;
-
-        if (!user) throw redirect(303, '/login');
-        if (!householdId) return { error: 'Inget hushåll kopplat.' };
-
-        const data = await request.formData();
-
-        const event_id = data.get('event_id');
-        const delete_type = data.get('delete_type');
-        const date = data.get('date');
-
-        if (delete_type === 'single') {
-            const { error } = await supabase.from('family_calendar_event_exceptions').insert({
-                parent_event_id: event_id,
-                exception_date: date,
-                is_cancelled: true
-            });
-
-            if (error) return { error: error.message };
-            return { success: true };
-        }
-
-        const { error } = await supabase
-            .from('family_calendar_events')
-            .delete()
-            .eq('id', event_id);
-
-        if (error) return { error: error.message };
-
-        return { success: true };
-    }
 };
