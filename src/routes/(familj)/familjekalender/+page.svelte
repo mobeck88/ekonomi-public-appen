@@ -73,19 +73,117 @@
         mode = 'create';
     }
 
-    // flerdagarsevent: visas på alla dagar mellan start och slut
+    function normalizeDate(d: Date) {
+        const nd = new Date(d);
+        nd.setHours(0, 0, 0, 0);
+        return nd;
+    }
+
+    function diffInDays(a: Date, b: Date) {
+        const ms = normalizeDate(b).getTime() - normalizeDate(a).getTime();
+        return Math.floor(ms / (1000 * 60 * 60 * 24));
+    }
+
+    function parseRRule(rule: string | null) {
+        if (!rule) return null;
+        const parts = rule.split(';');
+        const out: Record<string, string> = {};
+        for (const p of parts) {
+            const [k, v] = p.split('=');
+            if (k && v) out[k.toUpperCase()] = v;
+        }
+        return out;
+    }
+
+    function isRecurringInstance(e: any, day: Date) {
+        if (!e.is_recurring || !e.recurrence_rule) return false;
+
+        const rule = parseRRule(e.recurrence_rule);
+        if (!rule || !rule['FREQ']) return false;
+
+        const freq = rule['FREQ'];
+        const interval = rule['INTERVAL'] ? parseInt(rule['INTERVAL'], 10) : 1;
+
+        const start = normalizeDate(new Date(e.start));
+        const end = normalizeDate(e.recurrence_end ? new Date(e.recurrence_end) : new Date('2100-01-01'));
+        const d = normalizeDate(day);
+
+        if (d < start || d > end) return false;
+
+        const baseEnd = normalizeDate(new Date(e.end));
+        const durationDays = Math.max(0, diffInDays(start, baseEnd));
+
+        if (freq === 'DAILY') {
+            const diff = diffInDays(start, d);
+            if (diff < 0) return false;
+            if (diff % interval !== 0) return false;
+            return true;
+        }
+
+        if (freq === 'WEEKLY') {
+            const diff = diffInDays(start, d);
+            if (diff < 0) return false;
+            const weeks = Math.floor(diff / 7);
+            if (weeks % interval !== 0) return false;
+            return true;
+        }
+
+        if (freq === 'MONTHLY') {
+            const sY = start.getFullYear();
+            const sM = start.getMonth();
+            const sD = start.getDate();
+
+            const dY = d.getFullYear();
+            const dM = d.getMonth();
+            const dD = d.getDate();
+
+            if (dD !== sD) return false;
+
+            const monthsDiff = (dY - sY) * 12 + (dM - sM);
+            if (monthsDiff < 0) return false;
+            if (monthsDiff % interval !== 0) return false;
+            return true;
+        }
+
+        if (freq === 'YEARLY') {
+            const sY = start.getFullYear();
+            const sM = start.getMonth();
+            const sD = start.getDate();
+
+            const dY = d.getFullYear();
+            const dM = d.getMonth();
+            const dD = d.getDate();
+
+            if (dM !== sM || dD !== sD) return false;
+
+            const yearsDiff = dY - sY;
+            if (yearsDiff < 0) return false;
+            if (yearsDiff % interval !== 0) return false;
+            return true;
+        }
+
+        return false;
+    }
+
     function eventsForDay(d: Date) {
-        const day = new Date(d);
-        day.setHours(0, 0, 0, 0);
+        const day = normalizeDate(d);
 
         return events.filter((e: any) => {
-            const start = new Date(e.start);
-            const end = e.end ? new Date(e.end) : new Date(e.start);
+            const start = normalizeDate(new Date(e.start));
+            const end = normalizeDate(new Date(e.end));
 
-            start.setHours(0, 0, 0, 0);
-            end.setHours(0, 0, 0, 0);
+            // 1) icke-återkommande, flerdagarsevent
+            if (!e.is_recurring) {
+                return day >= start && day <= end;
+            }
 
-            return day >= start && day <= end;
+            // 2) återkommande
+            if (!isRecurringInstance(e, day)) return false;
+
+            // ta hänsyn till duration (flerdagarsevent som återkommer)
+            const durationDays = Math.max(0, diffInDays(start, end));
+            const diff = diffInDays(start, day);
+            return diff >= 0 && diff <= durationDays;
         });
     }
 
@@ -115,6 +213,36 @@
         const hidden = form.querySelector<HTMLInputElement>('input[name="attendees"]');
         if (hidden) hidden.value = JSON.stringify(selected);
     }
+
+    function recurrencePatternFromRule(e: any): string {
+        if (!e.is_recurring || !e.recurrence_rule) return 'none';
+        const rule = parseRRule(e.recurrence_rule);
+        if (!rule || !rule['FREQ']) return 'none';
+
+        const freq = rule['FREQ'];
+        const interval = rule['INTERVAL'] ? parseInt(rule['INTERVAL'], 10) : 1;
+
+        if (freq === 'DAILY') {
+            if (interval === 1) return 'daily_1';
+            if (interval === 2) return 'daily_2';
+        }
+        if (freq === 'WEEKLY') {
+            if (interval === 1) return 'weekly_1';
+            if (interval === 2) return 'weekly_2';
+            if (interval === 3) return 'weekly_3';
+            if (interval === 4) return 'weekly_4';
+        }
+        if (freq === 'MONTHLY') {
+            if (interval === 1) return 'monthly_1';
+            if (interval === 2) return 'monthly_2';
+            if (interval === 3) return 'monthly_3';
+            if (interval === 6) return 'halfyear_1';
+        }
+        if (freq === 'YEARLY') {
+            if (interval === 1) return 'yearly_1';
+        }
+        return 'none';
+    }
 </script>
 
 <section class="calendar-page">
@@ -124,7 +252,7 @@
             <h1>{getMonthLabel(currentDate)}</h1>
             <button type="button" on:click={nextMonth}>&raquo;</button>
         </div>
-        <p class="subtitle">Familjekalender – egna och gemensamma händelser</p>
+        <p class="subtitle">Familjekalender – egna, gemensamma och återkommande händelser</p>
     </header>
 
     <div class="calendar-layout">
@@ -208,11 +336,16 @@
                                         {/each}
                                     </p>
                                 {/if}
-                                {#if ev.is_shared}
-                                    <span class="badge">Familjehändelse</span>
-                                {:else}
-                                    <span class="badge secondary">Min händelse</span>
-                                {/if}
+                                <div class="badges">
+                                    {#if ev.is_shared}
+                                        <span class="badge">Familjehändelse</span>
+                                    {:else}
+                                        <span class="badge secondary">Min händelse</span>
+                                    {/if}
+                                    {#if ev.is_recurring}
+                                        <span class="badge recurring">Återkommande</span>
+                                    {/if}
+                                </div>
                             </article>
                         {/each}
                     {/if}
@@ -258,6 +391,29 @@
                                 <label class="checkbox-row">
                                     <input type="checkbox" name="is_shared" />
                                     <span>Familjehändelse (dela med andra)</span>
+                                </label>
+
+                                <label>
+                                    Återkommande
+                                    <select name="recurrence_pattern">
+                                        <option value="none">Ingen</option>
+                                        <option value="daily_1">Varje dag</option>
+                                        <option value="daily_2">Varannan dag</option>
+                                        <option value="weekly_1">Varje vecka</option>
+                                        <option value="weekly_2">Varannan vecka</option>
+                                        <option value="weekly_3">Var tredje vecka</option>
+                                        <option value="weekly_4">Var fjärde vecka</option>
+                                        <option value="monthly_1">Varje månad (datum)</option>
+                                        <option value="monthly_2">Varannan månad</option>
+                                        <option value="monthly_3">Var tredje månad</option>
+                                        <option value="halfyear_1">Varje halvår</option>
+                                        <option value="yearly_1">Varje år</option>
+                                    </select>
+                                </label>
+
+                                <label>
+                                    Återkommande till och med (valfritt)
+                                    <input type="date" name="recurrence_end" />
                                 </label>
 
                                 {#if members.length}
@@ -333,6 +489,40 @@
                                         checked={editingEvent.is_shared}
                                     />
                                     <span>Familjehändelse (dela med andra)</span>
+                                </label>
+
+                                <label>
+                                    Återkommande
+                                    <select
+                                        name="recurrence_pattern"
+                                        value={recurrencePatternFromRule(editingEvent)}
+                                    >
+                                        <option value="none">Ingen</option>
+                                        <option value="daily_1">Varje dag</option>
+                                        <option value="daily_2">Varannan dag</option>
+                                        <option value="weekly_1">Varje vecka</option>
+                                        <option value="weekly_2">Varannan vecka</option>
+                                        <option value="weekly_3">Var tredje vecka</option>
+                                        <option value="weekly_4">Var fjärde vecka</option>
+                                        <option value="monthly_1">Varje månad (datum)</option>
+                                        <option value="monthly_2">Varannan månad</option>
+                                        <option value="monthly_3">Var tredje månad</option>
+                                        <option value="halfyear_1">Varje halvår</option>
+                                        <option value="yearly_1">Varje år</option>
+                                    </select>
+                                </label>
+
+                                <label>
+                                    Återkommande till och med (valfritt)
+                                    <input
+                                        type="date"
+                                        name="recurrence_end"
+                                        value={editingEvent.recurrence_end
+                                            ? new Date(editingEvent.recurrence_end)
+                                                    .toISOString()
+                                                    .slice(0, 10)
+                                            : ''}
+                                    />
                                 </label>
 
                                 {#if members.length}
@@ -559,9 +749,14 @@
         color: #6b7280;
     }
 
+    .badges {
+        display: flex;
+        gap: 4px;
+        margin-top: 4px;
+    }
+
     .badge {
         align-self: flex-start;
-        margin-top: 4px;
         font-size: 0.7rem;
         padding: 2px 6px;
         border-radius: 999px;
@@ -571,6 +766,10 @@
 
     .badge.secondary {
         background: #6b7280;
+    }
+
+    .badge.recurring {
+        background: #10b981;
     }
 
     .editor {
@@ -596,7 +795,9 @@
 
     input[type='text'],
     input[type='datetime-local'],
-    textarea {
+    input[type='date'],
+    textarea,
+    select {
         border-radius: 6px;
         border: 1px solid #d1d5db;
         padding: 6px 8px;

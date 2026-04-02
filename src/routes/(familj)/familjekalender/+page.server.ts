@@ -82,6 +82,67 @@ function parseAttendees(value: FormDataEntryValue | null): string[] {
     }
 }
 
+function buildRRule(
+    recurrence_pattern: string | null,
+    start: string,
+    recurrence_end: string | null
+): string | null {
+    if (!recurrence_pattern || recurrence_pattern === 'none') return null;
+
+    const startDate = new Date(start);
+    const untilPart = recurrence_end
+        ? (() => {
+                const d = new Date(recurrence_end);
+                const y = d.getUTCFullYear();
+                const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+                const day = String(d.getUTCDate()).padStart(2, '0');
+                return `;UNTIL=${y}${m}${day}T000000Z`;
+          })()
+        : '';
+
+    let rule = '';
+
+    switch (recurrence_pattern) {
+        case 'daily_1':
+            rule = 'FREQ=DAILY';
+            break;
+        case 'daily_2':
+            rule = 'FREQ=DAILY;INTERVAL=2';
+            break;
+        case 'weekly_1':
+            rule = 'FREQ=WEEKLY';
+            break;
+        case 'weekly_2':
+            rule = 'FREQ=WEEKLY;INTERVAL=2';
+            break;
+        case 'weekly_3':
+            rule = 'FREQ=WEEKLY;INTERVAL=3';
+            break;
+        case 'weekly_4':
+            rule = 'FREQ=WEEKLY;INTERVAL=4';
+            break;
+        case 'monthly_1':
+            rule = 'FREQ=MONTHLY';
+            break;
+        case 'monthly_2':
+            rule = 'FREQ=MONTHLY;INTERVAL=2';
+            break;
+        case 'monthly_3':
+            rule = 'FREQ=MONTHLY;INTERVAL=3';
+            break;
+        case 'halfyear_1':
+            rule = 'FREQ=MONTHLY;INTERVAL=6';
+            break;
+        case 'yearly_1':
+            rule = 'FREQ=YEARLY';
+            break;
+        default:
+            return null;
+    }
+
+    return rule + untilPart;
+}
+
 export const actions: Actions = {
     create: async ({ request, locals, url }) => {
         const access = await getAccessContext(locals, url);
@@ -100,6 +161,16 @@ export const actions: Actions = {
         const is_shared = parseBoolean(form.get('is_shared'));
         const attendees = parseAttendees(form.get('attendees'));
 
+        const recurrence_pattern = (form.get('recurrence_pattern') as string | null) ?? 'none';
+        const recurrence_end = (form.get('recurrence_end') as string | null) ?? null;
+
+        const recurrence_rule = buildRRule(
+            recurrence_pattern === 'none' ? null : recurrence_pattern,
+            start,
+            recurrence_end
+        );
+        const is_recurring = !!recurrence_rule;
+
         const { data, error } = await supabase
             .from('family_calendar_events')
             .insert({
@@ -109,8 +180,10 @@ export const actions: Actions = {
                 description,
                 start,
                 end,
-                is_shared
-                // här kan du senare lägga till t.ex. external_provider, external_id, recurrence_rule
+                is_shared,
+                is_recurring,
+                recurrence_rule,
+                recurrence_end: recurrence_end ? recurrence_end : null
             })
             .select()
             .single();
@@ -120,10 +193,7 @@ export const actions: Actions = {
             return fail(400, { message: error.message });
         }
 
-        await supabase
-            .from('family_calendar_event_attendees')
-            .delete()
-            .eq('event_id', data.id);
+        await supabase.from('family_calendar_event_attendees').delete().eq('event_id', data.id);
 
         if (is_shared && attendees.length) {
             await supabase.from('family_calendar_event_attendees').insert(
@@ -133,9 +203,7 @@ export const actions: Actions = {
                 }))
             );
         } else {
-            const me = access.selectableMembers.find(
-                (m: any) => m.user_id === access.currentUserId
-            );
+            const me = access.selectableMembers.find((m: any) => m.user_id === access.currentUserId);
             if (me) {
                 await supabase.from('family_calendar_event_attendees').insert({
                     event_id: data.id,
@@ -165,6 +233,16 @@ export const actions: Actions = {
         const is_shared = parseBoolean(form.get('is_shared'));
         const attendees = parseAttendees(form.get('attendees'));
 
+        const recurrence_pattern = (form.get('recurrence_pattern') as string | null) ?? 'none';
+        const recurrence_end = (form.get('recurrence_end') as string | null) ?? null;
+
+        const recurrence_rule = buildRRule(
+            recurrence_pattern === 'none' ? null : recurrence_pattern,
+            start,
+            recurrence_end
+        );
+        const is_recurring = !!recurrence_rule;
+
         await supabase
             .from('family_calendar_events')
             .update({
@@ -172,16 +250,15 @@ export const actions: Actions = {
                 description,
                 start,
                 end,
-                is_shared
-                // här kan du senare uppdatera external_provider, external_id, recurrence_rule
+                is_shared,
+                is_recurring,
+                recurrence_rule,
+                recurrence_end: recurrence_end ? recurrence_end : null
             })
             .eq('id', event_id)
             .eq('household_id', householdId);
 
-        await supabase
-            .from('family_calendar_event_attendees')
-            .delete()
-            .eq('event_id', event_id);
+        await supabase.from('family_calendar_event_attendees').delete().eq('event_id', event_id);
 
         if (is_shared && attendees.length) {
             await supabase.from('family_calendar_event_attendees').insert(
@@ -191,9 +268,7 @@ export const actions: Actions = {
                 }))
             );
         } else {
-            const me = access.selectableMembers.find(
-                (m: any) => m.user_id === access.currentUserId
-            );
+            const me = access.selectableMembers.find((m: any) => m.user_id === access.currentUserId);
             if (me) {
                 await supabase.from('family_calendar_event_attendees').insert({
                     event_id,
@@ -222,10 +297,7 @@ export const actions: Actions = {
             .eq('id', event_id)
             .eq('household_id', householdId);
 
-        await supabase
-            .from('family_calendar_event_attendees')
-            .delete()
-            .eq('event_id', event_id);
+        await supabase.from('family_calendar_event_attendees').delete().eq('event_id', event_id);
 
         return { success: true };
     }
