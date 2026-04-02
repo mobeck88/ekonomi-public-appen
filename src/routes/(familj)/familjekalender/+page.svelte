@@ -73,7 +73,7 @@
         mode = 'create';
     }
 
-    // ⭐ Flerdagarsevent fix
+    // flerdagarsevent: visas på alla dagar mellan start och slut
     function eventsForDay(d: Date) {
         const day = new Date(d);
         day.setHours(0, 0, 0, 0);
@@ -106,7 +106,6 @@
         return m?.profiles?.full_name ?? 'Okänd';
     }
 
-    // ⭐ Samlar attendees innan submit
     function collectAttendees(form: HTMLFormElement) {
         const checkboxes = form.querySelectorAll<HTMLInputElement>('input[name="attendee_checkbox"]');
         const selected: string[] = [];
@@ -129,7 +128,6 @@
     </header>
 
     <div class="calendar-layout">
-        <!-- MÅNADSVY -->
         <div class="month-view">
             <div class="weekday-row">
                 <div>Mån</div>
@@ -165,7 +163,6 @@
             </div>
         </div>
 
-        <!-- DAGSVY -->
         <div class="day-detail">
             {#if selectedDate}
                 <h2>
@@ -221,17 +218,15 @@
                     {/if}
                 </div>
 
-                <!-- EDITOR -->
                 {#if access.canEdit}
                     <div class="editor">
                         <h3>{mode === 'create' ? 'Ny händelse' : 'Redigera händelse'}</h3>
 
-                        <!-- CREATE -->
                         {#if mode === 'create'}
                             <form
                                 method="POST"
                                 action="?/create"
-                                on:submit={() => collectAttendees(event.target)}
+                                on:submit={(e) => collectAttendees(e.currentTarget as HTMLFormElement)}
                             >
                                 <input type="hidden" name="attendees" value="[]" />
 
@@ -285,13 +280,11 @@
                                     <button type="submit" class="primary">Spara händelse</button>
                                 </div>
                             </form>
-
                         {:else if editingEvent}
-                            <!-- UPDATE -->
                             <form
                                 method="POST"
                                 action="?/update"
-                                on:submit={() => collectAttendees(event.target)}
+                                on:submit={(e) => collectAttendees(e.currentTarget as HTMLFormElement)}
                             >
                                 <input type="hidden" name="event_id" value={editingEvent.id} />
                                 <input
@@ -364,7 +357,6 @@
                                 </div>
                             </form>
 
-                            <!-- DELETE -->
                             <form method="POST" action="?/delete">
                                 <input type="hidden" name="event_id" value={editingEvent.id} />
                                 <button type="submit" class="danger">Ta bort händelse</button>
@@ -395,7 +387,6 @@
         </div>
     </div>
 </section>
-
 
 <style>
     .calendar-page {

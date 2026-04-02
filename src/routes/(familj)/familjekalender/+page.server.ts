@@ -9,7 +9,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     const supabase = locals.supabase;
     const householdId = locals.householdId;
 
-    // Hämta alla händelser
     const { data: eventsRaw, error: eventsError } = await supabase
         .from('family_calendar_events')
         .select('*')
@@ -18,14 +17,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
     if (eventsError) console.error('Error loading events', eventsError);
 
-    // Hämta attendees
     const { data: attendees, error: attendeesError } = await supabase
         .from('family_calendar_event_attendees')
         .select('event_id, household_member_id');
 
     if (attendeesError) console.error('Error loading attendees', attendeesError);
 
-    // Bygg attendees per event
     const attendeesByEvent = new Map<string, string[]>();
     (attendees ?? []).forEach((a) => {
         if (!attendeesByEvent.has(a.event_id)) attendeesByEvent.set(a.event_id, []);
@@ -113,6 +110,7 @@ export const actions: Actions = {
                 start,
                 end,
                 is_shared
+                // här kan du senare lägga till t.ex. external_provider, external_id, recurrence_rule
             })
             .select()
             .single();
@@ -122,7 +120,6 @@ export const actions: Actions = {
             return fail(400, { message: error.message });
         }
 
-        // Rensa och lägg till attendees
         await supabase
             .from('family_calendar_event_attendees')
             .delete()
@@ -176,6 +173,7 @@ export const actions: Actions = {
                 start,
                 end,
                 is_shared
+                // här kan du senare uppdatera external_provider, external_id, recurrence_rule
             })
             .eq('id', event_id)
             .eq('household_id', householdId);
