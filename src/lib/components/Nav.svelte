@@ -87,14 +87,32 @@
         "/debtsview"
     ];
 
+    // ⭐ NYTT: Vilka paths räknas som familj?
+    const familyPaths = [
+        "/familjekalender",
+        "/checklistor",
+        "/familj"
+    ];
+
     // ⭐ Kolla vilken sektion vi är i
     $: currentPath = $page.url.pathname;
     $: isEkonomi = ekonomiPaths.some(p => currentPath.startsWith(p));
+    $: isFamily = familyPaths.some(p => currentPath.startsWith(p));
+
+    // ⭐ NYTT: Familj-block
+    const familyBlock = [
+        { label: "Familj", header: true },
+        { label: "Kalender", path: "/familjekalender" },
+        { label: "Checklistor", path: "/checklistor" }
+    ];
 
     // ⭐ MINIMAL ändring: välj vilka länkar som ska visas
-    $: links = isEkonomi
-        ? [...startBlock, ...ekonomiBlock, ...settingsBlock]
-        : [...startBlock, ...settingsBlock];
+    $: links =
+        isEkonomi
+            ? [...startBlock, ...ekonomiBlock, ...settingsBlock]
+            : isFamily
+                ? [...startBlock, ...familyBlock, ...settingsBlock]
+                : [...startBlock, ...settingsBlock];
 
     const logout = async () => {
         await fetch("/logout");
