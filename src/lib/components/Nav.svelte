@@ -9,95 +9,93 @@
 
     let open = false;
 
-    // -----------------------------
-    // ⭐ Sektion-detektering
-    // -----------------------------
-    $: currentPath = $page.url.pathname;
+    // ⭐ ORIGINAL: Ekonomi-länkar (oförändrade)
+    const baseLinks = [
+        { label: "Månadskoll", header: true },
+        { label: "Inkomster", path: "/incomes" },
+        { label: "El", path: "/electricity" },
+        { label: "Budget", path: "/budget" },
+        { label: "Skatt", path: "/skatt" },
 
-    $: currentSection =
-        currentPath.startsWith("/ekonomi") ? "ekonomi" :
-        currentPath.startsWith("/familj") ? "familj" :
-        currentPath.startsWith("/settings") ? "settings" :
-        currentPath.startsWith("/dashboard") ? "dashboard" :
-        "other";
+        { label: "Utgifter", header: true },
+        { label: "Utgifter", path: "/expenses" },
+        { label: "Fasta kostnader", path: "/fixed_costs" },
+        { label: "Abonnemang", path: "/subscriptions" },
+        { label: "Sparande", path: "/savings" },
+        { label: "Fickpengar", path: "/allowance" },
+        { label: "Barnens pengar", path: "/kids_allowance" },
+        { label: "Lån", path: "/loans" },
 
-    // -----------------------------
-    // ⭐ Start (alltid överst)
-    // -----------------------------
-    const startLink = [
+        { label: "Övrigt", header: true },
+        { label: "Oförutsägbart", path: "/unexpected_expenses" },
+        { label: "Extra inkomster", path: "/extra_income" }
+    ];
+
+    // ⭐ ORIGINAL: Assistance + Skulder (oförändrat)
+    $: assistanceLinks = enable_assistance
+        ? [
+              { label: "Ekonomiskt bistånd", header: true },
+              { label: "Beräkning", path: "/assistance" },
+              { label: "Fasta utgifter", path: "/expenses_riksnorm" },
+              { label: "Ekonomiskt bistånd", path: "/economic_assistance" }
+          ]
+        : [];
+
+    $: debtLinks = showDebts
+        ? [
+              { label: "Skulder", header: true },
+              { label: "Inkasso", path: "/debtsview" }
+          ]
+        : [];
+
+    // ⭐ Ekonomi-blocket (alla ekonomi-länkar)
+    $: ekonomiBlock = [
+        ...baseLinks,
+        ...assistanceLinks,
+        ...debtLinks
+    ];
+
+    // ⭐ Alltid överst
+    const startBlock = [
         { label: "Start", path: "/dashboard" }
     ];
 
-    // -----------------------------
-    // ⭐ Ekonomi-länkar (prefixas senare)
-    // -----------------------------
-    const ekonomiLinks = [
-        { label: "Månadskoll", header: true },
-        { label: "Inkomster", path: "/ekonomi/incomes" },
-        { label: "El", path: "/ekonomi/electricity" },
-        { label: "Budget", path: "/ekonomi/budget" },
-        { label: "Skatt", path: "/ekonomi/skatt" },
-
-        { label: "Utgifter", header: true },
-        { label: "Utgifter", path: "/ekonomi/expenses" },
-        { label: "Fasta kostnader", path: "/ekonomi/fixed_costs" },
-        { label: "Abonnemang", path: "/ekonomi/subscriptions" },
-        { label: "Sparande", path: "/ekonomi/savings" },
-        { label: "Fickpengar", path: "/ekonomi/allowance" },
-        { label: "Barnens pengar", path: "/ekonomi/kids_allowance" },
-        { label: "Lån", path: "/ekonomi/loans" },
-
-        { label: "Övrigt", header: true },
-        { label: "Oförutsägbart", path: "/ekonomi/unexpected_expenses" },
-        { label: "Extra inkomster", path: "/ekonomi/extra_income" },
-
-        ...(enable_assistance
-            ? [
-                  { label: "Ekonomiskt bistånd", header: true },
-                  { label: "Beräkning", path: "/ekonomi/assistance" },
-                  { label: "Fasta utgifter", path: "/ekonomi/expenses_riksnorm" },
-                  { label: "Ekonomiskt bistånd", path: "/ekonomi/economic_assistance" }
-              ]
-            : []),
-
-        ...(showDebts
-            ? [
-                  { label: "Skulder", header: true },
-                  { label: "Inkasso", path: "/ekonomi/debtsview" }
-              ]
-            : [])
-    ];
-
-    // -----------------------------
-    // ⭐ Familje-länkar
-    // -----------------------------
-    const familjLinks = [
-        { label: "Familjeplanering", header: true },
-        { label: "Schema", path: "/familj/schema" },
-        { label: "Aktiviteter", path: "/familj/aktiviteter" }
-    ];
-
-    // -----------------------------
-    // ⭐ Inställningar (alltid sist)
-    // -----------------------------
-    const settingsLink = [
+    // ⭐ Alltid sist
+    const settingsBlock = [
         { label: "Inställningar", header: true },
         { label: "Inställningar", path: "/settings" }
     ];
 
-    // -----------------------------
-    // ⭐ Minimal ändring: välj rätt meny
-    // -----------------------------
-    $: links =
-        currentSection === "ekonomi" ? [...startLink, ...ekonomiLinks, ...settingsLink] :
-        currentSection === "familj" ? [...startLink, ...familjLinks, ...settingsLink] :
-        currentSection === "settings" ? [...startLink, ...settingsLink] :
-        currentSection === "dashboard" ? [...startLink, ...settingsLink] :
-        [...startLink, ...settingsLink];
+    // ⭐ Vilka paths räknas som ekonomi?
+    const ekonomiPaths = [
+        "/incomes",
+        "/electricity",
+        "/budget",
+        "/skatt",
+        "/expenses",
+        "/fixed_costs",
+        "/subscriptions",
+        "/savings",
+        "/allowance",
+        "/kids_allowance",
+        "/loans",
+        "/unexpected_expenses",
+        "/extra_income",
+        "/assistance",
+        "/expenses_riksnorm",
+        "/economic_assistance",
+        "/debtsview"
+    ];
 
-    // -----------------------------
-    // ⭐ Logout (oförändrad)
-    // -----------------------------
+    // ⭐ Kolla vilken sektion vi är i
+    $: currentPath = $page.url.pathname;
+    $: isEkonomi = ekonomiPaths.some(p => currentPath.startsWith(p));
+
+    // ⭐ MINIMAL ändring: välj vilka länkar som ska visas
+    $: links = isEkonomi
+        ? [...startBlock, ...ekonomiBlock, ...settingsBlock]
+        : [...startBlock, ...settingsBlock];
+
     const logout = async () => {
         await fetch("/logout");
         window.location.href = "/login";
@@ -157,7 +155,6 @@
 </nav>
 
 <style>
-    /* Din CSS är helt orörd */
     .mobile-nav {
         display: flex;
         align-items: center;

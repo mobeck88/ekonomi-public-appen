@@ -7,7 +7,7 @@
 <p>Välj en sektion för att fortsätta:</p>
 
 <div class="grid">
-    <a class="card" href="/ekonomi/budget/">
+    <a class="card" href="/budget">
         <h2>Ekonomi</h2>
         <p>Budget, utgifter, abonnemang, sparande…</p>
     </a>
