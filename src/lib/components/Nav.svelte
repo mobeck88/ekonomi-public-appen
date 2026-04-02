@@ -57,7 +57,7 @@
 
     // ⭐ Alltid överst
     const startBlock = [
-        { label: "Start", path: "/dashboard" }
+        { label: "Start", path: "/" }
     ];
 
     // ⭐ Alltid sist
