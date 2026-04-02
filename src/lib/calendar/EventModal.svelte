@@ -15,9 +15,15 @@
   $: if (event) {
     title = event.title;
     description = event.description;
-    start = event.start;
-    end = event.end;
+    start = event.start.slice(0, 16);
+    end = event.end.slice(0, 16);
     attendees = event.attendees ?? [];
+  } else {
+    title = '';
+    description = '';
+    start = '';
+    end = '';
+    attendees = [];
   }
 </script>
 
@@ -40,11 +46,9 @@
             value={m.id}
             checked={attendees.includes(m.id)}
             on:change={() => {
-              if (attendees.includes(m.id)) {
-                attendees = attendees.filter(a => a !== m.id);
-              } else {
-                attendees = [...attendees, m.id];
-              }
+              attendees = attendees.includes(m.id)
+                ? attendees.filter(a => a !== m.id)
+                : [...attendees, m.id];
             }}
           />
           <span class="dot" style={`background:${m.color}`}></span>

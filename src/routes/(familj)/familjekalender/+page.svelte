@@ -21,6 +21,41 @@
     modalOpen = true;
   }
 
+  function openNew() {
+    selectedEvent = null;
+    modalOpen = true;
+  }
+
+  async function saveEvent(payload) {
+    if (selectedEvent) {
+      // UPDATE
+      await fetch('?/update', {
+        method: 'POST',
+        body: JSON.stringify({
+          event_id: selectedEvent.id,
+          ...payload
+        })
+      });
+    } else {
+      // CREATE
+      await fetch('?/create', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+    }
+
+    window.location.reload();
+  }
+
+  async function deleteEvent(id) {
+    await fetch('?/delete', {
+      method: 'POST',
+      body: JSON.stringify({ event_id: id })
+    });
+
+    window.location.reload();
+  }
+
   function closeModal() {
     modalOpen = false;
     selectedEvent = null;
@@ -28,6 +63,8 @@
 </script>
 
 <h1>Familjekalender</h1>
+
+<button on:click={openNew}>➕ Ny händelse</button>
 
 <MemberFilter
   members={data.members}
@@ -49,12 +86,16 @@
   event={selectedEvent}
   members={data.members}
   onClose={closeModal}
-  onSave={() => {}}
-  onDelete={() => {}}
+  onSave={saveEvent}
+  onDelete={deleteEvent}
 />
 
 <style>
   h1 {
     margin-bottom: 1rem;
+  }
+  button {
+    margin-bottom: 1rem;
+    padding: 0.5rem 1rem;
   }
 </style>
