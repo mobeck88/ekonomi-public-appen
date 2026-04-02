@@ -12,7 +12,7 @@
         <p>Budget, utgifter, abonnemang, sparande…</p>
     </a>
 
-    <a class="card" href="/familj">
+    <a class="card" href="/familjestart">
         <h2>Familjeplanering</h2>
         <p>Schema, aktiviteter, planering…</p>
     </a>
