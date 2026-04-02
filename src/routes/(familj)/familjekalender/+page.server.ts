@@ -17,43 +17,31 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
     if (eventsError) console.error('Error loading events', eventsError);
 
-    const { data: attendees, error: attendeesError } = await supabase
-        .from('family_calendar_event_attendees')
-        .select('event_id, household_member_id');
-
-    if (attendeesError) console.error('Error loading attendees', attendeesError);
-
-    const attendeesByEvent = new Map<string, string[]>();
-    (attendees ?? []).forEach((a) => {
-        if (!attendeesByEvent.has(a.event_id)) attendeesByEvent.set(a.event_id, []);
-        attendeesByEvent.get(a.event_id)!.push(a.household_member_id);
-    });
-
     const members = access.selectableMembers ?? [];
 
     const memberColor = new Map<string, string>();
+    const memberByUserId = new Map<string, any>();
+
     members.forEach((m: any) => {
         if (m.color) memberColor.set(m.id, m.color);
+        if (m.user_id) memberByUserId.set(m.user_id, m);
     });
 
     const SHARED_COLOR = '#8884FF';
     const DEFAULT_COLOR = '#0078ff';
 
     const events = (eventsRaw ?? []).map((e: any) => {
-        const evAtt = attendeesByEvent.get(e.id) ?? [];
-
         let color = DEFAULT_COLOR;
 
-        if (evAtt.length === 1) {
-            const c = memberColor.get(evAtt[0]);
-            if (c) color = c;
-        } else if (evAtt.length > 1) {
+        if (e.is_shared) {
             color = SHARED_COLOR;
+        } else if (e.created_by_user_id) {
+            const ownerMember = memberByUserId.get(e.created_by_user_id);
+            if (ownerMember?.color) color = ownerMember.color;
         }
 
         return {
             ...e,
-            attendees: evAtt,
             color
         };
     });
@@ -71,17 +59,6 @@ function parseBoolean(value: FormDataEntryValue | null): boolean {
     return v === 'true' || v === 'on' || v === '1';
 }
 
-function parseAttendees(value: FormDataEntryValue | null): string[] {
-    if (!value) return [];
-    try {
-        const parsed = JSON.parse(String(value));
-        if (Array.isArray(parsed)) return parsed;
-        return [];
-    } catch {
-        return [];
-    }
-}
-
 function buildRRule(
     recurrence_pattern: string | null,
     start: string,
@@ -89,7 +66,6 @@ function buildRRule(
 ): string | null {
     if (!recurrence_pattern || recurrence_pattern === 'none') return null;
 
-    const startDate = new Date(start);
     const untilPart = recurrence_end
         ? (() => {
                 const d = new Date(recurrence_end);
@@ -159,7 +135,6 @@ export const actions: Actions = {
         const start = (form.get('start') as string | null) ?? '';
         const end = (form.get('end') as string | null) ?? '';
         const is_shared = parseBoolean(form.get('is_shared'));
-        const attendees = parseAttendees(form.get('attendees'));
 
         const recurrence_pattern = (form.get('recurrence_pattern') as string | null) ?? 'none';
         const recurrence_end = (form.get('recurrence_end') as string | null) ?? null;
@@ -171,45 +146,22 @@ export const actions: Actions = {
         );
         const is_recurring = !!recurrence_rule;
 
-        const { data, error } = await supabase
-            .from('family_calendar_events')
-            .insert({
-                household_id: householdId,
-                created_by_user_id: access.currentUserId,
-                title,
-                description,
-                start,
-                end,
-                is_shared,
-                is_recurring,
-                recurrence_rule,
-                recurrence_end: recurrence_end ? recurrence_end : null
-            })
-            .select()
-            .single();
+        const { error } = await supabase.from('family_calendar_events').insert({
+            household_id: householdId,
+            created_by_user_id: access.currentUserId,
+            title,
+            description,
+            start,
+            end,
+            is_shared,
+            is_recurring,
+            recurrence_rule,
+            recurrence_end: recurrence_end ? recurrence_end : null
+        });
 
         if (error) {
             console.error('create event error', error);
             return fail(400, { message: error.message });
-        }
-
-        await supabase.from('family_calendar_event_attendees').delete().eq('event_id', data.id);
-
-        if (is_shared && attendees.length) {
-            await supabase.from('family_calendar_event_attendees').insert(
-                attendees.map((id) => ({
-                    event_id: data.id,
-                    household_member_id: id
-                }))
-            );
-        } else {
-            const me = access.selectableMembers.find((m: any) => m.user_id === access.currentUserId);
-            if (me) {
-                await supabase.from('family_calendar_event_attendees').insert({
-                    event_id: data.id,
-                    household_member_id: me.id
-                });
-            }
         }
 
         return { success: true };
@@ -231,7 +183,6 @@ export const actions: Actions = {
         const start = (form.get('start') as string | null) ?? '';
         const end = (form.get('end') as string | null) ?? '';
         const is_shared = parseBoolean(form.get('is_shared'));
-        const attendees = parseAttendees(form.get('attendees'));
 
         const recurrence_pattern = (form.get('recurrence_pattern') as string | null) ?? 'none';
         const recurrence_end = (form.get('recurrence_end') as string | null) ?? null;
@@ -243,7 +194,7 @@ export const actions: Actions = {
         );
         const is_recurring = !!recurrence_rule;
 
-        await supabase
+        const { error } = await supabase
             .from('family_calendar_events')
             .update({
                 title,
@@ -258,23 +209,9 @@ export const actions: Actions = {
             .eq('id', event_id)
             .eq('household_id', householdId);
 
-        await supabase.from('family_calendar_event_attendees').delete().eq('event_id', event_id);
-
-        if (is_shared && attendees.length) {
-            await supabase.from('family_calendar_event_attendees').insert(
-                attendees.map((id) => ({
-                    event_id,
-                    household_member_id: id
-                }))
-            );
-        } else {
-            const me = access.selectableMembers.find((m: any) => m.user_id === access.currentUserId);
-            if (me) {
-                await supabase.from('family_calendar_event_attendees').insert({
-                    event_id,
-                    household_member_id: me.id
-                });
-            }
+        if (error) {
+            console.error('update event error', error);
+            return fail(400, { message: error.message });
         }
 
         return { success: true };
@@ -291,13 +228,16 @@ export const actions: Actions = {
         const form = await request.formData();
         const event_id = (form.get('event_id') as string | null) ?? '';
 
-        await supabase
+        const { error } = await supabase
             .from('family_calendar_events')
             .delete()
             .eq('id', event_id)
             .eq('household_id', householdId);
 
-        await supabase.from('family_calendar_event_attendees').delete().eq('event_id', event_id);
+        if (error) {
+            console.error('delete event error', error);
+            return fail(400, { message: error.message });
+        }
 
         return { success: true };
     }

@@ -2,7 +2,6 @@
     export let data;
 
     const events = data.events ?? [];
-    const members = data.members ?? [];
     const access = data.access;
 
     let currentDate = new Date();
@@ -74,9 +73,7 @@
     }
 
     function normalizeDate(d: Date) {
-        const nd = new Date(d);
-        nd.setHours(0, 0, 0, 0);
-        return nd;
+        return new Date(d.getFullYear(), d.getMonth(), d.getDate());
     }
 
     function diffInDays(a: Date, b: Date) {
@@ -105,12 +102,13 @@
         const interval = rule['INTERVAL'] ? parseInt(rule['INTERVAL'], 10) : 1;
 
         const start = normalizeDate(new Date(e.start));
-        const end = normalizeDate(e.recurrence_end ? new Date(e.recurrence_end) : new Date('2100-01-01'));
+        const until = e.recurrence_end ? normalizeDate(new Date(e.recurrence_end)) : null;
         const d = normalizeDate(day);
 
-        if (d < start || d > end) return false;
+        if (d < start) return false;
+        if (until && d > until) return false;
 
-        const baseEnd = normalizeDate(new Date(e.end));
+        const baseEnd = normalizeDate(new Date(e.end ?? e.start));
         const durationDays = Math.max(0, diffInDays(start, baseEnd));
 
         if (freq === 'DAILY') {
@@ -170,17 +168,17 @@
 
         return events.filter((e: any) => {
             const start = normalizeDate(new Date(e.start));
-            const end = normalizeDate(new Date(e.end));
+            const endRaw = e.end ? new Date(e.end) : new Date(e.start);
+            let end = normalizeDate(endRaw);
 
-            // 1) icke-återkommande, flerdagarsevent
+            if (end < start) end = start;
+
             if (!e.is_recurring) {
                 return day >= start && day <= end;
             }
 
-            // 2) återkommande
             if (!isRecurringInstance(e, day)) return false;
 
-            // ta hänsyn till duration (flerdagarsevent som återkommer)
             const durationDays = Math.max(0, diffInDays(start, end));
             const diff = diffInDays(start, day);
             return diff >= 0 && diff <= durationDays;
@@ -197,21 +195,6 @@
         if (!d) return '';
         const iso = d.toISOString();
         return iso.slice(0, 16);
-    }
-
-    function memberName(id: string) {
-        const m = members.find((m: any) => m.id === id);
-        return m?.profiles?.full_name ?? 'Okänd';
-    }
-
-    function collectAttendees(form: HTMLFormElement) {
-        const checkboxes = form.querySelectorAll<HTMLInputElement>('input[name="attendee_checkbox"]');
-        const selected: string[] = [];
-        checkboxes.forEach((cb) => {
-            if (cb.checked) selected.push(cb.value);
-        });
-        const hidden = form.querySelector<HTMLInputElement>('input[name="attendees"]');
-        if (hidden) hidden.value = JSON.stringify(selected);
     }
 
     function recurrencePatternFromRule(e: any): string {
@@ -329,13 +312,6 @@
                                 {#if ev.description}
                                     <p class="description">{ev.description}</p>
                                 {/if}
-                                {#if ev.attendees?.length}
-                                    <p class="attendees">
-                                        {#each ev.attendees as id, i}
-                                            {memberName(id)}{#if i < ev.attendees.length - 1}, {/if}
-                                        {/each}
-                                    </p>
-                                {/if}
                                 <div class="badges">
                                     {#if ev.is_shared}
                                         <span class="badge">Familjehändelse</span>
@@ -356,13 +332,7 @@
                         <h3>{mode === 'create' ? 'Ny händelse' : 'Redigera händelse'}</h3>
 
                         {#if mode === 'create'}
-                            <form
-                                method="POST"
-                                action="?/create"
-                                on:submit={(e) => collectAttendees(e.currentTarget as HTMLFormElement)}
-                            >
-                                <input type="hidden" name="attendees" value="[]" />
-
+                            <form method="POST" action="?/create">
                                 <label>
                                     Titel
                                     <input name="title" required />
@@ -390,7 +360,7 @@
 
                                 <label class="checkbox-row">
                                     <input type="checkbox" name="is_shared" />
-                                    <span>Familjehändelse (dela med andra)</span>
+                                    <span>Familjehändelse (hela hushållet)</span>
                                 </label>
 
                                 <label>
@@ -416,38 +386,13 @@
                                     <input type="date" name="recurrence_end" />
                                 </label>
 
-                                {#if members.length}
-                                    <fieldset class="attendees-fieldset">
-                                        <legend>Välj deltagare</legend>
-                                        {#each members as m}
-                                            <label>
-                                                <input
-                                                    type="checkbox"
-                                                    name="attendee_checkbox"
-                                                    value={m.id}
-                                                />
-                                                <span>{m.profiles?.full_name ?? 'Okänd'}</span>
-                                            </label>
-                                        {/each}
-                                    </fieldset>
-                                {/if}
-
                                 <div class="buttons">
                                     <button type="submit" class="primary">Spara händelse</button>
                                 </div>
                             </form>
                         {:else if editingEvent}
-                            <form
-                                method="POST"
-                                action="?/update"
-                                on:submit={(e) => collectAttendees(e.currentTarget as HTMLFormElement)}
-                            >
+                            <form method="POST" action="?/update">
                                 <input type="hidden" name="event_id" value={editingEvent.id} />
-                                <input
-                                    type="hidden"
-                                    name="attendees"
-                                    value={JSON.stringify(editingEvent.attendees ?? [])}
-                                />
 
                                 <label>
                                     Titel
@@ -488,7 +433,7 @@
                                         name="is_shared"
                                         checked={editingEvent.is_shared}
                                     />
-                                    <span>Familjehändelse (dela med andra)</span>
+                                    <span>Familjehändelse (hela hushållet)</span>
                                 </label>
 
                                 <label>
@@ -524,23 +469,6 @@
                                             : ''}
                                     />
                                 </label>
-
-                                {#if members.length}
-                                    <fieldset class="attendees-fieldset">
-                                        <legend>Välj deltagare</legend>
-                                        {#each members as m}
-                                            <label>
-                                                <input
-                                                    type="checkbox"
-                                                    name="attendee_checkbox"
-                                                    value={m.id}
-                                                    checked={editingEvent.attendees?.includes(m.id)}
-                                                />
-                                                <span>{m.profiles?.full_name ?? 'Okänd'}</span>
-                                            </label>
-                                        {/each}
-                                    </fieldset>
-                                {/if}
 
                                 <div class="buttons">
                                     <button type="submit" class="primary">Spara ändringar</button>
@@ -744,11 +672,6 @@
         color: #374151;
     }
 
-    .event-card .attendees {
-        font-size: 0.75rem;
-        color: #6b7280;
-    }
-
     .badges {
         display: flex;
         gap: 4px;
@@ -812,21 +735,6 @@
         flex-direction: row;
         align-items: center;
         gap: 8px;
-    }
-
-    .attendees-fieldset {
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        padding: 8px;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-    }
-
-    .attendees-fieldset legend {
-        font-size: 0.8rem;
-        color: #4b5563;
-        padding: 0 4px;
     }
 
     .buttons {
