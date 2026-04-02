@@ -31,7 +31,7 @@
     is_shared = false;
   }
 
-  function toggleAttendee(id) {
+  function toggleAttendee(id: string) {
     attendees = attendees.includes(id)
       ? attendees.filter(a => a !== id)
       : [...attendees, id];
@@ -50,28 +50,28 @@
 
       <div class="field">
         <label>Titel</label>
-        <input bind:value={title} {disabled:!canEdit} />
+        <input bind:value={title} disabled={!canEdit} />
       </div>
 
       <div class="field">
         <label>Beskrivning</label>
-        <textarea bind:value={description} {disabled:!canEdit}></textarea>
+        <textarea bind:value={description} disabled={!canEdit}></textarea>
       </div>
 
       <div class="row">
         <div class="field">
           <label>Start</label>
-          <input type="datetime-local" bind:value={start} {disabled:!canEdit} />
+          <input type="datetime-local" bind:value={start} disabled={!canEdit} />
         </div>
         <div class="field">
           <label>Slut</label>
-          <input type="datetime-local" bind:value={end} {disabled:!canEdit} />
+          <input type="datetime-local" bind:value={end} disabled={!canEdit} />
         </div>
       </div>
 
       <div class="field">
         <label>
-          <input type="checkbox" bind:checked={is_shared} {disabled:!canEdit} />
+          <input type="checkbox" bind:checked={is_shared} disabled={!canEdit} />
           Delad händelse
         </label>
       </div>
@@ -86,7 +86,7 @@
                   type="checkbox"
                   checked={attendees.includes(m.id)}
                   on:change={() => toggleAttendee(m.id)}
-                  {disabled:!canEdit}
+                  disabled={!canEdit}
                 />
                 <span class="dot" style={`background:${m.color}`}></span>
                 {m.name}
@@ -114,13 +114,19 @@
 
 <style>
   .overlay {
-    position: fixed; inset: 0;
+    position: fixed;
+    inset: 0;
     background: rgba(0,0,0,0.4);
-    display: flex; justify-content: center; align-items: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
   .modal {
-    background: white; padding: 1.5rem; border-radius: 8px;
-    width: 380px; max-width: 90vw;
+    background: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    width: 380px;
+    max-width: 90vw;
   }
   .field { margin-bottom: 0.75rem; }
   .row { display: flex; gap: 0.5rem; }
@@ -129,7 +135,12 @@
   .dot { width: 12px; height: 12px; border-radius: 50%; }
   .actions { display: flex; justify-content: space-between; margin-top: 1rem; }
   .right { display: flex; gap: 0.5rem; }
-  .delete { background: #ff6b6b; color: white; border: none; padding: 0.4rem 0.8rem; }
+  .delete {
+    background: #ff6b6b;
+    color: white;
+    border: none;
+    padding: 0.4rem 0.8rem;
+  }
   button { padding: 0.4rem 0.8rem; }
   .secondary { background: #eee; }
 </style>
