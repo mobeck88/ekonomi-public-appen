@@ -14,22 +14,12 @@
 
     const today = new Date();
 
-    function startOfDay(d: Date) {
-        const nd = new Date(d);
-        nd.setHours(0, 0, 0, 0);
-        return nd;
-    }
-
     function sameDay(a: Date, b: Date) {
         return (
             a.getFullYear() === b.getFullYear() &&
             a.getMonth() === b.getMonth() &&
             a.getDate() === b.getDate()
         );
-    }
-
-    function toDate(value: string): Date {
-        return new Date(value);
     }
 
     function getMonthLabel(d: Date) {
@@ -49,14 +39,17 @@
         const totalDays = daysInMonth(year, month);
         const days: { date: Date }[] = [];
 
+        // dagar före månadens start
         for (let i = 0; i < firstWeekday; i++) {
             days.push({ date: new Date(year, month, 1 - (firstWeekday - i)) });
         }
 
+        // månadens dagar
         for (let day = 1; day <= totalDays; day++) {
             days.push({ date: new Date(year, month, day) });
         }
 
+        // fyll ut till hel veckor
         while (days.length % 7 !== 0) {
             const last = days[days.length - 1].date;
             days.push({ date: new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1) });
@@ -91,12 +84,6 @@
             const ed = new Date(e.start);
             return sameDay(ed, d);
         });
-    }
-
-    function openCreateForDay(d: Date) {
-        selectedDate = d;
-        editingEvent = null;
-        mode = 'create';
     }
 
     function openEditEvent(e: any) {
@@ -149,6 +136,7 @@
     </header>
 
     <div class="calendar-layout">
+        <!-- MÅNADSVY -->
         <div class="month-view">
             <div class="weekday-row">
                 <div>Mån</div>
@@ -161,32 +149,30 @@
             </div>
 
             <div class="days-grid">
-                {#each calendarDays as day}
-                    {#key day.date.toISOString()}
-                        {#let d = day.date}
-                        <button
-                            type="button"
-                            class:selected={selectedDate && sameDay(selectedDate, d)}
-                            class:today={sameDay(d, today)}
-                            class:other-month={d.getMonth() !== currentDate.getMonth()}
-                            on:click={() => selectDay(d)}
-                        >
-                            <span class="day-number">{d.getDate()}</span>
-                            <div class="day-events">
-                                {#each eventsForDay(d) as ev}
-                                    <div
-                                        class="day-event-dot"
-                                        style={`background:${ev.color}`}
-                                        title={ev.title}
-                                    />
-                                {/each}
-                            </div>
-                        </button>
-                    {/key}
+                {#each calendarDays as day (day.date.toISOString())}
+                    <button
+                        type="button"
+                        class:selected={selectedDate && sameDay(selectedDate, day.date)}
+                        class:today={sameDay(day.date, today)}
+                        class:other-month={day.date.getMonth() !== currentDate.getMonth()}
+                        on:click={() => selectDay(day.date)}
+                    >
+                        <span class="day-number">{day.date.getDate()}</span>
+                        <div class="day-events">
+                            {#each eventsForDay(day.date) as ev}
+                                <div
+                                    class="day-event-dot"
+                                    style={`background:${ev.color}`}
+                                    title={ev.title}
+                                />
+                            {/each}
+                        </div>
+                    </button>
                 {/each}
             </div>
         </div>
 
+        <!-- DAGSVY -->
         <div class="day-detail">
             {#if selectedDate}
                 <h2>
@@ -242,10 +228,12 @@
                     {/if}
                 </div>
 
+                <!-- EDITOR -->
                 {#if access.canEdit}
                     <div class="editor">
                         <h3>{mode === 'create' ? 'Ny händelse' : 'Redigera händelse'}</h3>
 
+                        <!-- CREATE -->
                         {#if mode === 'create'}
                             <form
                                 method="POST"
@@ -254,6 +242,7 @@
                                 on:submit|preventDefault={onCreateSubmit}
                             >
                                 <input type="hidden" name="attendees" value="[]" />
+
                                 <label>
                                     Titel
                                     <input name="title" required />
@@ -304,7 +293,9 @@
                                     <button type="submit" class="primary">Spara händelse</button>
                                 </div>
                             </form>
+
                         {:else if editingEvent}
+                            <!-- UPDATE -->
                             <form
                                 method="POST"
                                 action="?/update"
@@ -312,7 +303,11 @@
                                 on:submit|preventDefault={onUpdateSubmit}
                             >
                                 <input type="hidden" name="event_id" value={editingEvent.id} />
-                                <input type="hidden" name="attendees" value={JSON.stringify(editingEvent.attendees ?? [])} />
+                                <input
+                                    type="hidden"
+                                    name="attendees"
+                                    value={JSON.stringify(editingEvent.attendees ?? [])}
+                                />
 
                                 <label>
                                     Titel
@@ -378,6 +373,7 @@
                                 </div>
                             </form>
 
+                            <!-- DELETE -->
                             <form method="POST" action="?/delete" use:enhance>
                                 <input type="hidden" name="event_id" value={editingEvent.id} />
                                 <button type="submit" class="danger">Ta bort händelse</button>
