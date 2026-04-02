@@ -85,6 +85,12 @@
         return Math.floor(ms / (1000 * 60 * 60 * 24));
     }
 
+    function addDays(d: Date, delta: number) {
+        const nd = new Date(d);
+        nd.setDate(nd.getDate() + delta);
+        return toLocalDate(nd);
+    }
+
     function parseRRule(rule: string | null) {
         if (!rule) return null;
         const parts = rule.split(';');
@@ -158,16 +164,26 @@
 
             if (end < start) end.setTime(start.getTime());
 
+            // Engångshändelser: flerdagarsevent funkar som tidigare
             if (!e.is_recurring) {
                 return day >= start && day <= end;
             }
 
-            if (!isRecurringInstance(e, day)) return false;
-
+            // Återkommande händelser:
+            // 1) Beräkna hur många dagar varje instans varar
             const durationDays = Math.max(0, diffInDays(start, end));
-            const diff = diffInDays(start, day);
 
-            return diff >= 0 && diff <= durationDays;
+            // 2) För att stödja återkommande flerdagarsevent:
+            //    Backa 0..durationDays dagar från aktuell dag och se om
+            //    någon av dessa dagar är en giltig startinstans.
+            for (let offset = 0; offset <= durationDays; offset++) {
+                const candidateStart = addDays(day, -offset);
+                if (isRecurringInstance(e, candidateStart)) {
+                    return true;
+                }
+            }
+
+            return false;
         });
     }
 
