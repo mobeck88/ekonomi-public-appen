@@ -20,7 +20,6 @@
         return userColorClasses[hash % userColorClasses.length];
     }
 
-    // ⭐ MINIMAL ÄNDRING: Filtrera bort "Fasta kostnader Bistånd" om hushållet inte har bistånd
     const expenseSections = [
         { title: 'Lån', key: 'loansPerMonth', type: 'perUser' },
         { title: 'El', key: 'electricityPerMonth', type: 'simple' },
@@ -28,17 +27,16 @@
         ...(data.hasEconomicAssistance
             ? [{ title: 'Fasta kostnader Bistånd', key: 'riksnormPerGroup', type: 'fixed' }]
             : []),
+        { title: 'Utgifter', key: 'expensesPerGroup', type: 'fixed' }, // ⭐ NY
         { title: 'Abonnemang', key: 'subs', type: 'perUser' },
         { title: 'Sparande', key: 'savings', type: 'perUser' },
         { title: 'Fickpengar', key: 'allowanceUser', type: 'perUser' },
         { title: 'Barn', key: 'kidsPerMonth', type: 'kids' }
     ];
 
-    // ⭐ MINIMAL ÄNDRING: Lägg till "Utgifter"
     const otherSections = [
         { title: 'Oförutsägbara utgifter', key: 'unexpectedPerMonth' },
-        { title: 'Extra inkomster', key: 'extraPerMonth' },
-        { title: 'Utgifter', key: 'expensesPerMonth' }   // ← NY RAD
+        { title: 'Extra inkomster', key: 'extraPerMonth' }
     ];
 
     function formatKr(v) {
@@ -63,12 +61,19 @@
     function sumOut(i) {
         let total = 0;
 
+        // Fasta kostnader
         for (const name of Object.keys(data.fixedPerGroup ?? {})) {
             total += data.fixedPerGroup[name][i];
         }
 
+        // Fasta kostnader Bistånd
         for (const name of Object.keys(data.riksnormPerGroup ?? {})) {
             total += data.riksnormPerGroup[name][i];
+        }
+
+        // Utgifter (samma struktur som fasta)
+        for (const name of Object.keys(data.expensesPerGroup ?? {})) {
+            total += data.expensesPerGroup[name][i];
         }
 
         for (const m of members) total += data.subs[i][m.name] ?? 0;

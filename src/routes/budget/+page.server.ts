@@ -29,7 +29,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             incomeTotal: [],
             economicAssistancePerMonth: [],
             hasEconomicAssistance: false,
-            expensesPerMonth: []   // ⭐ NYCKEL TILLAGD
+            expensesPerGroup: {} // ⭐ NYCKEL
         };
     }
 
@@ -105,7 +105,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     const unexpected = unexpectedRes.data ?? [];
     const extra = extraRes.data ?? [];
     const loans = loansRes.data ?? [];
-    const expenses = expensesRes.data ?? [];   // ⭐ UTGIFTER
+    const expenses = expensesRes.data ?? []; // ⭐ UTGIFTER
     const riksnorm = riksnormRes.data ?? [];
     const economicAssistance = economicAssistanceRes.data ?? [];
 
@@ -157,7 +157,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         return result;
     };
 
-    // ⭐ EL
+    // EL
     const electricityPerMonth = months.map((m) =>
         electricityRows
             .filter((e) => toYM(e.month) === m)
@@ -190,24 +190,36 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         if (!ownerMap[key]) ownerMap[key] = f.owner ?? f.user_id ?? 'shared';
     }
 
-    // ⭐ Fasta kostnader Bistånd — visas endast om hushållet har bistånd
-    const riksnormPerGroup = economicAssistance.length === 0
-        ? {}   // ⭐ DÖLJ HELT
-        : Object.fromEntries(
-            [...new Set(riksnorm.map((f) => f.title as string))].map((name) => [
-                name,
-                months.map((m) =>
-                    riksnorm
-                        .filter((f) => f.title === name && isActive(f, m))
-                        .reduce((acc, f) => acc + Number(f.amount ?? 0), 0)
-                )
-            ])
-        );
+    // Fasta kostnader Bistånd
+    const riksnormPerGroup = Object.fromEntries(
+        [...new Set(riksnorm.map((f) => f.title as string))].map((name) => [
+            name,
+            months.map((m) =>
+                riksnorm
+                    .filter((f) => f.title === name && isActive(f, m))
+                    .reduce((acc, f) => acc + Number(f.amount ?? 0), 0)
+            )
+        ])
+    );
+
+    // ⭐ Utgifter – samma struktur som fasta kostnader
+    const expenseGroups = [...new Set(expenses.map((e) => e.cost_name as string))];
+
+    const expensesPerGroup = Object.fromEntries(
+        expenseGroups.map((name) => [
+            name,
+            months.map((m) =>
+                expenses
+                    .filter((e) => e.cost_name === name && isActive(e, m))
+                    .reduce((acc, e) => acc + Number(e.amount ?? 0), 0)
+            )
+        ])
+    );
 
     // Abonnemang
     const subs = months.map((m) => perUserOrShared(subscriptions, m));
 
-    // ⭐ Sparande
+    // Sparande
     const savings = months.map((m) => {
         const result: Record<string, number> = {};
 
@@ -282,7 +294,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
             .reduce((acc, x) => acc + Number(x.amount ?? 0), 0)
     );
 
-    // ⭐ Ekonomiskt bistånd
+    // Ekonomiskt bistånd
     const economicAssistancePerMonth = months.map((m) =>
         economicAssistance
             .filter((e) => toYM(e.date) === m)
@@ -292,14 +304,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     const hasEconomicAssistance =
         economicAssistancePerMonth.reduce((a, b) => a + b, 0) > 0;
 
-    // ⭐ UTGIFTER (från tabellen expenses)
-    const expensesPerMonth = months.map((m) =>
-        expenses
-            .filter((e) => toYM(e.date) === m)
-            .reduce((acc, e) => acc + Number(e.amount ?? 0), 0)
-    );
-
-    // ⭐ INKOMSTER
+    // Inkomster
     const incomePerUser: Record<string, number[]> = {};
     for (const member of memberList) {
         incomePerUser[member.name] = months.map(() => 0);
@@ -365,6 +370,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
         incomeTotal,
         economicAssistancePerMonth,
         hasEconomicAssistance,
-        expensesPerMonth   // ⭐ NYCKEL TILLAGD
+        expensesPerGroup // ⭐ NYCKEL
     };
 };
