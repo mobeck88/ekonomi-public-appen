@@ -2,15 +2,17 @@
   export let open = false;
   export let event = null;
   export let members = [];
+  export let canEdit = false;
+
   export let onClose = () => {};
-  export let onSave = (_payload: any) => {};
-  export let onDelete = (_id: string) => {};
+  export let onSave = (_payload) => {};
+  export let onDelete = (_id) => {};
 
   let title = '';
   let description = '';
   let start = '';
   let end = '';
-  let attendees: string[] = [];
+  let attendees = [];
   let is_shared = false;
 
   $: if (event) {
@@ -26,24 +28,17 @@
     start = '';
     end = '';
     attendees = [];
-    is_shared = false; // default: min händelse
+    is_shared = false;
   }
 
-  function toggleAttendee(id: string) {
+  function toggleAttendee(id) {
     attendees = attendees.includes(id)
-      ? attendees.filter((a) => a !== id)
+      ? attendees.filter(a => a !== id)
       : [...attendees, id];
   }
 
-  function handleSave() {
-    onSave({
-      title,
-      description,
-      start,
-      end,
-      attendees,
-      is_shared
-    });
+  function save() {
+    onSave({ title, description, start, end, attendees, is_shared });
     onClose();
   }
 </script>
@@ -55,29 +50,29 @@
 
       <div class="field">
         <label>Titel</label>
-        <input bind:value={title} />
+        <input bind:value={title} {disabled:!canEdit} />
       </div>
 
       <div class="field">
         <label>Beskrivning</label>
-        <textarea bind:value={description}></textarea>
+        <textarea bind:value={description} {disabled:!canEdit}></textarea>
       </div>
 
       <div class="row">
         <div class="field">
           <label>Start</label>
-          <input type="datetime-local" bind:value={start} />
+          <input type="datetime-local" bind:value={start} {disabled:!canEdit} />
         </div>
         <div class="field">
           <label>Slut</label>
-          <input type="datetime-local" bind:value={end} />
+          <input type="datetime-local" bind:value={end} {disabled:!canEdit} />
         </div>
       </div>
 
       <div class="field">
         <label>
-          <input type="checkbox" bind:checked={is_shared} />
-          Delad händelse (annars bara min)
+          <input type="checkbox" bind:checked={is_shared} {disabled:!canEdit} />
+          Delad händelse
         </label>
       </div>
 
@@ -91,6 +86,7 @@
                   type="checkbox"
                   checked={attendees.includes(m.id)}
                   on:change={() => toggleAttendee(m.id)}
+                  {disabled:!canEdit}
                 />
                 <span class="dot" style={`background:${m.color}`}></span>
                 {m.name}
@@ -101,12 +97,15 @@
       {/if}
 
       <div class="actions">
-        {#if event}
+        {#if event && canEdit}
           <button class="delete" on:click={() => onDelete(event.id)}>Radera</button>
         {/if}
+
         <div class="right">
-          <button type="button" on:click={handleSave}>Spara</button>
-          <button type="button" class="secondary" on:click={onClose}>Avbryt</button>
+          {#if canEdit}
+            <button on:click={save}>Spara</button>
+          {/if}
+          <button class="secondary" on:click={onClose}>Avbryt</button>
         </div>
       </div>
     </div>
@@ -115,78 +114,22 @@
 
 <style>
   .overlay {
-    position: fixed;
-    inset: 0;
+    position: fixed; inset: 0;
     background: rgba(0,0,0,0.4);
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    display: flex; justify-content: center; align-items: center;
   }
   .modal {
-    background: white;
-    padding: 1.5rem;
-    border-radius: 8px;
-    width: 380px;
-    max-width: 90vw;
+    background: white; padding: 1.5rem; border-radius: 8px;
+    width: 380px; max-width: 90vw;
   }
-  .field {
-    margin-bottom: 0.75rem;
-  }
-  label {
-    font-size: 0.9rem;
-    display: block;
-    margin-bottom: 0.25rem;
-  }
-  input, textarea {
-    width: 100%;
-    padding: 0.4rem;
-    box-sizing: border-box;
-  }
-  textarea {
-    min-height: 60px;
-  }
-  .row {
-    display: flex;
-    gap: 0.5rem;
-  }
-  .attendees {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-  .member {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.9rem;
-  }
-  .dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-  }
-  .actions {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 1rem;
-  }
-  .right {
-    display: flex;
-    gap: 0.5rem;
-  }
-  .delete {
-    background: #ff6b6b;
-    color: white;
-    border: none;
-    padding: 0.4rem 0.8rem;
-    cursor: pointer;
-  }
-  button {
-    padding: 0.4rem 0.8rem;
-    cursor: pointer;
-  }
-  .secondary {
-    background: #eee;
-  }
+  .field { margin-bottom: 0.75rem; }
+  .row { display: flex; gap: 0.5rem; }
+  .attendees { display: flex; flex-direction: column; gap: 0.25rem; }
+  .member { display: flex; align-items: center; gap: 0.4rem; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .actions { display: flex; justify-content: space-between; margin-top: 1rem; }
+  .right { display: flex; gap: 0.5rem; }
+  .delete { background: #ff6b6b; color: white; border: none; padding: 0.4rem 0.8rem; }
+  button { padding: 0.4rem 0.8rem; }
+  .secondary { background: #eee; }
 </style>
