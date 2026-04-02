@@ -9,25 +9,21 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     const supabase = locals.supabase;
     const householdId = locals.householdId;
 
-    // Hämta alla händelser för hushållet
+    // Hämta alla händelser
     const { data: eventsRaw, error: eventsError } = await supabase
         .from('family_calendar_events')
         .select('*')
         .eq('household_id', householdId)
         .order('start', { ascending: true });
 
-    if (eventsError) {
-        console.error('Error loading events', eventsError);
-    }
+    if (eventsError) console.error('Error loading events', eventsError);
 
     // Hämta attendees
     const { data: attendees, error: attendeesError } = await supabase
         .from('family_calendar_event_attendees')
         .select('event_id, household_member_id');
 
-    if (attendeesError) {
-        console.error('Error loading attendees', attendeesError);
-    }
+    if (attendeesError) console.error('Error loading attendees', attendeesError);
 
     // Bygg attendees per event
     const attendeesByEvent = new Map<string, string[]>();
@@ -36,7 +32,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
         attendeesByEvent.get(a.event_id)!.push(a.household_member_id);
     });
 
-    // Färger och medlemmar kommer från access.selectableMembers
     const members = access.selectableMembers ?? [];
 
     const memberColor = new Map<string, string>();
@@ -141,7 +136,6 @@ export const actions: Actions = {
                 }))
             );
         } else {
-            // Min händelse → lägg till mig själv
             const me = access.selectableMembers.find(
                 (m: any) => m.user_id === access.currentUserId
             );
