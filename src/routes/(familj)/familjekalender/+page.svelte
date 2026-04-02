@@ -1,12 +1,10 @@
 <script lang="ts">
-    import { enhance } from '$app/forms';
     export let data;
 
     const events = data.events ?? [];
     const members = data.members ?? [];
     const access = data.access;
 
-    // Kalenderstate
     let currentDate = new Date();
     let selectedDate: Date | null = null;
     let editingEvent: any = null;
@@ -34,22 +32,19 @@
         const year = d.getFullYear();
         const month = d.getMonth();
         const firstDay = new Date(year, month, 1);
-        const firstWeekday = (firstDay.getDay() + 6) % 7; // måndag=0
+        const firstWeekday = (firstDay.getDay() + 6) % 7;
 
         const totalDays = daysInMonth(year, month);
         const days: { date: Date }[] = [];
 
-        // dagar före månadens start
         for (let i = 0; i < firstWeekday; i++) {
             days.push({ date: new Date(year, month, 1 - (firstWeekday - i)) });
         }
 
-        // månadens dagar
         for (let day = 1; day <= totalDays; day++) {
             days.push({ date: new Date(year, month, day) });
         }
 
-        // fyll ut till hel veckor
         while (days.length % 7 !== 0) {
             const last = days[days.length - 1].date;
             days.push({ date: new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1) });
@@ -78,11 +73,19 @@
         mode = 'create';
     }
 
+    // ⭐ Flerdagarsevent fix
     function eventsForDay(d: Date) {
+        const day = new Date(d);
+        day.setHours(0, 0, 0, 0);
+
         return events.filter((e: any) => {
-            if (!e.start) return false;
-            const ed = new Date(e.start);
-            return sameDay(ed, d);
+            const start = new Date(e.start);
+            const end = e.end ? new Date(e.end) : new Date(e.start);
+
+            start.setHours(0, 0, 0, 0);
+            end.setHours(0, 0, 0, 0);
+
+            return day >= start && day <= end;
         });
     }
 
@@ -95,7 +98,7 @@
     function formatDateInput(d: Date | null) {
         if (!d) return '';
         const iso = d.toISOString();
-        return iso.slice(0, 16); // yyyy-MM-ddTHH:mm
+        return iso.slice(0, 16);
     }
 
     function memberName(id: string) {
@@ -103,7 +106,7 @@
         return m?.profiles?.full_name ?? 'Okänd';
     }
 
-    // Hantera attendees i formuläret
+    // ⭐ Samlar attendees innan submit
     function collectAttendees(form: HTMLFormElement) {
         const checkboxes = form.querySelectorAll<HTMLInputElement>('input[name="attendee_checkbox"]');
         const selected: string[] = [];
@@ -112,16 +115,6 @@
         });
         const hidden = form.querySelector<HTMLInputElement>('input[name="attendees"]');
         if (hidden) hidden.value = JSON.stringify(selected);
-    }
-
-    function onCreateSubmit(e: SubmitEvent) {
-        const form = e.currentTarget as HTMLFormElement;
-        collectAttendees(form);
-    }
-
-    function onUpdateSubmit(e: SubmitEvent) {
-        const form = e.currentTarget as HTMLFormElement;
-        collectAttendees(form);
     }
 </script>
 
@@ -238,8 +231,7 @@
                             <form
                                 method="POST"
                                 action="?/create"
-                                use:enhance
-                                on:submit|preventDefault={onCreateSubmit}
+                                on:submit={() => collectAttendees(event.target)}
                             >
                                 <input type="hidden" name="attendees" value="[]" />
 
@@ -299,8 +291,7 @@
                             <form
                                 method="POST"
                                 action="?/update"
-                                use:enhance
-                                on:submit|preventDefault={onUpdateSubmit}
+                                on:submit={() => collectAttendees(event.target)}
                             >
                                 <input type="hidden" name="event_id" value={editingEvent.id} />
                                 <input
@@ -374,7 +365,7 @@
                             </form>
 
                             <!-- DELETE -->
-                            <form method="POST" action="?/delete" use:enhance>
+                            <form method="POST" action="?/delete">
                                 <input type="hidden" name="event_id" value={editingEvent.id} />
                                 <button type="submit" class="danger">Ta bort händelse</button>
                             </form>
@@ -404,6 +395,7 @@
         </div>
     </div>
 </section>
+
 
 <style>
     .calendar-page {
