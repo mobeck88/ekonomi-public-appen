@@ -84,7 +84,8 @@
         "/assistance",
         "/expenses_riksnorm",
         "/economic_assistance",
-        "/debtsview"
+        "/debtsview",
+        "/debts"
     ];
 
     // ⭐ NYTT: Vilka paths räknas som familj?
