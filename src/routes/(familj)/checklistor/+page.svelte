@@ -1,9 +1,26 @@
 <script lang="ts">
     export let data;
+
+    let newTitle = "";
 </script>
 
 <h1>Checklistor</h1>
 
+<!-- Skapa ny checklista -->
+<div class="section">
+    <div class="section-header">Skapa ny checklista</div>
+
+    <form method="POST" action="?/create" class="create-form">
+        <div>
+            <label>Titel</label>
+            <input name="title" bind:value={newTitle} required />
+        </div>
+
+        <button type="submit">Skapa</button>
+    </form>
+</div>
+
+<!-- Lista alla checklistor -->
 <div class="section">
     <div class="section-header">Alla checklistor</div>
 
