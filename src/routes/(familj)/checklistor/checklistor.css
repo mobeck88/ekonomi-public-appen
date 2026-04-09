@@ -1,117 +1,87 @@
 /* ===========================
-   Grundlayout
+   Typografi & Layout
    =========================== */
 
-h1, h2 {
-    margin: 0 0 1rem 0;
-    font-weight: 600;
+body {
+    font-family: system-ui, sans-serif;
 }
 
-button {
+.title {
+    font-size: 1.6rem;
+    font-weight: 600;
+    margin-bottom: 1.2rem;
+}
+
+/* ===========================
+   Add Item Box
+   =========================== */
+
+.add-box {
+    background: #f3f6fb;
+    border: 1px solid #dfe6f3;
+    padding: 1rem;
+    border-radius: 10px;
+    margin-bottom: 1.5rem;
+}
+
+.field {
+    margin-bottom: 0.8rem;
+}
+
+.btn-primary {
     background: #4b7bec;
     color: white;
     border: none;
     padding: 0.6rem 1rem;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 0.95rem;
 }
 
-button:hover {
+.btn-primary:hover {
     background: #3867d6;
 }
 
-input, textarea, select {
-    width: 100%;
-    padding: 0.5rem;
-    border: 1px solid #dcdcdc;
-    border-radius: 6px;
-    font-size: 0.95rem;
-    box-sizing: border-box;
-}
-
-label {
-    font-weight: 600;
-    margin-top: 1rem;
-    display: block;
-}
-
 /* ===========================
-   Skapa ny checklista
+   Checklist Items
    =========================== */
 
-.create-box {
-    background: #f7f9fc;
-    border: 1px solid #e1e7f0;
-    padding: 1rem;
-    border-radius: 8px;
-    margin: 1rem 0;
-}
-
-.create-box button {
-    margin-top: 1rem;
-}
-
-/* ===========================
-   Listvy (/checklistor)
-   =========================== */
-
-ul {
+.item-list {
     list-style: none;
     padding: 0;
     margin: 0;
 }
 
-ul li {
+.item-row {
     background: #ffffff;
     border: 1px solid #e6e6e6;
     padding: 0.8rem;
-    border-radius: 6px;
+    border-radius: 8px;
     margin-bottom: 0.6rem;
 }
 
-ul li a {
-    text-decoration: none;
-    color: #2d3436;
-    font-weight: 500;
-}
-
-ul li a:hover {
-    text-decoration: underline;
-}
-
-/* ===========================
-   Detaljvy (/checklistor/[id])
-   =========================== */
-
-.items {
-    margin-top: 1rem;
-}
-
-.items li {
+.item-form {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
-    background: #ffffff;
-    border: 1px solid #e6e6e6;
-    padding: 0.7rem;
-    border-radius: 6px;
-    margin-bottom: 0.5rem;
+    gap: 0.8rem;
 }
 
-.items input[type="checkbox"] {
-    width: 1.2rem;
-    height: 1.2rem;
+.checkbox {
+    width: 1.3rem;
+    height: 1.3rem;
 }
 
-.deadline {
-    color: #636e72;
+.item-text {
+    flex: 1;
+    font-size: 1rem;
+}
+
+.item-deadline {
     font-size: 0.85rem;
-    margin-left: auto;
+    color: #636e72;
 }
 
 /* ===========================
-   Godkänn-knapp
+   Approve Box
    =========================== */
 
 .approve-box {
@@ -119,28 +89,35 @@ ul li a:hover {
     padding: 1rem;
     background: #f1f8f5;
     border: 1px solid #d7efe3;
-    border-radius: 8px;
+    border-radius: 10px;
+    text-align: center;
 }
 
-.approve-box button {
+.btn-approve {
     background: #20bf6b;
+    color: white;
+    border: none;
+    padding: 0.7rem 1.2rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
 }
 
-.approve-box button:hover {
+.btn-approve:hover {
     background: #0fbf4b;
 }
 
 /* ===========================
-   Responsivitet
+   Mobile
    =========================== */
 
 @media (max-width: 600px) {
-    .items li {
+    .item-form {
         flex-direction: column;
         align-items: flex-start;
     }
 
-    .deadline {
-        margin-left: 0;
+    .item-deadline {
+        margin-top: 0.3rem;
     }
 }

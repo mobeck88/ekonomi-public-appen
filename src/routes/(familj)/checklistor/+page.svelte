@@ -1,4 +1,4 @@
-"Checklistor"<script lang="ts">
+<script lang="ts">
     export let data;
 
     let showCreate = false;

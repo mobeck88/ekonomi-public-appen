@@ -8,8 +8,8 @@
 
 <h1>{data.checklist.title}</h1>
 
-{#if data.role === "owner" || data.role === "member" || data.userId === data.checklist.created_by}
-<form method="POST" action="?/addItem">
+{#if data.userId === data.checklist.created_by}
+<form method="POST" action="?/addItem" class="create-box">
     <input type="hidden" name="checklist_id" value={data.checklist.id} />
 
     <label>Punkt</label>
@@ -28,8 +28,9 @@
 <ul class="items">
     {#each data.items as item}
         <li>
-            <form method="POST" action="?/toggle">
+            <form method="POST" action="?/toggleItem">
                 <input type="hidden" name="item_id" value={item.id} />
+
                 <input
                     type="checkbox"
                     name="done"
@@ -37,7 +38,9 @@
                     checked={item.done}
                     on:change={(e) => e.target.form.submit()}
                 />
-                {item.text}
+
+                <span>{item.text}</span>
+
                 {#if item.deadline}
                     <span class="deadline">({item.deadline})</span>
                 {/if}
@@ -46,10 +49,11 @@
     {/each}
 </ul>
 
-{#if data.role === "owner" || data.role === "member"}
-<form method="POST" action="?/approve">
+{#if data.userId === data.checklist.created_by}
+<form method="POST" action="?/approve" class="approve-box">
     <input type="hidden" name="checklist_id" value={data.checklist.id} />
     <button type="submit">Godkänn</button>
 </form>
 {/if}
-<style src="./checklistor.css"></style>
+
+<style src="../checklistor.css"></style>
