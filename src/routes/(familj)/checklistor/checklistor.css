@@ -1,0 +1,146 @@
+/* ===========================
+   Grundlayout
+   =========================== */
+
+h1, h2 {
+    margin: 0 0 1rem 0;
+    font-weight: 600;
+}
+
+button {
+    background: #4b7bec;
+    color: white;
+    border: none;
+    padding: 0.6rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.95rem;
+}
+
+button:hover {
+    background: #3867d6;
+}
+
+input, textarea, select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #dcdcdc;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    box-sizing: border-box;
+}
+
+label {
+    font-weight: 600;
+    margin-top: 1rem;
+    display: block;
+}
+
+/* ===========================
+   Skapa ny checklista
+   =========================== */
+
+.create-box {
+    background: #f7f9fc;
+    border: 1px solid #e1e7f0;
+    padding: 1rem;
+    border-radius: 8px;
+    margin: 1rem 0;
+}
+
+.create-box button {
+    margin-top: 1rem;
+}
+
+/* ===========================
+   Listvy (/checklistor)
+   =========================== */
+
+ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+ul li {
+    background: #ffffff;
+    border: 1px solid #e6e6e6;
+    padding: 0.8rem;
+    border-radius: 6px;
+    margin-bottom: 0.6rem;
+}
+
+ul li a {
+    text-decoration: none;
+    color: #2d3436;
+    font-weight: 500;
+}
+
+ul li a:hover {
+    text-decoration: underline;
+}
+
+/* ===========================
+   Detaljvy (/checklistor/[id])
+   =========================== */
+
+.items {
+    margin-top: 1rem;
+}
+
+.items li {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: #ffffff;
+    border: 1px solid #e6e6e6;
+    padding: 0.7rem;
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+}
+
+.items input[type="checkbox"] {
+    width: 1.2rem;
+    height: 1.2rem;
+}
+
+.deadline {
+    color: #636e72;
+    font-size: 0.85rem;
+    margin-left: auto;
+}
+
+/* ===========================
+   Godkänn-knapp
+   =========================== */
+
+.approve-box {
+    margin-top: 2rem;
+    padding: 1rem;
+    background: #f1f8f5;
+    border: 1px solid #d7efe3;
+    border-radius: 8px;
+}
+
+.approve-box button {
+    background: #20bf6b;
+}
+
+.approve-box button:hover {
+    background: #0fbf4b;
+}
+
+/* ===========================
+   Responsivitet
+   =========================== */
+
+@media (max-width: 600px) {
+    .items li {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .deadline {
+        margin-left: 0;
+    }
+}
