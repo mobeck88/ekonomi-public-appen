@@ -57,8 +57,6 @@
         confirmDelete = false;
     }
 
-    // ⭐ INLINE-SKAPANDE ÄR HELT BORTTAGET
-
     function cancelNewCompany(stateObj: any) {
         stateObj.isAddingCompany = false;
         stateObj.newCompanyName = '';
@@ -133,6 +131,8 @@
                 <th>Grundföretag</th>
                 <th>Referens</th>
                 <th>Belopp</th>
+                <th>Inkassobolag</th>
+                <th>Inkasso-ref</th>
                 <th>Kronofogden</th>
             </tr>
         </thead>
@@ -143,6 +143,17 @@
                     <td>{d.original_company_name}</td>
                     <td>{d.original_reference}</td>
                     <td>{toCurrency(d.amount)} kr</td>
+
+                    <td>
+                        {#if d.collection_company_id}
+                            {data.companies.find((c) => c.id === d.collection_company_id)?.name}
+                        {:else}
+                            —
+                        {/if}
+                    </td>
+
+                    <td>{d.collection_reference || '—'}</td>
+
                     <td>{d.is_kronofogden ? 'Ja' : 'Nej'}</td>
                 </tr>
             {/each}
@@ -160,7 +171,8 @@
                 <th>Grundföretag</th>
                 <th>Referens</th>
                 <th>Belopp</th>
-                <th>Inkasso</th>
+                <th>Inkassobolag</th>
+                <th>Inkasso-ref</th>
             </tr>
         </thead>
         <tbody>
@@ -170,6 +182,7 @@
                     <td>{d.original_company_name}</td>
                     <td>{d.original_reference}</td>
                     <td>{toCurrency(d.amount)} kr</td>
+
                     <td>
                         {#if d.collection_company_id}
                             {data.companies.find((c) => c.id === d.collection_company_id)?.name}
@@ -177,6 +190,8 @@
                             —
                         {/if}
                     </td>
+
+                    <td>{d.collection_reference || '—'}</td>
                 </tr>
             {/each}
         </tbody>
@@ -211,7 +226,6 @@
                     bind:value={editing.newCompanyName}
                 />
 
-                <!-- ⭐ Minimal fix: endast backend skapar -->
                 <input type="hidden" name="collection_company_id" value="__new__" />
                 <input type="hidden" name="new_company_name" value={editing.newCompanyName} />
 
