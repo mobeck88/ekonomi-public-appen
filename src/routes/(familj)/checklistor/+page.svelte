@@ -16,7 +16,7 @@
             <input name="title" bind:value={newTitle} required />
         </div>
 
-        <!-- Här kan du senare lägga till assigned_to, notify_users, is_recurring som inputs -->
+        <!-- Här kan du senare lägga till assigned_to, notify_users, is_recurring som riktiga inputs -->
 
         <button type="submit">Skapa</button>
     </form>

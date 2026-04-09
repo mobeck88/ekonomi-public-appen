@@ -66,7 +66,6 @@ export const actions = {
             .update({ done: !item.done })
             .eq("id", item_id);
 
-        // Kolla om alla punkter är klara
         const { data: allItems, error: e2 } = await locals.supabase
             .from("checklist_items")
             .select("done")
@@ -77,7 +76,7 @@ export const actions = {
         const allDone = allItems.length > 0 && allItems.every((i) => i.done);
 
         if (allDone) {
-            // Här kan du koppla in mail‑logik (notify_users) via t.ex. RPC eller annan tjänst
+            // Här kan du koppla in mail‑logik (notify_users) via t.ex. RPC/Edge Function
         }
 
         throw redirect(303, "");
@@ -87,7 +86,6 @@ export const actions = {
         const form = await request.formData();
         const checklist_id = form.get("checklist_id");
 
-        // Hämta checklistan
         const { data: checklist, error: e1 } = await locals.supabase
             .from("checklists")
             .select("*")
@@ -96,7 +94,6 @@ export const actions = {
 
         if (e1) throw e1;
 
-        // Sätt godkänd
         const { error: e2 } = await locals.supabase
             .from("checklists")
             .update({
@@ -107,7 +104,6 @@ export const actions = {
 
         if (e2) throw e2;
 
-        // Om återkommande: skapa ny checklista + kopiera punkter
         if (checklist.is_recurring) {
             const { data: newChecklist, error: e3 } = await locals.supabase
                 .from("checklists")

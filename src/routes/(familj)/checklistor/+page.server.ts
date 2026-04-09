@@ -20,7 +20,8 @@ export const actions = {
         const form = await request.formData();
 
         const title = form.get("title");
-        const assigned_to = form.get("assigned_to");
+        // Dessa kan du bygga UI för senare
+        const assigned_to = form.get("assigned_to") || null;
         const is_recurring = form.get("is_recurring") === "on";
         const notify_users = form.getAll("notify_users");
 
