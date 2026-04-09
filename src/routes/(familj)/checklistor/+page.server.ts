@@ -1,14 +1,16 @@
-import { db } from "$lib/server/db";
 import { redirect } from "@sveltejs/kit";
 
 export async function load({ locals }) {
+    const householdId = locals.householdId;
     const userId = locals.user.id;
 
-    const { data: lists } = await db
+    const { data: lists, error } = await locals.supabase
         .from("checklists")
         .select("id, title, assigned_to, created_by, is_recurring, approved_at")
-        .eq("household_id", locals.household.id)
+        .eq("household_id", householdId)
         .order("created_at", { ascending: false });
+
+    if (error) throw error;
 
     return { lists, userId };
 }
@@ -22,10 +24,10 @@ export const actions = {
         const is_recurring = form.get("is_recurring") === "on";
         const notify_users = form.getAll("notify_users");
 
-        const { data, error } = await db
+        const { data, error } = await locals.supabase
             .from("checklists")
             .insert({
-                household_id: locals.household.id,
+                household_id: locals.householdId,
                 created_by: locals.user.id,
                 assigned_to,
                 title,
