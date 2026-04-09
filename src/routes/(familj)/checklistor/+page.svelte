@@ -1,57 +1,90 @@
 <script lang="ts">
     export let data;
 
-    let showCreate = false;
-
-    let title = "";
-    let assigned_to = data.userId;
-    let is_recurring = false;
-    let notify_users: string[] = [];
+    let newText = "";
+    let newDescription = "";
+    let newDeadline = "";
 </script>
 
-<h1>Checklistor</h1>
+<h1>{data.checklist.title}</h1>
 
-<button on:click={() => showCreate = !showCreate}>
-    Skapa ny checklista
-</button>
+<div class="section">
+    <div class="section-header">Lägg till punkt</div>
 
-{#if showCreate}
-<form method="POST" action="?/create" class="create-box">
-    <label>Titel</label>
-    <input name="title" bind:value={title} required />
+    {#if data.userId === data.checklist.created_by}
+    <form method="POST" action="?/addItem" class="create-form">
+        <input type="hidden" name="checklist_id" value={data.checklist.id} />
 
-    <label>Tilldela till</label>
-    <select name="assigned_to" bind:value={assigned_to}>
-        <option value={data.userId}>Mig själv</option>
-        <!-- Här kan du lägga in hushållets medlemmar -->
-    </select>
+        <div>
+            <label>Punkt</label>
+            <input name="text" bind:value={newText} required />
+        </div>
 
-    <label>
-        <input type="checkbox" name="is_recurring" bind:checked={is_recurring} />
-        Återkommande checklista
-    </label>
+        <div>
+            <label>Beskrivning</label>
+            <textarea name="description" bind:value={newDescription}></textarea>
+        </div>
 
-    <label>Mottagare av mail</label>
-    <select name="notify_users" multiple bind:value={notify_users}>
-        <!-- Lägg in hushållets medlemmar -->
-    </select>
+        <div>
+            <label>Deadline</label>
+            <input type="date" name="deadline" bind:value={newDeadline} />
+        </div>
 
-    <button type="submit">Skapa</button>
-</form>
+        <button type="submit">Lägg till</button>
+    </form>
+    {/if}
+</div>
+
+<div class="section">
+    <div class="section-header">Checklistepunkter</div>
+
+    {#if data.items.length === 0}
+        <div class="empty">Inga punkter ännu.</div>
+    {:else}
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 60px;">Klar</th>
+                    <th>Punkt</th>
+                    <th style="width: 140px;">Deadline</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {#each data.items as item}
+                    <tr>
+                        <td>
+                            <form method="POST" action="?/toggleItem" class="checkbox-row">
+                                <input type="hidden" name="item_id" value={item.id} />
+                                <input
+                                    type="checkbox"
+                                    name="done"
+                                    value="true"
+                                    checked={item.done}
+                                    on:change={(e) => e.target.form.submit()}
+                                />
+                            </form>
+                        </td>
+
+                        <td>{item.text}</td>
+
+                        <td>{item.deadline || ""}</td>
+                    </tr>
+                {/each}
+            </tbody>
+        </table>
+    {/if}
+</div>
+
+{#if data.userId === data.checklist.created_by}
+<div class="section">
+    <div class="section-header">Godkänn</div>
+
+    <form method="POST" action="?/approve" class="inline-buttons">
+        <input type="hidden" name="checklist_id" value={data.checklist.id} />
+        <button type="submit">Godkänn</button>
+    </form>
+</div>
 {/if}
 
-<h2>Mina checklistor</h2>
-
-<ul>
-    {#each data.lists as c}
-        <li>
-            <a href={`/checklistor/${c.id}`}>
-                {c.title}
-                {#if c.approved_at}
-                    (Godkänd)
-                {/if}
-            </a>
-        </li>
-    {/each}
-</ul>
-<style src="./checklistor.css"></style>
+<style src="../checklistor.css"></style>

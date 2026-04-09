@@ -1,123 +1,115 @@
 /* ===========================
-   Typografi & Layout
+   Sektioner (matchar din stil)
    =========================== */
 
-body {
-    font-family: system-ui, sans-serif;
-}
-
-.title {
-    font-size: 1.6rem;
-    font-weight: 600;
-    margin-bottom: 1.2rem;
-}
-
-/* ===========================
-   Add Item Box
-   =========================== */
-
-.add-box {
-    background: #f3f6fb;
-    border: 1px solid #dfe6f3;
-    padding: 1rem;
-    border-radius: 10px;
+.section {
     margin-bottom: 1.5rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
-.field {
-    margin-bottom: 0.8rem;
-}
-
-.btn-primary {
-    background: #4b7bec;
-    color: white;
-    border: none;
-    padding: 0.6rem 1rem;
-    border-radius: 6px;
-    cursor: pointer;
-}
-
-.btn-primary:hover {
-    background: #3867d6;
+.section-header {
+    width: 100%;
+    background: #f3f4f6;
+    padding: 1rem 1.2rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    color: #111827;
 }
 
 /* ===========================
-   Checklist Items
+   Formulär
    =========================== */
 
-.item-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
+.create-form {
+    display: grid;
+    gap: 0.9rem;
+    padding: 1rem;
+    max-width: 420px;
 }
 
-.item-row {
-    background: #ffffff;
-    border: 1px solid #e6e6e6;
-    padding: 0.8rem;
+input,
+textarea,
+select {
+    padding: 0.65rem;
+    border: 1px solid #d1d5db;
     border-radius: 8px;
-    margin-bottom: 0.6rem;
+    font-size: 0.95rem;
+    background: #f9fafb;
 }
 
-.item-form {
+input:focus,
+textarea:focus,
+select:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px #dbeafe;
+    background: #ffffff;
+}
+
+button {
+    padding: 0.75rem 1rem;
+    border: none;
+    background: #2563eb;
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 600;
+    transition: background 0.15s;
+}
+
+button:hover {
+    background: #1d4ed8;
+}
+
+/* ===========================
+   Tabell
+   =========================== */
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+td,
+th {
+    padding: 0.75rem;
+    border-bottom: 1px solid #e5e7eb;
+    font-size: 0.95rem;
+    vertical-align: top;
+}
+
+tr:hover {
+    background: #f3f4f6;
+}
+
+.checkbox-row {
     display: flex;
     align-items: center;
-    gap: 0.8rem;
-}
-
-.checkbox {
-    width: 1.3rem;
-    height: 1.3rem;
-}
-
-.item-text {
-    flex: 1;
-    font-size: 1rem;
-}
-
-.item-deadline {
-    font-size: 0.85rem;
-    color: #636e72;
+    justify-content: center;
 }
 
 /* ===========================
-   Approve Box
+   Empty state
    =========================== */
 
-.approve-box {
-    margin-top: 2rem;
+.empty {
     padding: 1rem;
-    background: #f1f8f5;
-    border: 1px solid #d7efe3;
-    border-radius: 10px;
-    text-align: center;
-}
-
-.btn-approve {
-    background: #20bf6b;
-    color: white;
-    border: none;
-    padding: 0.7rem 1.2rem;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 1rem;
-}
-
-.btn-approve:hover {
-    background: #0fbf4b;
+    color: #6b7280;
 }
 
 /* ===========================
-   Mobile
+   Inline buttons
    =========================== */
 
-@media (max-width: 600px) {
-    .item-form {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .item-deadline {
-        margin-top: 0.3rem;
-    }
+.inline-buttons {
+    display: flex;
+    gap: 0.5rem;
+    padding: 1rem;
 }
