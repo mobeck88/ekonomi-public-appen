@@ -81,4 +81,4 @@
     {/if}
 </div>
 
-<style src="./unexpected_expenses.css"></style>
+<style src="/unexpected_expenses.css"></style>
