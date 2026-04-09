@@ -12,7 +12,7 @@ export async function load({ locals }) {
 
     if (error) throw error;
 
-    return { lists, userId };
+    return { checklists: lists, userId };
 }
 
 export const actions = {
