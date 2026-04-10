@@ -67,8 +67,12 @@
 
                                 <input
                                     type="checkbox"
+                                    name="done"
                                     checked={item.done}
-                                    on:change={(e) => e.currentTarget.form?.requestSubmit()}
+                                    on:change={(e) => {
+                                        e.preventDefault();
+                                        e.currentTarget.form?.requestSubmit();
+                                    }}
                                 />
                             </form>
                         </td>
