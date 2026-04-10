@@ -7,7 +7,13 @@ export const load: PageServerLoad = async ({ locals }) => {
     const supabase = locals.supabase;
 
     if (!user) throw redirect(303, "/login");
-    if (!householdId) return { checklists: [], userId: null };
+    if (!householdId) return { checklists: [], userId: null, members: [] };
+
+    // Hämta medlemmar (för tilldelning)
+    const { data: members } = await supabase
+        .from("household_members")
+        .select("user_id, profiles(full_name)")
+        .eq("household_id", householdId);
 
     const { data: lists, error } = await supabase
         .from("checklists")
@@ -15,14 +21,10 @@ export const load: PageServerLoad = async ({ locals }) => {
         .eq("household_id", householdId)
         .order("created_at", { ascending: false });
 
-    if (error) {
-        console.error("load checklists error", error);
-        return { checklists: [], userId: user.id };
-    }
-
     return {
         checklists: lists ?? [],
-        userId: user.id
+        userId: user.id,
+        members: members ?? []
     };
 };
 
@@ -37,25 +39,20 @@ export const actions: Actions = {
 
         const form = await request.formData();
         const title = form.get("title");
+        const assigned_to = form.get("assigned_to");
 
-        if (!title) {
-            return { error: "Titel saknas." };
-        }
-
-        // Sätt alla fält som typiskt kan vara NOT NULL
-        const assigned_to = null;          // t.ex. uuid, nullable
-        const is_recurring = false;        // t.ex. boolean NOT NULL
-        const notify_users: string[] = []; // t.ex. text[] NOT NULL
+        if (!title) return { error: "Titel saknas." };
+        if (!assigned_to) return { error: "assigned_to saknas." };
 
         const { data, error } = await supabase
             .from("checklists")
             .insert({
                 household_id: householdId,
                 created_by: user.id,
-                title,
                 assigned_to,
-                is_recurring,
-                notify_users
+                title,
+                is_recurring: false,
+                notify_users: []
             })
             .select("id")
             .single();
