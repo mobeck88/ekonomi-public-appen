@@ -103,6 +103,7 @@ export const actions: Actions = {
         const user = locals.user;
         if (!user) return { error: "Ingen användare." };
 
+        // Hämta checklistan
         const { data: checklist, error } = await locals.supabase
             .from("checklists")
             .select("*")
@@ -114,19 +115,31 @@ export const actions: Actions = {
             return { error: "Checklistan finns inte." };
         }
 
-        const role = checklist.role; // owner, member, barn, ungdom
-        const createdBy = checklist.created_by;
+        // Hämta användarens roll i hushållet
+        const { data: member } = await locals.supabase
+            .from("household_members")
+            .select("role")
+            .eq("household_id", checklist.household_id)
+            .eq("user_id", user.id)
+            .single();
 
-        const isOwnerOrMember = role === "owner" || role === "member";
-        const isCreator = createdBy === user.id;
+        const role = member?.role ?? null;
 
-        if (!isOwnerOrMember && !isCreator) {
+        const allowedRoles = ["owner", "member", "guardian"];
+        const isAllowed = allowedRoles.includes(role);
+        const isCreator = checklist.created_by === user.id;
+
+        if (!isAllowed && !isCreator) {
             return { error: "Du har inte behörighet att godkänna denna lista." };
         }
 
         const { error: e2 } = await locals.supabase
             .from("checklists")
-            .update({ approved: true })
+            .update({
+                approved: true,
+                approved_by: user.id,
+                approved_at: new Date().toISOString()
+            })
             .eq("id", checklist_id);
 
         if (e2) {
