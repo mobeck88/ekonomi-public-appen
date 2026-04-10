@@ -7,7 +7,6 @@
 
 <h1>Checklistor</h1>
 
-<!-- Skapa ny checklista -->
 <div class="section">
     <div class="section-header">Skapa ny checklista</div>
 
@@ -17,13 +16,10 @@
             <input name="title" bind:value={newTitle} required />
         </div>
 
-        <!-- Här kan du senare lägga till assigned_to, notify_users, is_recurring som riktiga inputs -->
-
         <button type="submit">Skapa</button>
     </form>
 </div>
 
-<!-- Lista checklistor -->
 <div class="section">
     <div class="section-header">Alla checklistor</div>
 

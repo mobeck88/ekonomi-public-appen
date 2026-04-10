@@ -6,22 +6,22 @@ export async function load({ locals }) {
 
     const { data: lists, error } = await locals.supabase
         .from("checklists")
-        .select("id, title, assigned_to, created_by, is_recurring, approved_at")
+        .select("id, title, created_by, approved_at, is_recurring")
         .eq("household_id", householdId)
         .order("created_at", { ascending: false });
 
     if (error) throw error;
 
-    return { checklists: lists, userId };
+    return { checklists: lists ?? [], userId };
 }
 
 export const actions = {
     create: async ({ request, locals }) => {
         const form = await request.formData();
-
         const title = form.get("title");
 
-        // Håll det minimalt tills UI för fler fält finns
+        if (!title) return { error: "Titel saknas." };
+
         const { data, error } = await locals.supabase
             .from("checklists")
             .insert({
@@ -32,7 +32,7 @@ export const actions = {
             .select("id")
             .single();
 
-        if (error) throw error;
+        if (error) return { error: error.message };
 
         throw redirect(303, `/checklistor/${data.id}`);
     }

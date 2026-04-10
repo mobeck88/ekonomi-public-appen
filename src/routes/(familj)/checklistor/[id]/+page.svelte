@@ -28,7 +28,7 @@
 
         <div>
             <label>Deadline</label>
-            <input type="date" name="deadline" bind:value={newDeadline} />
+            <input name="deadline" type="date" bind:value={newDeadline} />
         </div>
 
         <button type="submit">Lägg till</button>
@@ -45,9 +45,9 @@
         <table>
             <thead>
                 <tr>
-                    <th style="width: 60px;">Klar</th>
+                    <th>Klar</th>
                     <th>Punkt</th>
-                    <th style="width: 140px;">Deadline</th>
+                    <th>Deadline</th>
                 </tr>
             </thead>
 
@@ -55,12 +55,10 @@
                 {#each data.items as item}
                     <tr>
                         <td>
-                            <form method="POST" action="?/toggleItem" class="checkbox-row">
+                            <form method="POST" action="?/toggleItem">
                                 <input type="hidden" name="item_id" value={item.id} />
                                 <input
                                     type="checkbox"
-                                    name="done"
-                                    value="true"
                                     checked={item.done}
                                     on:change={(e) => e.target.form.submit()}
                                 />
@@ -68,7 +66,6 @@
                         </td>
 
                         <td>{item.text}</td>
-
                         <td>{item.deadline || ""}</td>
                     </tr>
                 {/each}
@@ -81,7 +78,7 @@
 <div class="section">
     <div class="section-header">Godkänn</div>
 
-    <form method="POST" action="?/approve" class="inline-buttons">
+    <form method="POST" action="?/approve">
         <input type="hidden" name="checklist_id" value={data.checklist.id} />
         <button type="submit">Godkänn</button>
     </form>
