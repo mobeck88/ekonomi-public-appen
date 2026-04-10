@@ -15,7 +15,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
         .eq("id", id)
         .single();
 
-    if (e1) {
+    if (e1 || !checklist) {
         console.error("load checklist error", e1);
         throw redirect(303, "/checklistor");
     }
@@ -29,7 +29,6 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
     if (e2) {
         console.error("load checklist_items error", e2);
-        return { checklist, items: [], userId: user.id };
     }
 
     return {
@@ -42,10 +41,10 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 export const actions: Actions = {
     addItem: async ({ request, locals }) => {
         const form = await request.formData();
-        const checklist_id = form.get("checklist_id");
-        const text = form.get("text");
-        const description = form.get("description");
-        const deadline = form.get("deadline") || null;
+        const checklist_id = form.get("checklist_id") as string;
+        const text = form.get("text") as string;
+        const description = (form.get("description") as string) || null;
+        const deadline = (form.get("deadline") as string) || null;
 
         if (!checklist_id || !text) {
             return { error: "Ogiltiga fält." };
@@ -66,24 +65,25 @@ export const actions: Actions = {
             return { error: error.message };
         }
 
-        throw redirect(303, "");
+        // Gå alltid tillbaka till ren URL utan ?/addItem
+        throw redirect(303, `/checklistor/${checklist_id}`);
     },
 
     toggleItem: async ({ request, locals }) => {
         const form = await request.formData();
-        const item_id = form.get("item_id");
+        const item_id = form.get("item_id") as string;
 
         if (!item_id) return { error: "Saknar item_id." };
 
         const { data: item, error: e1 } = await locals.supabase
             .from("checklist_items")
-            .select("done")
+            .select("id, checklist_id, done")
             .eq("id", item_id)
             .single();
 
-        if (e1) {
+        if (e1 || !item) {
             console.error("fetch checklist item error", e1);
-            return { error: e1.message };
+            return { error: "Punkt hittades inte." };
         }
 
         const { error: e2 } = await locals.supabase
@@ -96,6 +96,7 @@ export const actions: Actions = {
             return { error: e2.message };
         }
 
-        throw redirect(303, "");
+        // Tillbaka till ren checklist‑URL, utan ?/toggleItem
+        throw redirect(303, `/checklistor/${item.checklist_id}`);
     }
 };
