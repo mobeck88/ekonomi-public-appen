@@ -81,4 +81,6 @@
     {/if}
 </div>
 
-<style src="/unexpected_expenses.css"></style>
+<script>
+  import "./unexpected_expenses.css";
+</script>

@@ -55,4 +55,6 @@
     {/if}
 </div>
 
-<style src="./checklistor.css"></style>
+<script> 
+  import "./checklistor.css"
+</script>
