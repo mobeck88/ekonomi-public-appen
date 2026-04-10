@@ -68,7 +68,10 @@
                                 <input
                                     type="checkbox"
                                     checked={item.done}
-                                    on:change={(e) => e.currentTarget.form?.requestSubmit()}
+                                    on:change={(e) => {
+                                        // DETTA ÄR DET SOM FÅR DET ATT FUNGERA
+                                        e.currentTarget.form?.requestSubmit();
+                                    }}
                                 />
                             </form>
                         </td>
