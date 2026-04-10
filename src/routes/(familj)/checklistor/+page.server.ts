@@ -20,17 +20,14 @@ export const actions = {
         const form = await request.formData();
 
         const title = form.get("title");
-        const assigned_to = null;
-        const is_recurring = false;
 
+        // Håll det minimalt tills UI för fler fält finns
         const { data, error } = await locals.supabase
             .from("checklists")
             .insert({
                 household_id: locals.householdId,
                 created_by: locals.user.id,
-                assigned_to,
-                title,
-                is_recurring
+                title
             })
             .select("id")
             .single();

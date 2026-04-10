@@ -76,7 +76,7 @@ export const actions = {
         const allDone = allItems.length > 0 && allItems.every((i) => i.done);
 
         if (allDone) {
-            // Här kan du koppla in mail‑logik (notify_users) via t.ex. RPC/Edge Function
+            // notify_users‑logik kan kopplas in här
         }
 
         throw redirect(303, "");

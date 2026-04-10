@@ -11,11 +11,13 @@
 <div class="section">
     <div class="section-header">Skapa ny checklista</div>
 
-    <form method="POST" action="/checklistor?/create" class="create-form">
+    <form method="POST" action="?/create" class="create-form">
         <div>
             <label>Titel</label>
             <input name="title" bind:value={newTitle} required />
         </div>
+
+        <!-- Här kan du senare lägga till assigned_to, notify_users, is_recurring som riktiga inputs -->
 
         <button type="submit">Skapa</button>
     </form>
