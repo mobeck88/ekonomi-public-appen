@@ -55,7 +55,6 @@
                 {#each data.items as item}
                     <tr>
                         <td>
-                            <!-- ⭐ Detta formulär skickar korrekt -->
                             <form method="POST" action="?/toggleItem" style="display:inline;">
                                 <input type="hidden" name="item_id" value={item.id} />
                                 <input
