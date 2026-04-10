@@ -1,5 +1,7 @@
 <script lang="ts">
     import "../checklistor.css";
+    import { enhance } from "$app/forms";
+
     export let data;
 
     let newText = "";
@@ -55,12 +57,18 @@
                 {#each data.items as item}
                     <tr>
                         <td>
-                            <form method="POST" action="?/toggleItem" style="display:inline;">
+                            <form
+                                method="POST"
+                                action="?/toggleItem"
+                                use:enhance
+                                style="display:inline;"
+                            >
                                 <input type="hidden" name="item_id" value={item.id} />
+
                                 <input
                                     type="checkbox"
                                     checked={item.done}
-                                    on:change={(e) => e.target.form.submit()}
+                                    name="done"
                                 />
                             </form>
                         </td>
