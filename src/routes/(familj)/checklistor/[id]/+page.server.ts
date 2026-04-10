@@ -65,7 +65,6 @@ export const actions: Actions = {
             return { error: error.message };
         }
 
-        // Gå alltid tillbaka till ren URL utan ?/addItem
         throw redirect(303, `/checklistor/${checklist_id}`);
     },
 
@@ -75,9 +74,10 @@ export const actions: Actions = {
 
         if (!item_id) return { error: "Saknar item_id." };
 
+        // ⭐ FIX: hämta ALLA kolumner så vi alltid får rätt id‑fält
         const { data: item, error: e1 } = await locals.supabase
             .from("checklist_items")
-            .select("id, checklist_id, done")
+            .select("*")
             .eq("id", item_id)
             .single();
 
@@ -96,7 +96,6 @@ export const actions: Actions = {
             return { error: e2.message };
         }
 
-        // Tillbaka till ren checklist‑URL, utan ?/toggleItem
         throw redirect(303, `/checklistor/${item.checklist_id}`);
     }
 };
