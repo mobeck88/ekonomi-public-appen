@@ -53,23 +53,23 @@
 
             <tbody>
                 {#each data.items as item}
-                    <form method="POST" action="?/toggleItem">
-                        <input type="hidden" name="item_id" value={item.id} />
+                    <tr>
+                        <td>
+                            <form method="POST" action="?/toggleItem">
+                                <input type="hidden" name="item_id" value={item.id} />
 
-                        <tr>
-                            <td>
+                                <!-- Checkbox -->
                                 <input
                                     type="checkbox"
                                     checked={item.done}
                                     on:change={(e) => e.target.form.submit()}
                                 />
-                            </td>
+                            </form>
+                        </td>
 
-                            <td>{item.text}</td>
-
-                            <td>{item.deadline || ""}</td>
-                        </tr>
-                    </form>
+                        <td>{item.text}</td>
+                        <td>{item.deadline || ""}</td>
+                    </tr>
                 {/each}
             </tbody>
         </table>
