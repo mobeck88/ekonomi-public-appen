@@ -82,7 +82,7 @@ export const actions: Actions = {
 
         if (!checklist) return;
 
-        const role = checklist.role; // owner, member, barn, ungdom
+        const role = checklist.role;
         const createdBy = checklist.created_by;
 
         const isOwnerOrMember = role === "owner" || role === "member";
