@@ -13,7 +13,7 @@
     <div class="section-header">Lägg till punkt</div>
 
     {#if data.userId === data.checklist.created_by}
-    <form method="POST" action="?/addItem" class="create-form">
+    <form method="POST" action={`/checklistor/${data.checklist.id}?/addItem`} class="create-form">
         <input type="hidden" name="checklist_id" value={data.checklist.id} />
 
         <div>
@@ -55,13 +55,11 @@
                 {#each data.items as item}
                     <tr>
                         <td>
-                            <!-- Form ligger UTANFÖR tabellen -->
-                            <form method="POST" action="?/toggleItem" id={"f" + item.id}>
+                            <form method="POST" action={`/checklistor/${data.checklist.id}?/toggleItem`} id={"f" + item.id}>
                                 <input type="hidden" name="item_id" value={item.id} />
                                 <button type="submit" hidden id={"b" + item.id}></button>
                             </form>
 
-                            <!-- Checkbox triggar knappen -->
                             <input
                                 type="checkbox"
                                 checked={item.done}
@@ -82,7 +80,7 @@
 <div class="section">
     <div class="section-header">Godkänn</div>
 
-    <form method="POST" action="?/approve" class="inline-buttons">
+    <form method="POST" action={`/checklistor/${data.checklist.id}?/approve`} class="inline-buttons">
         <input type="hidden" name="checklist_id" value={data.checklist.id} />
         <button type="submit">Godkänn</button>
     </form>
