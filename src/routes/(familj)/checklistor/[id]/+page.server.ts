@@ -8,33 +8,24 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
     if (!user) throw redirect(303, "/login");
 
-    // Hämta checklista
-    const { data: checklist, error: e1 } = await supabase
+    const { data: checklist } = await supabase
         .from("checklists")
         .select("*")
         .eq("id", id)
         .single();
 
-    if (e1 || !checklist) {
-        console.error("load checklist error", e1);
-        throw redirect(303, "/checklistor");
-    }
+    if (!checklist) throw redirect(303, "/checklistor");
 
-    // Hämta punkter
-    const { data: items, error: e2 } = await supabase
+    const { data: items } = await supabase
         .from("checklist_items")
         .select("*")
         .eq("checklist_id", id)
         .order("created_at", { ascending: true });
 
-    if (e2) {
-        console.error("load checklist_items error", e2);
-    }
-
     return {
         checklist,
         items: items ?? [],
-        userId: user.id
+        user
     };
 };
 
@@ -46,24 +37,13 @@ export const actions: Actions = {
         const description = (form.get("description") as string) || null;
         const deadline = (form.get("deadline") as string) || null;
 
-        if (!checklist_id || !text) {
-            return { error: "Ogiltiga fält." };
-        }
-
-        const { error } = await locals.supabase
-            .from("checklist_items")
-            .insert({
-                checklist_id,
-                text,
-                description,
-                deadline,
-                done: false
-            });
-
-        if (error) {
-            console.error("add checklist item error", error);
-            return { error: error.message };
-        }
+        await locals.supabase.from("checklist_items").insert({
+            checklist_id,
+            text,
+            description,
+            deadline,
+            done: false
+        });
 
         throw redirect(303, `/checklistor/${checklist_id}`);
     },
@@ -72,30 +52,51 @@ export const actions: Actions = {
         const form = await request.formData();
         const item_id = form.get("item_id") as string;
 
-        if (!item_id) return { error: "Saknar item_id." };
-
-        // ⭐ FIX: hämta ALLA kolumner så vi alltid får rätt id‑fält
-        const { data: item, error: e1 } = await locals.supabase
+        const { data: item } = await locals.supabase
             .from("checklist_items")
             .select("*")
             .eq("id", item_id)
             .single();
 
-        if (e1 || !item) {
-            console.error("fetch checklist item error", e1);
-            return { error: "Punkt hittades inte." };
-        }
+        if (!item) return;
 
-        const { error: e2 } = await locals.supabase
+        await locals.supabase
             .from("checklist_items")
             .update({ done: !item.done })
             .eq("id", item_id);
 
-        if (e2) {
-            console.error("toggle checklist item error", e2);
-            return { error: e2.message };
+        throw redirect(303, `/checklistor/${item.checklist_id}`);
+    },
+
+    approve: async ({ request, locals }) => {
+        const form = await request.formData();
+        const checklist_id = form.get("checklist_id") as string;
+
+        const user = locals.user;
+
+        const { data: checklist } = await locals.supabase
+            .from("checklists")
+            .select("*")
+            .eq("id", checklist_id)
+            .single();
+
+        if (!checklist) return;
+
+        const role = checklist.role; // owner, member, barn, ungdom
+        const createdBy = checklist.created_by;
+
+        const isOwnerOrMember = role === "owner" || role === "member";
+        const isCreator = createdBy === user.id;
+
+        if (!isOwnerOrMember && !isCreator) {
+            return { error: "Ingen behörighet." };
         }
 
-        throw redirect(303, `/checklistor/${item.checklist_id}`);
+        await locals.supabase
+            .from("checklists")
+            .update({ approved: true })
+            .eq("id", checklist_id);
+
+        throw redirect(303, `/checklistor/${checklist_id}`);
     }
 };

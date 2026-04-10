@@ -67,12 +67,8 @@
 
                                 <input
                                     type="checkbox"
-                                    name="done"
                                     checked={item.done}
-                                    on:change={(e) => {
-                                        e.preventDefault();
-                                        e.currentTarget.form?.requestSubmit();
-                                    }}
+                                    on:change={(e) => e.currentTarget.form?.requestSubmit()}
                                 />
                             </form>
                         </td>
@@ -85,3 +81,11 @@
         </table>
     {/if}
 </div>
+
+<!-- Godkänn lista -->
+{#if data.items.length > 0 && data.items.every(i => i.done)}
+    <form method="POST" action="?/approve" use:enhance>
+        <input type="hidden" name="checklist_id" value={data.checklist.id} />
+        <button>Godkänn lista</button>
+    </form>
+{/if}
