@@ -8,24 +8,21 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
     if (!user) throw redirect(303, "/login");
 
-    const { data: checklist, error: e1 } = await supabase
+    const { data: checklist } = await supabase
         .from("checklists")
         .select("*")
         .eq("id", id)
         .single();
 
-    if (e1 || !checklist) {
-        console.error("load checklist error", e1);
-        throw redirect(303, "/checklistor");
-    }
+    if (!checklist) throw redirect(303, "/checklistor");
 
-    const { data: items, error: e2 } = await supabase
+    const { data: items } = await supabase
         .from("checklist_items")
         .select("*")
         .eq("checklist_id", id)
         .order("created_at", { ascending: true });
 
-    const { data: member, error: e3 } = await supabase
+    const { data: member } = await supabase
         .from("household_members")
         .select("role")
         .eq("household_id", checklist.household_id)
@@ -48,20 +45,13 @@ export const actions: Actions = {
         const description = (form.get("description") as string) || null;
         const deadline = (form.get("deadline") as string) || null;
 
-        const { error } = await locals.supabase
-            .from("checklist_items")
-            .insert({
-                checklist_id,
-                text,
-                description,
-                deadline,
-                done: false
-            });
-
-        if (error) {
-            console.error("add checklist item error", error);
-            return { error: error.message };
-        }
+        await locals.supabase.from("checklist_items").insert({
+            checklist_id,
+            text,
+            description,
+            deadline,
+            done: false
+        });
 
         throw redirect(303, `/checklistor/${checklist_id}`);
     },
@@ -70,26 +60,16 @@ export const actions: Actions = {
         const form = await request.formData();
         const item_id = form.get("item_id") as string;
 
-        const { data: item, error: e1 } = await locals.supabase
+        const { data: item } = await locals.supabase
             .from("checklist_items")
             .select("*")
             .eq("id", item_id)
             .single();
 
-        if (e1 || !item) {
-            console.error("fetch checklist item error", e1);
-            return { error: "Punkt hittades inte." };
-        }
-
-        const { error: e2 } = await locals.supabase
+        await locals.supabase
             .from("checklist_items")
             .update({ done: !item.done })
             .eq("id", item_id);
-
-        if (e2) {
-            console.error("toggle checklist item error", e2);
-            return { error: e2.message };
-        }
 
         throw redirect(303, `/checklistor/${item.checklist_id}`);
     },
@@ -97,7 +77,6 @@ export const actions: Actions = {
     approve: async ({ request, locals }) => {
         const form = await request.formData();
         const checklist_id = form.get("checklist_id") as string;
-
         const user = locals.user;
 
         const { data: checklist } = await locals.supabase
@@ -122,19 +101,14 @@ export const actions: Actions = {
             return { error: "Du har inte behörighet att godkänna denna lista." };
         }
 
-        const { error: e2 } = await locals.supabase
+        await locals.supabase
             .from("checklists")
             .update({
                 approved: true,
                 approved_by: user.id,
-                approved_at: new Date().toISOString()
+                approved_at: new Date().toISOString().split(".")[0] // ← FIXAR PGRST204
             })
             .eq("id", checklist_id);
-
-        if (e2) {
-            console.error("approve checklist error", e2);
-            return { error: e2.message };
-        }
 
         throw redirect(303, `/checklistor/${checklist_id}`);
     }
