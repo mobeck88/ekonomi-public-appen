@@ -7,7 +7,6 @@
     let newDescription = "";
     let newDeadline = "";
 
-    // Roller som får godkänna
     const allowedRoles = ["owner", "member", "guardian"];
 
     const canApprove =
@@ -19,11 +18,9 @@
 
 <h1>{data.checklist.title}</h1>
 
-<!-- Visa godkänd-info -->
 {#if isLocked}
     <div class="approved-banner">
-        ✔ Godkänd av {data.checklist.approved_by}
-        <br />
+        ✔ Godkänd av {data.checklist.approved_by}<br />
         {new Date(data.checklist.approved_at).toLocaleString()}
     </div>
 {/if}
@@ -90,12 +87,13 @@
                             >
                                 <input type="hidden" name="item_id" value={item.id} />
 
-                                <input
-                                    type="checkbox"
-                                    checked={item.done}
+                                <button
+                                    type="submit"
+                                    class="checkbox-btn"
                                     disabled={isLocked}
-                                    on:change={(e) => e.currentTarget.form?.submit()}
-                                />
+                                >
+                                    {item.done ? "☑" : "☐"}
+                                </button>
                             </form>
                         </td>
 
@@ -112,7 +110,8 @@
 {#if !isLocked && data.items.length > 0 && data.items.every((i) => i.done) && canApprove}
     <form method="POST" action="?/approve">
         <input type="hidden" name="checklist_id" value={data.checklist.id} />
-        <button>Godkänn lista</button>
+        <button type="submit">Godkänn lista</button>
     </form>
 {/if}
+
 
