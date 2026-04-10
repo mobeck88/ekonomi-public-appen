@@ -6,9 +6,27 @@
     let newText = "";
     let newDescription = "";
     let newDeadline = "";
+
+    // Roller som får godkänna
+    const allowedRoles = ["owner", "member", "guardian"];
+
+    const canApprove =
+        allowedRoles.includes(data.role) ||
+        data.checklist.created_by === data.user.id;
+
+    const isLocked = data.checklist.approved === true;
 </script>
 
 <h1>{data.checklist.title}</h1>
+
+<!-- Visa godkänd-info -->
+{#if isLocked}
+    <div class="approved-banner">
+        ✔ Godkänd av {data.checklist.approved_by}
+        <br />
+        {new Date(data.checklist.approved_at).toLocaleString()}
+    </div>
+{/if}
 
 <!-- Lägg till punkt -->
 <div class="section">
@@ -19,20 +37,29 @@
 
         <div>
             <label>Punkt</label>
-            <input name="text" bind:value={newText} required />
+            <input name="text" bind:value={newText} required disabled={isLocked} />
         </div>
 
         <div>
             <label>Beskrivning</label>
-            <textarea name="description" bind:value={newDescription}></textarea>
+            <textarea
+                name="description"
+                bind:value={newDescription}
+                disabled={isLocked}
+            ></textarea>
         </div>
 
         <div>
             <label>Deadline</label>
-            <input name="deadline" type="date" bind:value={newDeadline} />
+            <input
+                name="deadline"
+                type="date"
+                bind:value={newDeadline}
+                disabled={isLocked}
+            />
         </div>
 
-        <button type="submit">Lägg till</button>
+        <button type="submit" disabled={isLocked}>Lägg till</button>
     </form>
 </div>
 
@@ -66,6 +93,7 @@
                                 <input
                                     type="checkbox"
                                     checked={item.done}
+                                    disabled={isLocked}
                                     on:change={(e) => e.currentTarget.form?.submit()}
                                 />
                             </form>
@@ -81,9 +109,10 @@
 </div>
 
 <!-- Godkänn lista -->
-{#if data.items.length > 0 && data.items.every((i) => i.done)}
+{#if !isLocked && data.items.length > 0 && data.items.every((i) => i.done) && canApprove}
     <form method="POST" action="?/approve">
         <input type="hidden" name="checklist_id" value={data.checklist.id} />
         <button>Godkänn lista</button>
     </form>
 {/if}
+

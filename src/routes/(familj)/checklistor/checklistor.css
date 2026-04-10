@@ -93,3 +93,11 @@ tr:hover {
     gap: 0.5rem;
     padding: 1rem;
 }
+    .approved-banner {
+        background: #e6ffe6;
+        border: 1px solid #8bc34a;
+        padding: 12px;
+        margin-bottom: 20px;
+        border-radius: 6px;
+        font-weight: 600;
+    }

@@ -29,10 +29,19 @@ export const load: PageServerLoad = async ({ params, locals }) => {
         console.error("load checklist_items error", e2);
     }
 
+    // Hämta användarens roll i hushållet
+    const { data: member } = await supabase
+        .from("household_members")
+        .select("role")
+        .eq("household_id", checklist.household_id)
+        .eq("user_id", user.id)
+        .single();
+
     return {
         checklist,
         items: items ?? [],
-        user
+        user,
+        role: member?.role ?? null
     };
 };
 
@@ -103,7 +112,6 @@ export const actions: Actions = {
         const user = locals.user;
         if (!user) return { error: "Ingen användare." };
 
-        // Hämta checklistan
         const { data: checklist, error } = await locals.supabase
             .from("checklists")
             .select("*")
@@ -115,7 +123,6 @@ export const actions: Actions = {
             return { error: "Checklistan finns inte." };
         }
 
-        // Hämta användarens roll i hushållet
         const { data: member } = await locals.supabase
             .from("household_members")
             .select("role")
@@ -124,7 +131,6 @@ export const actions: Actions = {
             .single();
 
         const role = member?.role ?? null;
-
         const allowedRoles = ["owner", "member", "guardian"];
         const isAllowed = allowedRoles.includes(role);
         const isCreator = checklist.created_by === user.id;
