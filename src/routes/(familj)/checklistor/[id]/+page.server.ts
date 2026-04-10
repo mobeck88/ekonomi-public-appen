@@ -25,12 +25,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
         .eq("checklist_id", id)
         .order("created_at", { ascending: true });
 
-    if (e2) {
-        console.error("load checklist_items error", e2);
-    }
-
-    // Hämta användarens roll i hushållet
-    const { data: member } = await supabase
+    const { data: member, error: e3 } = await supabase
         .from("household_members")
         .select("role")
         .eq("household_id", checklist.household_id)
@@ -53,10 +48,6 @@ export const actions: Actions = {
         const description = (form.get("description") as string) || null;
         const deadline = (form.get("deadline") as string) || null;
 
-        if (!checklist_id || !text) {
-            return { error: "Ogiltiga fält." };
-        }
-
         const { error } = await locals.supabase
             .from("checklist_items")
             .insert({
@@ -78,8 +69,6 @@ export const actions: Actions = {
     toggleItem: async ({ request, locals }) => {
         const form = await request.formData();
         const item_id = form.get("item_id") as string;
-
-        if (!item_id) return { error: "Saknar item_id." };
 
         const { data: item, error: e1 } = await locals.supabase
             .from("checklist_items")
@@ -110,18 +99,12 @@ export const actions: Actions = {
         const checklist_id = form.get("checklist_id") as string;
 
         const user = locals.user;
-        if (!user) return { error: "Ingen användare." };
 
-        const { data: checklist, error } = await locals.supabase
+        const { data: checklist } = await locals.supabase
             .from("checklists")
             .select("*")
             .eq("id", checklist_id)
             .single();
-
-        if (error || !checklist) {
-            console.error("approve load checklist error", error);
-            return { error: "Checklistan finns inte." };
-        }
 
         const { data: member } = await locals.supabase
             .from("household_members")
