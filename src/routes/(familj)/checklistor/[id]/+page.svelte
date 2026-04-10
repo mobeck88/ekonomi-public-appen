@@ -55,7 +55,8 @@
                 {#each data.items as item}
                     <tr>
                         <td>
-                            <form method="POST" action="?/toggleItem">
+                            <!-- ⭐ Detta formulär skickar korrekt -->
+                            <form method="POST" action="?/toggleItem" style="display:inline;">
                                 <input type="hidden" name="item_id" value={item.id} />
                                 <input
                                     type="checkbox"
@@ -64,6 +65,7 @@
                                 />
                             </form>
                         </td>
+
                         <td>{item.text}</td>
                         <td>{item.deadline || ""}</td>
                     </tr>
