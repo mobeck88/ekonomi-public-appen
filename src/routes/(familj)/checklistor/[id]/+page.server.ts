@@ -8,19 +8,26 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
     if (!user) throw redirect(303, "/login");
 
-    const { data: checklist } = await supabase
+    const { data: checklist, error: e1 } = await supabase
         .from("checklists")
         .select("*")
         .eq("id", id)
         .single();
 
-    if (!checklist) throw redirect(303, "/checklistor");
+    if (e1 || !checklist) {
+        console.error("load checklist error", e1);
+        throw redirect(303, "/checklistor");
+    }
 
-    const { data: items } = await supabase
+    const { data: items, error: e2 } = await supabase
         .from("checklist_items")
         .select("*")
         .eq("checklist_id", id)
         .order("created_at", { ascending: true });
+
+    if (e2) {
+        console.error("load checklist_items error", e2);
+    }
 
     return {
         checklist,
@@ -37,13 +44,24 @@ export const actions: Actions = {
         const description = (form.get("description") as string) || null;
         const deadline = (form.get("deadline") as string) || null;
 
-        await locals.supabase.from("checklist_items").insert({
-            checklist_id,
-            text,
-            description,
-            deadline,
-            done: false
-        });
+        if (!checklist_id || !text) {
+            return { error: "Ogiltiga fält." };
+        }
+
+        const { error } = await locals.supabase
+            .from("checklist_items")
+            .insert({
+                checklist_id,
+                text,
+                description,
+                deadline,
+                done: false
+            });
+
+        if (error) {
+            console.error("add checklist item error", error);
+            return { error: error.message };
+        }
 
         throw redirect(303, `/checklistor/${checklist_id}`);
     },
@@ -52,18 +70,28 @@ export const actions: Actions = {
         const form = await request.formData();
         const item_id = form.get("item_id") as string;
 
-        const { data: item } = await locals.supabase
+        if (!item_id) return { error: "Saknar item_id." };
+
+        const { data: item, error: e1 } = await locals.supabase
             .from("checklist_items")
             .select("*")
             .eq("id", item_id)
             .single();
 
-        if (!item) return;
+        if (e1 || !item) {
+            console.error("fetch checklist item error", e1);
+            return { error: "Punkt hittades inte." };
+        }
 
-        await locals.supabase
+        const { error: e2 } = await locals.supabase
             .from("checklist_items")
             .update({ done: !item.done })
             .eq("id", item_id);
+
+        if (e2) {
+            console.error("toggle checklist item error", e2);
+            return { error: e2.message };
+        }
 
         throw redirect(303, `/checklistor/${item.checklist_id}`);
     },
@@ -73,29 +101,38 @@ export const actions: Actions = {
         const checklist_id = form.get("checklist_id") as string;
 
         const user = locals.user;
+        if (!user) return { error: "Ingen användare." };
 
-        const { data: checklist } = await locals.supabase
+        const { data: checklist, error } = await locals.supabase
             .from("checklists")
             .select("*")
             .eq("id", checklist_id)
             .single();
 
-        if (!checklist) return;
+        if (error || !checklist) {
+            console.error("approve load checklist error", error);
+            return { error: "Checklistan finns inte." };
+        }
 
-        const role = checklist.role;
+        const role = checklist.role; // owner, member, barn, ungdom
         const createdBy = checklist.created_by;
 
         const isOwnerOrMember = role === "owner" || role === "member";
         const isCreator = createdBy === user.id;
 
         if (!isOwnerOrMember && !isCreator) {
-            return { error: "Ingen behörighet." };
+            return { error: "Du har inte behörighet att godkänna denna lista." };
         }
 
-        await locals.supabase
+        const { error: e2 } = await locals.supabase
             .from("checklists")
             .update({ approved: true })
             .eq("id", checklist_id);
+
+        if (e2) {
+            console.error("approve checklist error", e2);
+            return { error: e2.message };
+        }
 
         throw redirect(303, `/checklistor/${checklist_id}`);
     }

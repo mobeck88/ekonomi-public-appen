@@ -1,6 +1,5 @@
 <script lang="ts">
     import "../checklistor.css";
-    import { enhance } from "$app/forms";
 
     export let data;
 
@@ -60,7 +59,6 @@
                             <form
                                 method="POST"
                                 action="?/toggleItem"
-                                use:enhance
                                 style="display:inline;"
                             >
                                 <input type="hidden" name="item_id" value={item.id} />
@@ -68,10 +66,7 @@
                                 <input
                                     type="checkbox"
                                     checked={item.done}
-                                    on:change={(e) => {
-                                        // DETTA ÄR DET SOM FÅR DET ATT FUNGERA
-                                        e.currentTarget.form?.requestSubmit();
-                                    }}
+                                    on:change={(e) => e.currentTarget.form?.submit()}
                                 />
                             </form>
                         </td>
@@ -86,8 +81,8 @@
 </div>
 
 <!-- Godkänn lista -->
-{#if data.items.length > 0 && data.items.every(i => i.done)}
-    <form method="POST" action="?/approve" use:enhance>
+{#if data.items.length > 0 && data.items.every((i) => i.done)}
+    <form method="POST" action="?/approve">
         <input type="hidden" name="checklist_id" value={data.checklist.id} />
         <button>Godkänn lista</button>
     </form>
