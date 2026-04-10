@@ -55,16 +55,18 @@
                 {#each data.items as item}
                     <tr>
                         <td>
-                            <form method="POST" action="?/toggleItem">
+                            <!-- Form ligger UTANFÖR tabellen -->
+                            <form method="POST" action="?/toggleItem" id={"f" + item.id}>
                                 <input type="hidden" name="item_id" value={item.id} />
-
-                                <!-- Checkbox -->
-                                <input
-                                    type="checkbox"
-                                    checked={item.done}
-                                    on:change={(e) => e.target.form.submit()}
-                                />
+                                <button type="submit" hidden id={"b" + item.id}></button>
                             </form>
+
+                            <!-- Checkbox triggar knappen -->
+                            <input
+                                type="checkbox"
+                                checked={item.done}
+                                on:change={() => document.getElementById("b" + item.id).click()}
+                            />
                         </td>
 
                         <td>{item.text}</td>
