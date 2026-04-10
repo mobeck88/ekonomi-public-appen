@@ -9,10 +9,10 @@
 
 <h1>{data.checklist.title}</h1>
 
+<!-- Lägg till punkt -->
 <div class="section">
     <div class="section-header">Lägg till punkt</div>
 
-    {#if data.userId === data.checklist.created_by}
     <form method="POST" action="?/addItem" class="create-form">
         <input type="hidden" name="checklist_id" value={data.checklist.id} />
 
@@ -33,9 +33,9 @@
 
         <button type="submit">Lägg till</button>
     </form>
-    {/if}
 </div>
 
+<!-- Lista punkter -->
 <div class="section">
     <div class="section-header">Checklistepunkter</div>
 
@@ -64,7 +64,6 @@
                                 />
                             </form>
                         </td>
-
                         <td>{item.text}</td>
                         <td>{item.deadline || ""}</td>
                     </tr>
@@ -73,14 +72,3 @@
         </table>
     {/if}
 </div>
-
-{#if data.userId === data.checklist.created_by}
-<div class="section">
-    <div class="section-header">Godkänn</div>
-
-    <form method="POST" action="?/approve">
-        <input type="hidden" name="checklist_id" value={data.checklist.id} />
-        <button type="submit">Godkänn</button>
-    </form>
-</div>
-{/if}
