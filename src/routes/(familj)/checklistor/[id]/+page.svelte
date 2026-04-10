@@ -53,24 +53,23 @@
 
             <tbody>
                 {#each data.items as item}
-                    <tr>
-                        <td>
-                            <form method="POST" action="?/toggleItem" class="checkbox-row">
-                                <input type="hidden" name="item_id" value={item.id} />
+                    <form method="POST" action="?/toggleItem">
+                        <input type="hidden" name="item_id" value={item.id} />
+
+                        <tr>
+                            <td>
                                 <input
                                     type="checkbox"
-                                    name="done"
-                                    value="true"
                                     checked={item.done}
                                     on:change={(e) => e.target.form.submit()}
                                 />
-                            </form>
-                        </td>
+                            </td>
 
-                        <td>{item.text}</td>
+                            <td>{item.text}</td>
 
-                        <td>{item.deadline || ""}</td>
-                    </tr>
+                            <td>{item.deadline || ""}</td>
+                        </tr>
+                    </form>
                 {/each}
             </tbody>
         </table>
@@ -87,5 +86,3 @@
     </form>
 </div>
 {/if}
-
-
