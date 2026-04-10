@@ -1,4 +1,5 @@
 <script lang="ts">
+    import "./unexpected_expenses.css";
     export let data;
 
     let date = '';
@@ -81,6 +82,3 @@
     {/if}
 </div>
 
-<script>
-  import "./unexpected_expenses.css";
-</script>

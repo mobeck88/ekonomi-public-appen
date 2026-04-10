@@ -1,4 +1,5 @@
 <script lang="ts">
+    import "./checklistor.css";
     export let data;
 
     let newTitle = "";
@@ -55,6 +56,3 @@
     {/if}
 </div>
 
-<script> 
-  import "./checklistor.css"
-</script>

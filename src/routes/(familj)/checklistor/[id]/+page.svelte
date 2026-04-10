@@ -1,4 +1,5 @@
 <script lang="ts">
+    import "../checklistor.css";
     export let data;
 
     let newText = "";
@@ -87,6 +88,4 @@
 </div>
 {/if}
 
-<script> 
-  import "../checklistor.css"
-</script>
+
