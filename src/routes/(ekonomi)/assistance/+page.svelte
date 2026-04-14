@@ -1,5 +1,6 @@
 <script>
     export let data;
+    import "./assistance.css";
     import { invalidateAll } from '$app/navigation';
 
     const members = data.members;
@@ -36,10 +37,12 @@
         return prev > 0 ? prev : 0;
     }
 
+    // 🔥 FIXEN: extraPerMonth är nu med i summeringen
     function sumIn(i) {
         return (
             (data.incomeTotal?.[i] ?? 0) +
             (data.correctionIncome?.[i] ?? 0) +
+            (data.extraPerMonth?.[i] ?? 0) +   // ← Enda ändringen
             overskott(i)
         );
     }
@@ -287,123 +290,3 @@
         </tbody>
     </table>
 </div>
-
-<style>
-    .section {
-        background: #e8eef7;
-        color: #111827;
-        font-weight: bold;
-        text-align: left;
-        padding: 0.5rem;
-    }
-
-    .income-section {
-        background: #d9fbe0;
-    }
-
-    .subsection {
-        background: #f3f6fb;
-        font-weight: bold;
-        text-align: left;
-        padding: 0.4rem;
-    }
-
-    .table-wrapper {
-        overflow-x: auto;
-    }
-
-    table {
-        width: max-content;
-        border-collapse: collapse;
-        font-size: 0.85rem;
-    }
-
-    th, td {
-        border: 1px solid #ddd;
-        padding: 0.4rem 0.6rem;
-        text-align: right;
-        white-space: nowrap;
-    }
-
-    th:first-child, td:first-child {
-        text-align: left;
-        font-weight: bold;
-    }
-
-    .andreas { background: #e0ecff; }
-    .hanna { background: #ffe0e6; }
-    .purple { background: #f0e6ff; }
-    .orange { background: #ffe8d1; }
-    .yellow { background: #fff9cc; }
-    .teal { background: #d9f7f5; }
-    .red { background: #ffd6d6; }
-
-    .joint td { background: #f4f4f4; }
-    .fixed td { background: #fff2cc; }
-
-    tr.sum td {
-        background: #e0e0e0 !important;
-        font-weight: bold;
-    }
-
-    tr.sum.income-total td {
-        background: #c9f7c9 !important;
-    }
-
-    tr.diff td {
-        background: #d0ffd0 !important;
-    }
-
-    .status-row {
-        margin-bottom: 0.5rem;
-        min-height: 1.2rem;
-        display: flex;
-        gap: 0.75rem;
-        align-items: center;
-        font-size: 0.85rem;
-    }
-
-    .status {
-        padding: 0.1rem 0.4rem;
-        border-radius: 4px;
-    }
-
-    .status.saving {
-        background: #fff3cd;
-        color: #856404;
-    }
-
-    .status.saved {
-        background: #d4edda;
-        color: #155724;
-    }
-
-    .status.error {
-        background: #f8d7da;
-        color: #721c24;
-    }
-
-    input {
-        width: 80px;
-        padding: 2px 4px;
-        text-align: right;
-        font-size: 0.8rem;
-        border-radius: 3px;
-        border: 1px solid #ccc;
-    }
-
-    input:disabled {
-        background: #f5f5f5;
-        color: #888;
-    }
-
-    .correction-input {
-        background: #fffef5;
-    }
-
-    .correction-input:focus {
-        outline: 2px solid #93c5fd;
-        outline-offset: 1px;
-        background: #ffffff;
-    }
-</style>
